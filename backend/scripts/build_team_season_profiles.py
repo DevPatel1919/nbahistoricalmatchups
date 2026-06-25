@@ -15,10 +15,11 @@ import pandas as pd
 from pathlib import Path
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-REPO_ROOT   = Path(__file__).resolve().parents[2]
-INPUT_PATH  = REPO_ROOT / "data" / "raw" / "TeamStatisticsExtended.csv"
-OUTPUT_DIR  = REPO_ROOT / "data" / "processed"
-OUTPUT_PATH = OUTPUT_DIR / "team_season_profiles.csv"
+REPO_ROOT        = Path(__file__).resolve().parents[2]
+INPUT_PATH       = REPO_ROOT / "data" / "raw" / "TeamStatisticsExtended.csv"
+OUTPUT_DIR       = REPO_ROOT / "data" / "processed"
+OUTPUT_PATH      = OUTPUT_DIR / "team_season_profiles.csv"
+TEAM_FILTER_PATH = OUTPUT_DIR / "team_histories_cleaned.csv"
 
 # ── Required input columns ────────────────────────────────────────────────────
 REQUIRED_COLUMNS = [
@@ -79,13 +80,41 @@ def weighted_mean(group: pd.DataFrame, col: str, weight_col: str = "possessions"
 
     return np.average(vals[valid], weights=weights[valid])
 
-
-# ── Safe division ─────────────────────────────────────────────────────────────
+# safe division rules
 def safe_div(numerator, denominator):
     """Returns NaN when denominator is zero or NaN."""
     if denominator == 0 or pd.isna(denominator):
         return np.nan
     return numerator / denominator
+
+def load_allowed_team_ids(path: Path) -> set: # only nba teams from 1997 - present can be used
+
+    if not path.exists(): #correctly checking if path exists or not
+        print(
+            f"\nERROR: Cleaned team histories file not found: {path}\n"
+            f"  Run 'python backend/scripts/clean_team_histories.py' first.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    df = pd.read_csv(path, low_memory=False)
+
+    # 
+    id_col = next(
+        (c for c in ["team_id", "teamId"] if c in df.columns),
+        None,
+    )
+    if id_col is None:
+        print(
+            f"\nERROR: Could not find a team ID column in {path}.\n"
+            f"  Expected 'team_id' or 'teamId'. Columns found: {list(df.columns)}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    allowed = set(pd.to_numeric(df[id_col], errors="coerce").dropna().astype(int))
+    print(f"Team filter : {path.name}  ({len(allowed)} allowed team IDs)")
+    return allowed
 
 
 # ── Load & validate raw data ──────────────────────────────────────────────────
@@ -103,9 +132,20 @@ def load_raw(path: Path) -> pd.DataFrame:
 
 
 # ── Clean & prepare ───────────────────────────────────────────────────────────
-def clean(df: pd.DataFrame) -> pd.DataFrame:
+def clean(df: pd.DataFrame, allowed_team_ids: set) -> pd.DataFrame:
     # Drop rows with no teamId or no date
     df = df.dropna(subset=["teamId", "gameDateTimeEst"]).copy()
+
+    # Filter to teams present in the cleaned team histories.
+    # Coerce teamId to int for a consistent comparison with the allowed set.
+    df["teamId"] = pd.to_numeric(df["teamId"], errors="coerce")
+    df = df.dropna(subset=["teamId"]).copy()
+    df["teamId"] = df["teamId"].astype(int)
+
+    before_filter = len(df)
+    df = df[df["teamId"].isin(allowed_team_ids)].copy()
+    removed_rows = before_filter - len(df)
+    print(f"  Rows removed (team not in cleaned histories): {removed_rows:,}")
 
     # Assign season based on game date
     df["season"] = assign_season(df["gameDateTimeEst"])
@@ -285,8 +325,9 @@ def validate(df: pd.DataFrame):
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
+    allowed_team_ids = load_allowed_team_ids(TEAM_FILTER_PATH)
     df_raw = load_raw(INPUT_PATH)
-    df     = clean(df_raw)
+    df     = clean(df_raw, allowed_team_ids)
 
     print("\nAggregating to team-season-game_type profiles ...")
     profiles = (

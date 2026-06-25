@@ -1,6 +1,4 @@
 """
-import_dataset.py
-
 Downloads the Kaggle dataset eoinamoore/historical-nba-data-and-player-box-scores
 and extracts all CSV files into data/raw/, preserving original filenames.
 
