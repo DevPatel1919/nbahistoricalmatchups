@@ -26,6 +26,7 @@ def assign_season(dates: pd.Series) -> pd.Series:
 
 
 def main():
+    #process and clean data and df is what stores all the data also assign certain columns to numerical so we can calculate our stats
     histories = pd.read_csv(TEAM_HISTORY_PATH)
     allowed_ids = set(pd.to_numeric(histories["team_id"], errors="coerce").dropna().astype(int))
 
@@ -39,9 +40,11 @@ def main():
 
     df["win"] = pd.to_numeric(df["win"], errors="coerce").fillna(0).astype(int)
 
+    #define a function that can give a percentage on shots
     def safe_pct(made, attempted):
         return made.sum() / attempted.sum() if attempted.sum() > 0 else None
-
+    
+    # finding unique team + season combinations for each team and fill out each profile with given stats
     profiles = []
     for (team_id, season), g in df.groupby(["teamId", "season"]):
         games   = len(g)
