@@ -201,7 +201,7 @@ def main():
     # 14. Sort
     out = out.sort_values(["season", "team_name"]).reset_index(drop=True)
 
-    # 15. Validation
+    #bad data handling
     if out.empty:
         raise ValueError("Output is empty -- check input paths and filters.")
 
@@ -218,7 +218,6 @@ def main():
             str(len(bad_rows)) + " rows have regular_games_played <= 0."
         )
 
-    # 16. Save
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(OUTPUT_PATH, index=False)
 

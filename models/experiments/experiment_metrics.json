@@ -1,0 +1,72 @@
+{
+  "baseline_note": "Baseline was the original train_model.py result, approximately 0.597 test log_loss and 0.738 test ROC-AUC.",
+  "best_model_name": "LogisticRegression",
+  "best_dataset_filter": "playoffs_only",
+  "best_feature_set": "regular_plus_playoff_context",
+  "best_hyperparameters": {
+    "penalty": "l1",
+    "C": 0.1,
+    "solver": "liblinear",
+    "class_weight": "balanced"
+  },
+  "best_validation_metrics": {
+    "accuracy": 0.7,
+    "roc_auc": 0.7735,
+    "log_loss": 0.565,
+    "brier_score": 0.193
+  },
+  "best_test_metrics": {
+    "accuracy": 0.7104,
+    "roc_auc": 0.7685,
+    "log_loss": 0.5678,
+    "brier_score": 0.1937
+  },
+  "accuracy_target_note": "Did not reach 80% validation accuracy; saved the best honest model.",
+  "classification_result_count": 648,
+  "regression_summary": {
+    "feature_set_used": "regular_plus_playoff_context",
+    "best_model": "HistGradientBoostingRegressor",
+    "best_validation_mae": 10.2216,
+    "all_models": [
+      {
+        "model": "Ridge",
+        "validation_mae": 10.2325,
+        "validation_rmse": 13.022,
+        "validation_r2": 0.2008,
+        "test_mae": 10.706,
+        "test_rmse": 13.6881,
+        "test_r2": 0.2194
+      },
+      {
+        "model": "RandomForestRegressor",
+        "validation_mae": 10.2696,
+        "validation_rmse": 13.0704,
+        "validation_r2": 0.1949,
+        "test_mae": 10.825,
+        "test_rmse": 13.8039,
+        "test_r2": 0.2062
+      },
+      {
+        "model": "HistGradientBoostingRegressor",
+        "validation_mae": 10.2216,
+        "validation_rmse": 13.0463,
+        "validation_r2": 0.1978,
+        "test_mae": 10.7235,
+        "test_rmse": 13.7033,
+        "test_r2": 0.2177
+      }
+    ],
+    "best_metrics": {
+      "validation": {
+        "mae": 10.2216,
+        "rmse": 13.0463,
+        "r2": 0.1978
+      },
+      "test": {
+        "mae": 10.7235,
+        "rmse": 13.7033,
+        "r2": 0.2177
+      }
+    }
+  }
+}

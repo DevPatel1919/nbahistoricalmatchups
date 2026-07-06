@@ -1,0 +1,27 @@
+{
+  "model_version": "baseline_v2_playoff_context_logreg_l1",
+  "model_type": "historical_matchup_simulator",
+  "classification_model": "LogisticRegression",
+  "regression_model": "HistGradientBoostingRegressor",
+  "feature_count": 71,
+  "dataset_filter": "playoffs_only",
+  "feature_set": "regular_plus_playoff_context",
+  "hyperparameters": {
+    "penalty": "l1",
+    "C": 0.1,
+    "solver": "liblinear",
+    "class_weight": "balanced"
+  },
+  "test_metrics": {
+    "accuracy": 0.7104,
+    "roc_auc": 0.7685,
+    "log_loss": 0.5678,
+    "brier_score": 0.1937
+  },
+  "paths": {
+    "clf_model": "models/production/best_experiment_model.pkl",
+    "reg_model": "models/production/point_margin_model.pkl",
+    "model_columns": "models/production/best_experiment_columns.json",
+    "team_season_profiles": "data/processed/team_season_profiles_extended.csv"
+  }
+}
