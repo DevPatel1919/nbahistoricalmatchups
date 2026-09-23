@@ -17,17 +17,10 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.models.predict_matchup import predict_matchup, find_team_profile, list_available_teams, _load
+from src.models.predict_matchup import predict_matchup, find_team_profile, list_available_teams, _load, get_release
 from src.models.model_config import (
-    CLF_MODEL_PATH,
-    REG_MODEL_PATH,
-    MODEL_COLUMNS_PATH,
     PROFILES_PATH,
     SAMPLE_PREDICTIONS_REPORT,
-    MODEL_VERSION,
-    MODEL_NAME,
-    FEATURE_COUNT,
-    TEST_METRICS,
 )
 
 # ---------------------------------------------------------------------------
@@ -179,26 +172,27 @@ def print_results(results: list[dict]) -> None:
 def generate_report(results: list[dict]) -> None:
     SAMPLE_PREDICTIONS_REPORT.parent.mkdir(parents=True, exist_ok=True)
 
-    now    = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    lines  = []
+    now     = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    lines   = []
+    release = get_release()
+    rel_dir = release.directory.relative_to(release.directory.parents[2]).as_posix()
 
     lines += [
         "# Sample Matchup Predictions",
         "",
         f"Generated: {now}",
-        f"Model version: {MODEL_VERSION}  (`{MODEL_NAME}`)",
+        f"Model release: {release.version}  ({release.purpose})",
         "",
         "## Source",
         "",
         f"| Field | Value |",
         f"| ----- | ----- |",
         f"| Team profile CSV | `{PROFILES_PATH.relative_to(PROFILES_PATH.parents[2])}` |",
-        f"| Classification model | `{CLF_MODEL_PATH.relative_to(CLF_MODEL_PATH.parents[2])}` |",
-        f"| Regression model | `{REG_MODEL_PATH.relative_to(REG_MODEL_PATH.parents[2])}` |",
-        f"| Model columns | `{MODEL_COLUMNS_PATH.relative_to(MODEL_COLUMNS_PATH.parents[2])}` |",
-        f"| Model feature count | {FEATURE_COUNT} |",
-        f"| Test accuracy | {TEST_METRICS['accuracy']} |",
-        f"| Test ROC-AUC | {TEST_METRICS['roc_auc']} |",
+        f"| Release bundle | `{rel_dir}` |",
+        f"| Classification model | {release.classifier_name} |",
+        f"| Regression model | {release.regressor_name} |",
+        f"| Model feature count | {len(release.columns)} |",
+        "| Published accuracy | none; see the release's metrics.json |",
         "",
     ]
 
@@ -292,15 +286,9 @@ def main() -> None:
     print("NBA Historical Matchup Simulator — Prediction Pipeline Test")
     print("=" * 65)
 
-    print(f"\nClassification model: {CLF_MODEL_PATH}")
-    print(f"Regression model:     {REG_MODEL_PATH}")
-    print(f"Model columns:        {MODEL_COLUMNS_PATH}")
+    release = get_release()
+    print(f"\nModel release:        {release.version}  ({release.directory})")
     print(f"Team profiles:        {PROFILES_PATH}")
-
-    if not CLF_MODEL_PATH.exists():
-        print("\nERROR: Classification model not found.")
-        print("Run 'python scripts/setup_production.py' first to copy models to production/.")
-        return
 
     print(f"\nRunning {len(TARGET_MATCHUPS)} matchups...\n")
     results = run_tests()
@@ -318,8 +306,8 @@ def main() -> None:
     print(f"  Successful:            {ok}")
     print(f"  Failed:                {errors}")
     print(f"  Report:                {SAMPLE_PREDICTIONS_REPORT}")
-    print(f"  Model version:         {MODEL_VERSION}")
-    print(f"  Feature count:         {FEATURE_COUNT}")
+    print(f"  Model release:         {release.version}")
+    print(f"  Feature count:         {len(release.columns)}")
 
 
 if __name__ == "__main__":

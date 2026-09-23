@@ -1,0 +1,36 @@
+{
+  "manifestVersion": 1,
+  "version": "hist-v1",
+  "purpose": "historical_entertainment",
+  "description": "Neutral-court historical matchup simulator. Compares two completed NBA team-seasons (1998 onward) using full-season regular-season and playoff profiles. A logistic-regression classifier estimates the win probability; a gradient-boosted regressor gives a rough point margin. Output is a model estimate for entertainment, not a forecast or betting advice.",
+  "limitations": [
+    "Cross-era matchups never happened, so these outcomes cannot be validated against real results.",
+    "No accuracy figure is published for this release. The metrics recorded when it was trained came from training features that included the result of the game being predicted, so they overstate accuracy and must not be quoted.",
+    "Trained on playoff games only. Matchups involving a team that missed the playoffs are extrapolations.",
+    "The point margin is approximate; typical error on real games was about 10 points.",
+    "Team strength comes from full-season averages, not rosters, injuries, or rest."
+  ],
+  "source": "models/experiments/ artifacts from commit 9309302 (2026-07-06), restored in a138cd0; train_model_experiments.py, dataset filter playoffs_only, feature set regular_plus_playoff_context, L1 LogisticRegression (C=0.1, class_weight=balanced).",
+  "classifier": {
+    "path": "classifier.pkl",
+    "sha256": "4dadd031b2c0c29199708b1b4f7597f6ca8464b03badcfe84a6476056dc6a39f",
+    "estimator": "LogisticRegression"
+  },
+  "regressor": {
+    "path": "regressor.pkl",
+    "sha256": "a38477e370d4e130b2c532f456ef3251c36c61a575bb37013fe9317dc7e3ffd3",
+    "estimator": "HistGradientBoostingRegressor"
+  },
+  "columns": {
+    "path": "columns.json",
+    "sha256": "85b3dfcab5610719cd0fb964d96f5c29214f605a711b45d33821b46bd522d36f",
+    "count": 70
+  },
+  "metrics": {
+    "path": "metrics.json",
+    "sha256": "e1cd8aefb0b6338a5c0ea5eb16d69539fd81b56c6da85108ecaf0ba8d39bf7f4"
+  },
+  "metricsPath": "metrics.json",
+  "profileSchemaVersion": "team_season_profiles_extended.v1",
+  "trainedThroughSeason": 2018
+}

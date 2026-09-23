@@ -19,11 +19,11 @@ find_team_profile()  -->  looks up one row per team from team_season_profiles_ex
 build_model_input()  -->  constructs home_, away_, and _diff features
          |
          v
-Filter + order by best_experiment_columns.json  (71 columns)
+Filter + order by release columns.json  (70 columns)
          |
          v
-best_experiment_model.pkl  (LogisticRegression, L1, C=0.1, playoffs_only)
-point_margin_model.pkl     (HistGradientBoostingRegressor)
+classifier.pkl  (LogisticRegression, release hist-v1)
+regressor.pkl   (HistGradientBoostingRegressor)
          |
          v
 Return: winner, win probability, projected margin
@@ -41,10 +41,10 @@ Return: winner, win probability, projected margin
 
 | Type | Count |
 | ---- | ----- |
-| Total model columns | 71 |
+| Total model columns | 70 |
 | home_ (Team A direct stats) | 24 |
 | away_ (Team B direct stats) | 24 |
-| _diff (home - away computed) | 23 |
+| _diff (home - away computed) | 22 |
 | Unique source fields required | 24 |
 | Source fields found in CSV | 24 |
 | Source fields MISSING from CSV | 0 |
@@ -55,8 +55,7 @@ All required source fields are present in `team_season_profiles_extended.csv`. N
 
 ## Required Source Fields
 
-These are the base stat column names that must exist in `team_season_profiles_extended.csv`
-for the model to function. Each is used to populate both the `home_` and `away_` sides.
+These are the base stat column names that must exist in `team_season_profiles_extended.csv` for the model to function. Each is used to populate both the `home_` and `away_` sides.
 
 | Source Field | In CSV? |
 | ------------ | ------- |
@@ -85,10 +84,9 @@ for the model to function. Each is used to populate both the `home_` and `away_`
 | `regular_true_shooting_percentage` | yes |
 | `regular_win_pct` | yes |
 
-## All 71 Model Columns
+## All 70 Model Columns
 
-Listed in exact order expected by the model. `_diff` columns are computed;
-all others are sourced directly from the profile CSV.
+Listed in exact order expected by the model. `_diff` columns are computed; all others are sourced directly from the profile CSV.
 
 | # | Column | Source |
 | - | ------ | ------ |
@@ -162,7 +160,6 @@ all others are sourced directly from the profile CSV.
 | 68 | `home_playoff_true_shooting_percentage` | team_a[`playoff_true_shooting_percentage`] |
 | 69 | `away_playoff_true_shooting_percentage` | team_b[`playoff_true_shooting_percentage`] |
 | 70 | `playoff_true_shooting_percentage_diff` | computed: `home_playoff_true_shooting_percentage` - `away_playoff_true_shooting_percentage` |
-| 71 | `regular_three_pt_pct_diff` | computed: `home_regular_three_pt_pct` - `away_regular_three_pt_pct` |
 
 ## Non-Playoff Teams
 
@@ -191,13 +188,10 @@ If no row is found, a `ValueError` is raised with the list of valid teams for th
 
 | Field | Value |
 | ----- | ----- |
+| Release | hist-v1 |
+| Purpose | historical_entertainment |
 | Classification model | LogisticRegression |
-| Penalty | L1 (C=0.1) |
-| Solver | liblinear |
-| Class weight | balanced |
-| Dataset filter | playoffs_only |
-| Feature set | regular_plus_playoff_context |
-| Test accuracy | 0.7104 |
-| Test ROC-AUC | 0.7685 |
 | Regression model | HistGradientBoostingRegressor |
-| Regression test MAE | 10.72 points |
+| Trained through season | 2018 |
+| Source | models/experiments/ artifacts from commit 9309302 (2026-07-06), restored in a138cd0; train_model_experiments.py, dataset filter playoffs_only, feature set regular_plus_playoff_context, L1 LogisticRegression (C=0.1, class_weight=balanced). |
+| Published accuracy | none; see the release's metrics.json |

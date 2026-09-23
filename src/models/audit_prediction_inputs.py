@@ -1,7 +1,7 @@
 """
 audit_prediction_inputs.py
 
-Verifies that every column required by best_experiment_model.pkl can be built
+Verifies that every column required by the active model release can be built
 from team_season_profiles_extended.csv, and documents the input contract.
 
 Run from repo root:
@@ -11,7 +11,6 @@ Outputs:
     models/experiments/prediction_input_contract.md
 """
 
-import json
 from pathlib import Path
 
 import pandas as pd
@@ -19,11 +18,10 @@ import pandas as pd
 _REPO = Path(__file__).resolve().parents[2]
 
 from src.models.model_config import (
-    MODEL_COLUMNS_PATH as COLS_PATH,
     PROFILES_PATH,
     AUDIT_CONTRACT_REPORT,
-    PREDICTION_CONTRACT_PATH,
 )
+from src.models.release import Release, load_active_release
 
 # Primary output: reports/audits/
 OUTPUT_PATH = AUDIT_CONTRACT_REPORT
@@ -80,7 +78,7 @@ def audit(model_cols: list[str], profile_cols: set[str]) -> dict:
     }
 
 
-def write_report(model_cols: list[str], result: dict, profile_df: pd.DataFrame) -> None:
+def write_report(model_cols: list[str], result: dict, profile_df: pd.DataFrame, release: Release) -> None:
     seasons   = sorted(profile_df["season"].unique())
     num_teams = profile_df["team_id"].nunique()
     num_rows  = len(profile_df)
@@ -107,11 +105,11 @@ def write_report(model_cols: list[str], result: dict, profile_df: pd.DataFrame) 
         "build_model_input()  -->  constructs home_, away_, and _diff features",
         "         |",
         "         v",
-        "Filter + order by best_experiment_columns.json  (71 columns)",
+        f"Filter + order by release columns.json  ({len(model_cols)} columns)",
         "         |",
         "         v",
-        "best_experiment_model.pkl  (LogisticRegression, L1, C=0.1, playoffs_only)",
-        "point_margin_model.pkl     (HistGradientBoostingRegressor)",
+        f"classifier.pkl  ({release.classifier_name}, release {release.version})",
+        f"regressor.pkl   ({release.regressor_name})",
         "         |",
         "         v",
         "Return: winner, win probability, projected margin",
@@ -173,7 +171,7 @@ def write_report(model_cols: list[str], result: dict, profile_df: pd.DataFrame) 
     lines.append("")
 
     lines += [
-        "## All 71 Model Columns",
+        f"## All {len(model_cols)} Model Columns",
         "",
         "Listed in exact order expected by the model. `_diff` columns are computed; "
         "all others are sourced directly from the profile CSV.",
@@ -221,16 +219,13 @@ def write_report(model_cols: list[str], result: dict, profile_df: pd.DataFrame) 
         "",
         "| Field | Value |",
         "| ----- | ----- |",
-        "| Classification model | LogisticRegression |",
-        "| Penalty | L1 (C=0.1) |",
-        "| Solver | liblinear |",
-        "| Class weight | balanced |",
-        "| Dataset filter | playoffs_only |",
-        "| Feature set | regular_plus_playoff_context |",
-        "| Test accuracy | 0.7104 |",
-        "| Test ROC-AUC | 0.7685 |",
-        "| Regression model | HistGradientBoostingRegressor |",
-        "| Regression test MAE | 10.72 points |",
+        f"| Release | {release.version} |",
+        f"| Purpose | {release.purpose} |",
+        f"| Classification model | {release.classifier_name} |",
+        f"| Regression model | {release.regressor_name} |",
+        f"| Trained through season | {release.manifest['trainedThroughSeason']} |",
+        f"| Source | {release.manifest['source']} |",
+        "| Published accuracy | none; see the release's metrics.json |",
         "",
     ]
 
@@ -246,15 +241,15 @@ def write_report(model_cols: list[str], result: dict, profile_df: pd.DataFrame) 
 
 
 def main() -> None:
-    with open(COLS_PATH) as f:
-        model_cols = json.load(f)
+    release    = load_active_release()
+    model_cols = release.columns
 
     profile_df   = pd.read_csv(PROFILES_PATH)
     profile_cols = set(profile_df.columns)
 
     result = audit(model_cols, profile_cols)
 
-    write_report(model_cols, result, profile_df)
+    write_report(model_cols, result, profile_df, release)
 
     # Terminal output
     print("=" * 60)

@@ -1,0 +1,20 @@
+{
+  "publicAccuracyClaim": null,
+  "publicClaimNote": "Do not publish an accuracy number for this release. See recordedAtTraining.validForClaims.",
+  "recordedAtTraining": {
+    "validForClaims": false,
+    "reason": "Playoff-context features were aggregated over each team's full playoff run, including the game being predicted (look-ahead leakage). The point-in-time rebuild of the same pipeline scored about 0.61 test accuracy.",
+    "split": "train <= 2018, validation 2019-2021, test >= 2022",
+    "classificationTest": {
+      "accuracy": 0.7104,
+      "roc_auc": 0.7685,
+      "log_loss": 0.5678,
+      "brier_score": 0.1937
+    },
+    "regressionTest": {
+      "mae": 10.7235,
+      "rmse": 13.7033,
+      "r2": 0.2177
+    }
+  }
+}

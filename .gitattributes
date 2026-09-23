@@ -1,0 +1,2 @@
+# Release bundles are pinned by sha256 in manifest.json; never rewrite line endings.
+models/releases/** -text

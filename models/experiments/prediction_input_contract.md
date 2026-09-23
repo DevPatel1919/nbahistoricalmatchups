@@ -19,11 +19,11 @@ find_team_profile()  -->  looks up one row per team from team_season_profiles_ex
 build_model_input()  -->  constructs home_, away_, and _diff features
          |
          v
-Filter + order by best_experiment_columns.json  (71 columns)
+Filter + order by release columns.json  (70 columns)
          |
          v
-best_experiment_model.pkl  (LogisticRegression, L1, C=0.1, playoffs_only)
-point_margin_model.pkl     (HistGradientBoostingRegressor)
+classifier.pkl  (LogisticRegression, release hist-v1)
+regressor.pkl   (HistGradientBoostingRegressor)
          |
          v
 Return: winner, win probability, projected margin
@@ -84,7 +84,7 @@ These are the base stat column names that must exist in `team_season_profiles_ex
 | `regular_true_shooting_percentage` | yes |
 | `regular_win_pct` | yes |
 
-## All 71 Model Columns
+## All 70 Model Columns
 
 Listed in exact order expected by the model. `_diff` columns are computed; all others are sourced directly from the profile CSV.
 
@@ -188,13 +188,10 @@ If no row is found, a `ValueError` is raised with the list of valid teams for th
 
 | Field | Value |
 | ----- | ----- |
+| Release | hist-v1 |
+| Purpose | historical_entertainment |
 | Classification model | LogisticRegression |
-| Penalty | L1 (C=0.1) |
-| Solver | liblinear |
-| Class weight | balanced |
-| Dataset filter | playoffs_only |
-| Feature set | regular_plus_playoff_context |
-| Test accuracy | 0.7104 |
-| Test ROC-AUC | 0.7685 |
 | Regression model | HistGradientBoostingRegressor |
-| Regression test MAE | 10.72 points |
+| Trained through season | 2018 |
+| Source | models/experiments/ artifacts from commit 9309302 (2026-07-06), restored in a138cd0; train_model_experiments.py, dataset filter playoffs_only, feature set regular_plus_playoff_context, L1 LogisticRegression (C=0.1, class_weight=balanced). |
+| Published accuracy | none; see the release's metrics.json |
