@@ -55,17 +55,17 @@ test("a non-playoff team shows the missed-playoffs badge", async ({ page }) => {
 });
 
 test("A vs B equals B vs A (neutral-site symmetry)", async ({ page }) => {
-  // .winner-card__prob counts up on mount, so wait for it to settle (auto-retrying
-  // assertion) before reading its text, rather than racing the animation.
+  // .winner-card__prob counts up on mount, so assert against the known settled
+  // value with an auto-retrying matcher on EACH page independently, rather than
+  // capturing raw textContent (which can race the in-flight count-up animation
+  // and read a mid-animation frame).
   await page.goto("/1998-bulls-vs-2017-warriors");
   await expect(page.locator(".winner-card__prob")).toContainText("73.8%");
-  const forward = await page.locator(".winner-card__prob").textContent();
+  await expect(page.locator(".winner-card__margin")).toContainText("wins by 0.6");
 
   await page.goto("/2017-warriors-vs-1998-bulls");
   await expect(page.locator(".winner-card__prob")).toContainText("73.8%");
-  const reversed = await page.locator(".winner-card__prob").textContent();
-
-  expect(forward).toBe(reversed);
+  await expect(page.locator(".winner-card__margin")).toContainText("wins by 0.6");
 });
 
 test("/about renders without a bare accuracy figure", async ({ page }) => {
