@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import type { IndexTeam } from "../types";
 import { loadIndex } from "../lib/dataLoader";
 import { buildMatchupSlug, canonicalOrder } from "../lib/slug";
@@ -101,6 +101,19 @@ export default function HomePage() {
             </button>
           )}
           <RandomMatchupButton teams={teams} className="btn btn--primary" />
+        </div>
+      </section>
+
+      <section className="tournament-cta" aria-labelledby="tournament-cta-heading">
+        <h2 id="tournament-cta-heading">The Champions Bracket</h2>
+        <p>Sixteen title teams since 1998. Fill your bracket, then reveal how the model's plays out.</p>
+        <div className="picker-actions">
+          <Link className="btn btn--primary" to="/tournament">
+            Make your picks
+          </Link>
+          <Link className="btn" to="/tournament/new">
+            Build your own
+          </Link>
         </div>
       </section>
 

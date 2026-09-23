@@ -156,9 +156,11 @@ need. `features/F09-daily-duel.md` is the first brief that reaches it, and owns
 the Worker, D1, and KV footprint. The public matchup explorer stays static and
 must keep working with the backend unavailable.
 
-As of 2026-09-23, F01 (release `hist-v1`), F02 (public matchup MVP), and F03
-(tournament engine, `frontend/src/tournament/`) are complete. The `frontend/` v1 routes build and lint clean, and the smoke plus
-acceptance Playwright suites pass (15 tests). See each brief's handoff record.
+As of 2026-09-23, F01 (release `hist-v1`), F02 (public matchup MVP), F03
+(tournament engine, `frontend/src/tournament/`), and F04 (tournament
+experience: `/tournament`, `/t/:code`, `/tournament/new`) are complete. The
+`frontend/` builds and lints clean; 90 unit tests and 22 Playwright tests pass.
+F05 is next. See each brief's handoff record.
 
 ## Feature map
 

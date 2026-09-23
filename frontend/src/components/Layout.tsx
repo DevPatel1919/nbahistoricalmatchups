@@ -14,6 +14,7 @@ export default function Layout() {
             <span className="brand__name">Court of All Time</span>
           </Link>
           <nav className="site-nav" aria-label="Primary">
+            <Link to="/tournament">Tournament</Link>
             <Link to="/about">About</Link>
             <ThemeToggle theme={theme} onToggle={toggleTheme} />
           </nav>

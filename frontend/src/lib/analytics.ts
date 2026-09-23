@@ -14,7 +14,13 @@ export type AnalyticsEvent =
   | { name: "matchup_link_copied"; matchup: string }
   | { name: "random_matchup_rolled"; matchup: string }
   | { name: "matchup_team_swapped"; side: "a" | "b"; matchup: string }
-  | { name: "theme_changed"; theme: "dark" | "light" };
+  | { name: "theme_changed"; theme: "dark" | "light" }
+  // Tournament events use the canonical F05 names. `tournamentId` is a
+  // curated id or "custom-8"/"custom-16", never the definition or the picks.
+  | { name: "tournament_started"; tournamentId: string; entrantCount: number }
+  | { name: "bracket_predictions_completed"; tournamentId: string }
+  | { name: "tournament_revealed"; tournamentId: string; revealMode: "round" | "all" }
+  | { name: "tournament_shared"; tournamentId: string; shareMethod: "native" | "copy" };
 
 export type AnalyticsSink = (event: AnalyticsEvent) => void;
 

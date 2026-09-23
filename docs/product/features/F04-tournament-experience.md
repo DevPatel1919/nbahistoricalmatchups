@@ -1,6 +1,6 @@
 # F04: Tournament fan experience
 
-Status: **depends on F02 and F03**.
+Status: **complete (2026-09-23)**. Routes `/tournament`, `/tournament/new`, `/t/:code`; F05 can build share images and dashboards on it.
 
 ## Outcome
 
@@ -67,4 +67,97 @@ accounts, payments, cash prizes, or creator branding.
 
 Record routes, persistence behavior, curated entrants, scoring weights, and
 verification results.
+
+### 2026-09-23: tournament v1
+
+**Routes.**
+
+| Route | Screen |
+|---|---|
+| `/tournament` | The curated Champions bracket (`src/pages/TournamentPage.tsx`). |
+| `/t/:code` | Any definition in the F03 `t1.` format. Shared links and "run another story" land here. A code equal to a curated definition is treated as that curated tournament. |
+| `/tournament/new` | Eight-team custom builder (`src/pages/TournamentBuilderPage.tsx`): search, seeding by net rating or added order, best-of-1/3/5/7. |
+
+Header nav gained "Tournament"; the home page has a Champions Bracket card.
+
+**Journey.** Entrants table and assumptions, then "Make my picks". Every
+series must be picked before either reveal button appears. Reveal is round by
+round or all at once; picks lock once anything is revealed. The full reveal
+shows the model champion, score, correct picks, the fan's champion, the
+biggest disagreement, score by round, 10,000-run title odds, and share / run
+another story / start over. The bracket is one component
+(`components/tournament/BracketView.tsx`) rendered as ordered lists of
+labelled groups: four columns at >= 760px, stacked rounds below. That list is
+also the accessible alternative; there is no separate visual-only bracket.
+
+**Curated entrants** (`src/data/curated-tournaments.ts`, id `champions-v1`,
+seed `champions-v1`, best-of-7): the 16 champions 1998-2025 with the best
+regular-season net rating, seeded by net rating (ties by win percentage). A
+real statistic rather than the model's ranking, per the F03 note. 2022 is
+absent from the export; 2026 is excluded until its champion is confirmed.
+Never edit a published curated definition: add `champions-v2`.
+
+Model quirk worth knowing for copy: the 1 seed (2025 Thunder) has about 1.5%
+title odds in the model; the 2017 Warriors and 1999 Spurs lead. That is the
+`hist-v1` playoff-trained model, not a UI bug.
+
+**Scoring** (`src/lib/bracket.ts`). A pick in round r scores `10 * 2^r`
+points (10/20/40/80) when the picked team won that bracket position's series
+in the model story. Each round of a 16-team bracket is worth 80 (max 320); an
+8-team bracket is 40 per round (max 120). Changing a pick clears later picks
+that are no longer possible. The biggest disagreement is the fan's pick with the
+lowest model series-win probability (best-of-N from the single-game
+probability); null if every pick was the favorite.
+
+**Persistence** (`src/lib/tournamentStorage.ts`). `localStorage` key
+`ct:tournament:v1:<code>` holds `{ started, picks, revealed,
+completionTracked }`, validated on load (corrupt or impossible picks are
+dropped). Every access is guarded; the journey works with storage blocked.
+Picks never go in a URL. "Run another story" makes a new seed with
+`generateSeed(Math.random)` and copies the picks to the new code, unrevealed.
+
+**Analytics (F05 names).** Added to the `AnalyticsEvent` union in
+`src/lib/analytics.ts`, each fired once per transition:
+
+| Event | Fired when | Properties |
+|---|---|---|
+| `tournament_started` | "Make my picks" (curated or custom) | `tournamentId`, `entrantCount` |
+| `bracket_predictions_completed` | first time every series is picked (re-completing after an edit does not refire) | `tournamentId` |
+| `tournament_revealed` | first reveal action | `tournamentId`, `revealMode: "round" \| "all"` |
+| `tournament_shared` | successful share sheet or link copy | `tournamentId`, `shareMethod: "native" \| "copy"` |
+
+`tournamentId` is the curated id or `custom-8`/`custom-16`; never the code,
+seed, or picks. In development, `main.tsx` registers a sink that logs every
+event to `window.__ctAnalytics` (the e2e suite reads it); production still has
+zero sinks. Custom-tournament creation fires no separate event, since F05 has no
+canonical name for it; `tournament_started` covers it.
+
+**Contract changes.** `seriesWinProbability(p, bestOf = 7)` in
+`src/lib/series.ts` now takes a series length (existing callers unchanged).
+No engine change.
+
+**Verification.**
+
+| Check | Command | Result |
+|---|---|---|
+| Unit | `cd frontend && npm test` | 90 passed (19 new in `tests/unit/bracket.test.ts`) |
+| E2E | `cd frontend && npx playwright test` | 22 passed (6 new in `tests/e2e/tournament.spec.ts`) |
+| Types + build | `cd frontend && npm run build` | passes |
+| Lint | `cd frontend && npm run lint` | clean |
+
+Unit coverage: 10/20/40/80 weights for first round, quarterfinal,
+semifinal, and championship picks, 8- and 16-team maxima, revealed-round
+limits, wrong picks, bracket positions matching the engine, pick
+invalidation, stored-pick validation, disagreement, generalized series odds
+against the exact formula, and the curated definition validating against
+`index.json`. E2E: the full curated journey at 360px by keyboard with no
+horizontal overflow; refresh and a fresh browser context on the shared link
+reproduce the same champion and model bracket, and the shared URL carries no
+picks; run another story; four invalid link shapes reach the safe screen; the
+analytics sequence; an 8-team custom build and play.
+
+**Not done / for later.** Share images are F05's. Picks-in-URL sharing ("share
+my picks") is not built; the brief only allows it as an explicit opt-in. The
+title odds are Monte Carlo (10,000 runs); F03 notes an exact calculation is
+cheap if noise-free odds are wanted.
 

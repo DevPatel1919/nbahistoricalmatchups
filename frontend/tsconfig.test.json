@@ -20,5 +20,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["tests/unit", "src/tournament", "src/types.ts", "vitest.config.ts"]
+  "include": ["tests/unit", "src/tournament", "src/types.ts", "src/lib/bracket.ts", "src/lib/series.ts", "src/data/curated-tournaments.ts", "vitest.config.ts"]
 }
