@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { IndexData } from "../types";
 import { loadIndex } from "../lib/dataLoader";
+import AnalyticsOptOut from "../components/AnalyticsOptOut";
 
 // The model description and limitations below restate the active release's
 // manifest (models/releases/<version>/manifest.json). When a new release is
@@ -78,6 +79,15 @@ export default function AboutPage() {
           Model release <code>{index.release.version}</code>, data generated {index.generated}.
         </p>
       )}
+
+      <h2>Privacy &amp; analytics</h2>
+      <p>
+        We count page views with Cloudflare Web Analytics and, when enabled, a handful of anonymous events (a matchup
+        finished, a bracket revealed, a price button clicked) with a cookie-free analytics service. No names, emails,
+        or bracket picks are ever sent with them. To tell a new visit from a return one, this browser remembers the
+        date of its first visit locally; only the week of that date is reported, never an identifier.
+      </p>
+      <AnalyticsOptOut />
 
       <h2>Unofficial</h2>
       <p>

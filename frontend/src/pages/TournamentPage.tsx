@@ -10,20 +10,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import {
-  buildMatchupTable,
-  decodeTournament,
-  encodeTournament,
-  generateSeed,
-  runBracket,
-  runTitleOdds,
-  validateDefinition,
-  type BracketResult,
-  type MatchupTable,
-  type TournamentDefinition,
-} from "../tournament";
-import { CHAMPIONS, CURATED_TOURNAMENTS, type CuratedTournament } from "../data/curated-tournaments";
-import { loadIndex, loadTeamFile } from "../lib/dataLoader";
+import { encodeTournament, generateSeed, runTitleOdds, type TournamentDefinition } from "../tournament";
+import type { CuratedTournament } from "../data/curated-tournaments";
 import {
   biggestDisagreement,
   emptyPicks,
@@ -37,28 +25,22 @@ import {
   teamLabel,
 } from "../lib/bracket";
 import { clearProgress, loadProgress, saveProgress, type TournamentProgress } from "../lib/tournamentStorage";
+import { loadTournament, type EntrantInfo, type LoadedTournament } from "../lib/tournamentLoader";
 import { track } from "../lib/analytics";
-import BracketView, { type EntrantInfo } from "../components/tournament/BracketView";
+import BracketView from "../components/tournament/BracketView";
 import TitleOddsTable from "../components/tournament/TitleOddsTable";
-import type { IndexTeam } from "../types";
+import ShareImageButton from "../components/ShareImageButton";
+import OfferPanel from "../components/OfferPanel";
+import { FAN_OFFERS } from "../data/offers";
+import { markCoreJobDone } from "../lib/visitor";
+import { drawTournamentCard } from "../share/cards";
+import { tournamentCardData } from "../share/cardData";
 
-interface Loaded {
-  code: string;
-  definition: TournamentDefinition;
-  curated: CuratedTournament | null;
-  entrants: Map<string, EntrantInfo>;
-  table: MatchupTable;
-  bracket: BracketResult;
-}
-
-type LoadState = { kind: "loading" } | { kind: "invalid"; message: string } | { kind: "error"; message: string } | ({ kind: "ready" } & Loaded);
-
-function curatedFor(code: string): CuratedTournament | null {
-  return CURATED_TOURNAMENTS.find((t) => {
-    const encoded = encodeTournament(t.definition);
-    return encoded.ok && encoded.value === code;
-  }) ?? null;
-}
+type LoadState =
+  | { kind: "loading" }
+  | { kind: "invalid"; message: string }
+  | { kind: "error"; message: string }
+  | ({ kind: "ready" } & LoadedTournament);
 
 export default function TournamentPage() {
   const { code } = useParams();
@@ -71,51 +53,19 @@ function TournamentLoader({ code }: { code: string | undefined }) {
 
   useEffect(() => {
     let cancelled = false;
-    const settle = (next: LoadState) => {
-      if (!cancelled) setState(next);
-    };
-
-    loadIndex()
-      .then(async (index) => {
-        const known = new Set(index.teams.map((t) => t.key));
-        const decoded = code === undefined ? validateDefinition(CHAMPIONS.definition, known) : decodeTournament(code, known);
-        if (!decoded.ok) {
-          settle({ kind: "invalid", message: decoded.error.message });
-          return;
+    loadTournament(code)
+      .then((loaded) => {
+        if (cancelled) return;
+        if (loaded.kind === "invalid") {
+          track({ name: "app_error", surface: "tournament", code: loaded.code });
         }
-        const definition = decoded.value;
-        const encoded = encodeTournament(definition);
-        if (!encoded.ok) {
-          settle({ kind: "invalid", message: encoded.error.message });
-          return;
-        }
-        const files = await Promise.all(definition.entrants.map((key) => loadTeamFile(key)));
-        const table = buildMatchupTable(files);
-        if (!table.ok) {
-          settle({ kind: "invalid", message: table.error.message });
-          return;
-        }
-        const bracket = runBracket(definition, table.value);
-        if (!bracket.ok) {
-          settle({ kind: "invalid", message: bracket.error.message });
-          return;
-        }
-        const byKey = new Map<string, IndexTeam>(index.teams.map((t) => [t.key, t]));
-        const entrants = new Map<string, EntrantInfo>(
-          definition.entrants.map((key, i) => [key, { team: byKey.get(key)!, seed: i + 1 }]),
-        );
-        settle({
-          kind: "ready",
-          code: encoded.value,
-          definition,
-          curated: curatedFor(encoded.value),
-          entrants,
-          table: table.value,
-          bracket: bracket.value,
-        });
+        setState(loaded);
       })
-      .catch((e) => settle({ kind: "error", message: String(e) }));
-
+      .catch((e) => {
+        if (cancelled) return;
+        track({ name: "app_error", surface: "tournament", code: "data-load-failed" });
+        setState({ kind: "error", message: String(e) });
+      });
     return () => {
       cancelled = true;
     };
@@ -152,7 +102,7 @@ function TournamentLoader({ code }: { code: string | undefined }) {
   return <TournamentJourney {...state} />;
 }
 
-function TournamentJourney({ code, definition, curated, entrants, table, bracket }: Loaded) {
+function TournamentJourney({ code, definition, curated, entrants, table, bracket }: LoadedTournament) {
   const navigate = useNavigate();
   const size = definition.entrants.length;
   const rounds = bracket.rounds.length;
@@ -168,6 +118,7 @@ function TournamentJourney({ code, definition, curated, entrants, table, bracket
       },
   );
   const [shareNote, setShareNote] = useState<string | null>(null);
+  const [includeScore, setIncludeScore] = useState(false);
   const [status, setStatus] = useState("");
   const resultHeading = useRef<HTMLHeadingElement>(null);
 
@@ -218,6 +169,7 @@ function TournamentJourney({ code, definition, curated, entrants, table, bracket
   const handleReveal = (mode: "round" | "all") => {
     const next = mode === "all" ? rounds : revealed + 1;
     update({ ...progress, revealed: next });
+    if (next === rounds) markCoreJobDone();
     if (revealed === 0) track({ name: "tournament_revealed", tournamentId, revealMode: mode });
     const nextScore = scorePicks(picks, bracket, next);
     setStatus(
@@ -420,6 +372,25 @@ function TournamentJourney({ code, definition, curated, entrants, table, bracket
                 <button type="button" className="btn btn--primary" onClick={handleShare}>
                   Share this tournament
                 </button>
+                {odds && (
+                  <ShareImageButton
+                    draw={(ctx) =>
+                      drawTournamentCard(
+                        ctx,
+                        tournamentCardData(
+                          title,
+                          bracket,
+                          odds,
+                          nameOf,
+                          includeScore ? `My picks: ${score.points} of ${score.maxPoints} points` : undefined,
+                        ),
+                      )
+                    }
+                    filename={`${tournamentId}.png`}
+                    title={title}
+                    onShared={() => track({ name: "tournament_shared", tournamentId, shareMethod: "image" })}
+                  />
+                )}
                 <button type="button" className="btn" onClick={handleRunAnother}>
                   Run another story
                 </button>
@@ -427,11 +398,23 @@ function TournamentJourney({ code, definition, curated, entrants, table, bracket
                   Start over
                 </button>
               </div>
+              <label className="tournament__hint tournament__check">
+                <input type="checkbox" checked={includeScore} onChange={(e) => setIncludeScore(e.target.checked)} /> Put
+                my score on the share image
+              </label>
               {shareNote && <p className="tournament__hint">{shareNote}</p>}
               <p className="tournament__hint">
                 "Run another story" plays the same field with a new seed and gives it a new link. Your picks come
                 with you.
               </p>
+
+              <OfferPanel
+                surface="tournament-summary"
+                audience="fan"
+                offers={FAN_OFFERS}
+                heading="Run one for your group?"
+                intro="Private tournaments with your own entrants and a shared leaderboard are next on the list."
+              />
             </>
           )}
         </section>

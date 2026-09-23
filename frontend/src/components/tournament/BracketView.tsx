@@ -8,12 +8,7 @@
 import { useId } from "react";
 import type { BracketResult, SeriesResult } from "../../tournament";
 import { roundName, teamLabel, type Picks, type Slot } from "../../lib/bracket";
-import type { IndexTeam } from "../../types";
-
-export interface EntrantInfo {
-  team: IndexTeam;
-  seed: number;
-}
+import type { EntrantInfo } from "../../lib/tournamentLoader";
 
 type Mode =
   | { kind: "predict"; slots: Slot[][]; onPick: (round: number, index: number, key: string) => void }

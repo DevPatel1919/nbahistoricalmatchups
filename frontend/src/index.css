@@ -1103,3 +1103,219 @@ button {
 .builder__options label {
   cursor: pointer;
 }
+
+/* --- Growth and demand (F05) ----------------------------------------------*/
+
+.tournament__check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+/* Challenge link: pick before the reveal */
+
+.challenge {
+  text-align: center;
+  padding: 32px 0 16px;
+}
+
+.challenge__kicker {
+  margin: 0;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--court-line);
+}
+
+.challenge h1 {
+  font-family: var(--font-score);
+  font-size: clamp(1.8rem, 5vw, 2.6rem);
+  margin: 8px 0;
+}
+
+.challenge__hint {
+  color: var(--text-dim);
+  margin: 0 0 24px;
+}
+
+.challenge__choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.challenge__choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 20px 16px;
+  font-size: 1.05rem;
+}
+
+.challenge__season {
+  font-family: var(--font-score);
+  font-size: 1.8rem;
+  color: var(--accent);
+}
+
+.challenge__record {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.challenge__verdict {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  font-weight: 600;
+}
+
+/* Offers */
+
+.plans .offer-panel + .offer-panel {
+  margin-top: 36px;
+}
+
+.offer-panel {
+  margin-top: 32px;
+}
+
+.offer-panel h2 {
+  font-size: 1.3rem;
+  margin: 0 0 6px;
+}
+
+.offer-panel__intro {
+  margin: 0 0 6px;
+  color: var(--text-dim);
+}
+
+.offer-panel__badge {
+  display: inline-block;
+  margin: 4px 0 14px;
+  padding: 3px 10px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.offer-panel__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.offer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}
+
+.offer--chosen {
+  border-color: var(--accent);
+}
+
+.offer h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.offer__price {
+  margin: 0;
+}
+
+.offer__price .scoreboard {
+  font-size: 2rem;
+  color: var(--accent);
+}
+
+.offer__cadence,
+.offer__pitch {
+  color: var(--text-dim);
+}
+
+.offer__pitch {
+  margin: 0;
+}
+
+.offer ul {
+  margin: 0 0 6px;
+  padding-left: 18px;
+  font-size: 0.9rem;
+}
+
+.offer .btn {
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+.interest-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: auto;
+}
+
+.interest-form label {
+  font-size: 0.9rem;
+}
+
+.interest-form__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.interest-form__row input {
+  flex: 1 1 160px;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font: inherit;
+}
+
+.interest-form__note,
+.interest-form__fine {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.interest-form__error {
+  margin: 0;
+  color: var(--loss);
+  font-size: 0.85rem;
+}
+
+.analytics-opt-out {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Card render route: the canvas at exactly 1200x630, nothing else. */
+
+.card-page {
+  width: 1200px;
+  height: 630px;
+  overflow: hidden;
+}
+
+.card-page canvas {
+  display: block;
+  width: 1200px;
+  height: 630px;
+}

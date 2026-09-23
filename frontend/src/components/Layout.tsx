@@ -15,6 +15,7 @@ export default function Layout() {
           </Link>
           <nav className="site-nav" aria-label="Primary">
             <Link to="/tournament">Tournament</Link>
+            <Link to="/plans">Plans</Link>
             <Link to="/about">About</Link>
             <ThemeToggle theme={theme} onToggle={toggleTheme} />
           </nav>

@@ -1,6 +1,6 @@
 import type { TitleOddsResult } from "../../tournament";
 import { roundName, teamLabel } from "../../lib/bracket";
-import type { EntrantInfo } from "./BracketView";
+import type { EntrantInfo } from "../../lib/tournamentLoader";
 
 interface Props {
   odds: TitleOddsResult;

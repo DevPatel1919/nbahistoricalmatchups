@@ -158,9 +158,11 @@ must keep working with the backend unavailable.
 
 As of 2026-09-23, F01 (release `hist-v1`), F02 (public matchup MVP), F03
 (tournament engine, `frontend/src/tournament/`), and F04 (tournament
-experience: `/tournament`, `/t/:code`, `/tournament/new`) are complete. The
-`frontend/` builds and lints clean; 90 unit tests and 22 Playwright tests pass.
-F05 is next. See each brief's handoff record.
+experience: `/tournament`, `/t/:code`, `/tournament/new`) are complete. F05
+(sharing, analytics, price intent) is built; it starts measuring once the owner
+configures an analytics provider and an email endpoint (see
+`analytics/weekly-dashboard.md`). The `frontend/` builds and lints clean; 103
+unit tests and 34 Playwright tests pass. See each brief's handoff record.
 
 ## Feature map
 

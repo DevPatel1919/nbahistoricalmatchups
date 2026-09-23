@@ -22,7 +22,7 @@ export default function RandomMatchupButton({ teams, label = "Random matchup", c
     const [first, second] = canonicalOrder(a.key, a.season, b.key, b.season);
     const matchup = buildMatchupSlug(first, second);
     track({ name: "random_matchup_rolled", matchup });
-    navigate(`/${matchup}`);
+    navigate(`/${matchup}`, { state: { entry: "random" } });
   };
 
   return (
