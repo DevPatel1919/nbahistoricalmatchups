@@ -1,0 +1,72 @@
+{
+  "baseline_note": "Trained on point-in-time (pre-game) features. Earlier results (0.7104 test accuracy) used full-season playoff stats that included the predicted game and are not comparable.",
+  "best_model_name": "LogisticRegression",
+  "best_dataset_filter": "regular_season_only",
+  "best_feature_set": "regular_all_home_away_diff",
+  "best_hyperparameters": {
+    "penalty": "l1",
+    "C": 0.1,
+    "solver": "liblinear",
+    "class_weight": "None"
+  },
+  "best_validation_metrics": {
+    "accuracy": 0.6343,
+    "roc_auc": 0.6872,
+    "log_loss": 0.632,
+    "brier_score": 0.2208
+  },
+  "best_test_metrics": {
+    "accuracy": 0.6127,
+    "roc_auc": 0.6509,
+    "log_loss": 0.6632,
+    "brier_score": 0.2336
+  },
+  "accuracy_target_note": "Did not reach 80% validation accuracy; saved the best honest model.",
+  "classification_result_count": 648,
+  "regression_summary": {
+    "feature_set_used": "regular_all_home_away_diff",
+    "best_model": "Ridge",
+    "best_validation_mae": 10.648,
+    "all_models": [
+      {
+        "model": "Ridge",
+        "validation_mae": 10.648,
+        "validation_rmse": 13.5438,
+        "validation_r2": 0.1355,
+        "test_mae": 12.0449,
+        "test_rmse": 15.3723,
+        "test_r2": 0.0155
+      },
+      {
+        "model": "RandomForestRegressor",
+        "validation_mae": 10.6833,
+        "validation_rmse": 13.5781,
+        "validation_r2": 0.1311,
+        "test_mae": 11.2441,
+        "test_rmse": 14.3144,
+        "test_r2": 0.1463
+      },
+      {
+        "model": "HistGradientBoostingRegressor",
+        "validation_mae": 10.6701,
+        "validation_rmse": 13.5747,
+        "validation_r2": 0.1315,
+        "test_mae": 11.3123,
+        "test_rmse": 14.3849,
+        "test_r2": 0.1379
+      }
+    ],
+    "best_metrics": {
+      "validation": {
+        "mae": 10.648,
+        "rmse": 13.5438,
+        "r2": 0.1355
+      },
+      "test": {
+        "mae": 12.0449,
+        "rmse": 15.3723,
+        "r2": 0.0155
+      }
+    }
+  }
+}

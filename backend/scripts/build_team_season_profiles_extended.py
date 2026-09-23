@@ -39,6 +39,61 @@ def assign_season(dates: pd.Series) -> pd.Series:
     return dt.dt.year.where(dt.dt.month < 10, dt.dt.year + 1)
 
 
+# Per-game stats averaged across games: output name -> (source column, rounding digits)
+MEAN_STATS = {
+    # Scoring
+    "points_per_game":          ("teamScore",       2),
+    "opponent_points_per_game": ("opponentScore",   2),
+    "point_diff_per_game":      ("plusMinusPoints", 2),
+
+    # Rebounds
+    "rebounds_per_game":           ("reboundsTotal",     2),
+    "offensive_rebounds_per_game": ("reboundsOffensive", 2),
+    "defensive_rebounds_per_game": ("reboundsDefensive", 2),
+
+    # Other box-score
+    "assists_per_game":   ("assists",       2),
+    "steals_per_game":    ("steals",        2),
+    "blocks_per_game":    ("blocks",        2),
+    "turnovers_per_game": ("turnovers",     2),
+    "fouls_per_game":     ("foulsPersonal", 2),
+
+    # Situational scoring
+    "bench_points_per_game":         ("benchPoints",         2),
+    "fast_break_points_per_game":    ("pointsFastBreak",     2),
+    "points_in_paint_per_game":      ("pointsInThePaint",    2),
+    "points_off_turnovers_per_game": ("pointsFromTurnovers", 2),
+    "second_chance_points_per_game": ("pointsSecondChance",  2),
+
+    # Extended / advanced (already rate-based per game)
+    "offensive_rating":                         ("offensiveRating",                      2),
+    "defensive_rating":                         ("defensiveRating",                      2),
+    "net_rating":                               ("netRating",                            2),
+    "pace":                                     ("pace",                                 2),
+    "possessions_per_game":                     ("possessions",                          2),
+    "assist_percentage":                        ("assistPercentage",                     4),
+    "assist_to_turnover_ratio":                 ("assistToTurnoverRatio",                4),
+    "assist_ratio":                             ("assistRatio",                          4),
+    "offensive_rebound_percentage":             ("offensiveReboundPercentage",           4),
+    "defensive_rebound_percentage":             ("defensiveReboundPercentage",           4),
+    "rebound_percentage":                       ("reboundPercentage",                    4),
+    "team_turnover_percentage":                 ("teamTurnoverPercentage",               4),
+    "effective_field_goal_percentage":          ("effectiveFieldGoalPercentage",         4),
+    "true_shooting_percentage":                 ("trueShootingPercentage",               4),
+    "opponent_effective_field_goal_percentage": ("opponentEffectiveFieldGoalPercentage", 4),
+    "opponent_free_throw_attempt_rate":         ("opponentFreeThrowAttemptRate",         4),
+    "opponent_turnover_percentage":             ("opponentTurnoverPercentage",           4),
+    "opponent_offensive_rebound_percentage":    ("opponentOffensiveReboundPercentage",   4),
+}
+
+# Shooting percentages derived from summed made/attempted totals
+PCT_STATS = {
+    "fg_pct":       ("fieldGoalsMade",    "fieldGoalsAttempted"),
+    "three_pt_pct": ("threePointersMade", "threePointersAttempted"),
+    "ft_pct":       ("freeThrowsMade",    "freeThrowsAttempted"),
+}
+
+
 def safe_pct(made: pd.Series, attempted: pd.Series):
     total_att = attempted.sum()
     return round(float(made.sum()) / float(total_att), 4) if total_att > 0 else None
@@ -69,56 +124,11 @@ def build_profiles(df: pd.DataFrame, prefix: str) -> pd.DataFrame:
             prefix + "_wins":         wins,
             prefix + "_losses":       losses,
             prefix + "_win_pct":      round(wins / games, 4) if games > 0 else None,
-
-            # Scoring
-            prefix + "_points_per_game":          round(g["teamScore"].mean(), 2),
-            prefix + "_opponent_points_per_game": round(g["opponentScore"].mean(), 2),
-            prefix + "_point_diff_per_game":      round(g["plusMinusPoints"].mean(), 2),
-
-            # Shooting (from summed made/attempted)
-            prefix + "_fg_pct":       safe_pct(g["fieldGoalsMade"],    g["fieldGoalsAttempted"]),
-            prefix + "_three_pt_pct": safe_pct(g["threePointersMade"], g["threePointersAttempted"]),
-            prefix + "_ft_pct":       safe_pct(g["freeThrowsMade"],    g["freeThrowsAttempted"]),
-
-            # Rebounds
-            prefix + "_rebounds_per_game":           round(g["reboundsTotal"].mean(), 2),
-            prefix + "_offensive_rebounds_per_game": round(g["reboundsOffensive"].mean(), 2),
-            prefix + "_defensive_rebounds_per_game": round(g["reboundsDefensive"].mean(), 2),
-
-            # Other box-score
-            prefix + "_assists_per_game":   round(g["assists"].mean(), 2),
-            prefix + "_steals_per_game":    round(g["steals"].mean(), 2),
-            prefix + "_blocks_per_game":    round(g["blocks"].mean(), 2),
-            prefix + "_turnovers_per_game": round(g["turnovers"].mean(), 2),
-            prefix + "_fouls_per_game":     round(g["foulsPersonal"].mean(), 2),
-
-            # Situational scoring
-            prefix + "_bench_points_per_game":         round(g["benchPoints"].mean(), 2),
-            prefix + "_fast_break_points_per_game":    round(g["pointsFastBreak"].mean(), 2),
-            prefix + "_points_in_paint_per_game":      round(g["pointsInThePaint"].mean(), 2),
-            prefix + "_points_off_turnovers_per_game": round(g["pointsFromTurnovers"].mean(), 2),
-            prefix + "_second_chance_points_per_game": round(g["pointsSecondChance"].mean(), 2),
-
-            # Extended / advanced (averaged; already rate-based per game)
-            prefix + "_offensive_rating":                       round(g["offensiveRating"].mean(), 2),
-            prefix + "_defensive_rating":                       round(g["defensiveRating"].mean(), 2),
-            prefix + "_net_rating":                             round(g["netRating"].mean(), 2),
-            prefix + "_pace":                                   round(g["pace"].mean(), 2),
-            prefix + "_possessions_per_game":                   round(g["possessions"].mean(), 2),
-            prefix + "_assist_percentage":                      round(g["assistPercentage"].mean(), 4),
-            prefix + "_assist_to_turnover_ratio":               round(g["assistToTurnoverRatio"].mean(), 4),
-            prefix + "_assist_ratio":                           round(g["assistRatio"].mean(), 4),
-            prefix + "_offensive_rebound_percentage":           round(g["offensiveReboundPercentage"].mean(), 4),
-            prefix + "_defensive_rebound_percentage":           round(g["defensiveReboundPercentage"].mean(), 4),
-            prefix + "_rebound_percentage":                     round(g["reboundPercentage"].mean(), 4),
-            prefix + "_team_turnover_percentage":               round(g["teamTurnoverPercentage"].mean(), 4),
-            prefix + "_effective_field_goal_percentage":        round(g["effectiveFieldGoalPercentage"].mean(), 4),
-            prefix + "_true_shooting_percentage":               round(g["trueShootingPercentage"].mean(), 4),
-            prefix + "_opponent_effective_field_goal_percentage": round(g["opponentEffectiveFieldGoalPercentage"].mean(), 4),
-            prefix + "_opponent_free_throw_attempt_rate":       round(g["opponentFreeThrowAttemptRate"].mean(), 4),
-            prefix + "_opponent_turnover_percentage":           round(g["opponentTurnoverPercentage"].mean(), 4),
-            prefix + "_opponent_offensive_rebound_percentage":  round(g["opponentOffensiveReboundPercentage"].mean(), 4),
         }
+        for name, (made, att) in PCT_STATS.items():
+            rec[prefix + "_" + name] = safe_pct(g[made], g[att])
+        for name, (col, digits) in MEAN_STATS.items():
+            rec[prefix + "_" + name] = round(g[col].mean(), digits)
 
         records.append(rec)
 

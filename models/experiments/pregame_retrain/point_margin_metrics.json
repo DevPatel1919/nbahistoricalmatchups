@@ -1,0 +1,46 @@
+{
+  "feature_set_used": "regular_all_home_away_diff",
+  "best_model": "Ridge",
+  "best_validation_mae": 10.648,
+  "all_models": [
+    {
+      "model": "Ridge",
+      "validation_mae": 10.648,
+      "validation_rmse": 13.5438,
+      "validation_r2": 0.1355,
+      "test_mae": 12.0449,
+      "test_rmse": 15.3723,
+      "test_r2": 0.0155
+    },
+    {
+      "model": "RandomForestRegressor",
+      "validation_mae": 10.6833,
+      "validation_rmse": 13.5781,
+      "validation_r2": 0.1311,
+      "test_mae": 11.2441,
+      "test_rmse": 14.3144,
+      "test_r2": 0.1463
+    },
+    {
+      "model": "HistGradientBoostingRegressor",
+      "validation_mae": 10.6701,
+      "validation_rmse": 13.5747,
+      "validation_r2": 0.1315,
+      "test_mae": 11.3123,
+      "test_rmse": 14.3849,
+      "test_r2": 0.1379
+    }
+  ],
+  "best_metrics": {
+    "validation": {
+      "mae": 10.648,
+      "rmse": 13.5438,
+      "r2": 0.1355
+    },
+    "test": {
+      "mae": 12.0449,
+      "rmse": 15.3723,
+      "r2": 0.0155
+    }
+  }
+}

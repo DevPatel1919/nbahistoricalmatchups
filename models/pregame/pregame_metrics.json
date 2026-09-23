@@ -1,0 +1,165 @@
+{
+  "model": "LogisticRegression",
+  "feature_set": "season_stats+form+lineup",
+  "C": 0.01,
+  "trained_on": "seasons <= 2021, Regular Season, Playoffs",
+  "test_seasons": ">= 2022",
+  "test_metrics": {
+    "all_games": {
+      "games": 5189,
+      "accuracy": 0.6764,
+      "roc_auc": 0.732,
+      "log_loss": 0.6025,
+      "brier_score": 0.2075
+    },
+    "playoffs": {
+      "games": 335,
+      "accuracy": 0.6597,
+      "roc_auc": 0.6618,
+      "log_loss": 0.6435,
+      "brier_score": 0.2249
+    }
+  },
+  "walk_forward_mean": {
+    "accuracy": 0.6741,
+    "log_loss": 0.6013,
+    "playoff_accuracy": 0.6552
+  },
+  "test_calibration": [
+    {
+      "bucket": "0-10%",
+      "games": 35,
+      "mean_predicted": 0.0801,
+      "actual_rate": 0.0571
+    },
+    {
+      "bucket": "10-20%",
+      "games": 205,
+      "mean_predicted": 0.157,
+      "actual_rate": 0.1756
+    },
+    {
+      "bucket": "20-30%",
+      "games": 386,
+      "mean_predicted": 0.2509,
+      "actual_rate": 0.2176
+    },
+    {
+      "bucket": "30-40%",
+      "games": 487,
+      "mean_predicted": 0.3512,
+      "actual_rate": 0.3347
+    },
+    {
+      "bucket": "40-50%",
+      "games": 671,
+      "mean_predicted": 0.4515,
+      "actual_rate": 0.4396
+    },
+    {
+      "bucket": "50-60%",
+      "games": 798,
+      "mean_predicted": 0.5495,
+      "actual_rate": 0.5238
+    },
+    {
+      "bucket": "60-70%",
+      "games": 793,
+      "mean_predicted": 0.6503,
+      "actual_rate": 0.6305
+    },
+    {
+      "bucket": "70-80%",
+      "games": 876,
+      "mean_predicted": 0.7501,
+      "actual_rate": 0.718
+    },
+    {
+      "bucket": "80-90%",
+      "games": 699,
+      "mean_predicted": 0.8479,
+      "actual_rate": 0.7754
+    },
+    {
+      "bucket": "90-100%",
+      "games": 239,
+      "mean_predicted": 0.9285,
+      "actual_rate": 0.9079
+    }
+  ],
+  "feature_set_comparison": {
+    "season_stats": {
+      "C": 0.001,
+      "test": {
+        "all_games": {
+          "games": 5189,
+          "accuracy": 0.6441,
+          "roc_auc": 0.6951,
+          "log_loss": 0.633,
+          "brier_score": 0.221
+        },
+        "playoffs": {
+          "games": 335,
+          "accuracy": 0.6299,
+          "roc_auc": 0.6283,
+          "log_loss": 0.6562,
+          "brier_score": 0.2319
+        }
+      },
+      "walk_forward_mean": {
+        "accuracy": 0.6471,
+        "log_loss": 0.631,
+        "playoff_accuracy": 0.6347
+      }
+    },
+    "season_stats+form": {
+      "C": 0.01,
+      "test": {
+        "all_games": {
+          "games": 5189,
+          "accuracy": 0.6529,
+          "roc_auc": 0.7077,
+          "log_loss": 0.62,
+          "brier_score": 0.2156
+        },
+        "playoffs": {
+          "games": 335,
+          "accuracy": 0.6269,
+          "roc_auc": 0.639,
+          "log_loss": 0.6531,
+          "brier_score": 0.2298
+        }
+      },
+      "walk_forward_mean": {
+        "accuracy": 0.6551,
+        "log_loss": 0.6189,
+        "playoff_accuracy": 0.6273
+      }
+    },
+    "season_stats+form+lineup": {
+      "C": 0.01,
+      "test": {
+        "all_games": {
+          "games": 5189,
+          "accuracy": 0.6764,
+          "roc_auc": 0.732,
+          "log_loss": 0.6025,
+          "brier_score": 0.2075
+        },
+        "playoffs": {
+          "games": 335,
+          "accuracy": 0.6597,
+          "roc_auc": 0.6618,
+          "log_loss": 0.6435,
+          "brier_score": 0.2249
+        }
+      },
+      "walk_forward_mean": {
+        "accuracy": 0.6741,
+        "log_loss": 0.6013,
+        "playoff_accuracy": 0.6552
+      }
+    }
+  },
+  "note": "Lineup features use the players who actually appeared. Live predictions must supply the expected active roster from the injury report."
+}
