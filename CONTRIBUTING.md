@@ -2,6 +2,10 @@
 
 Guide for anyone (human or agent) changing this repo. Read it before touching features, training, or model artifacts.
 
+For product, tournament, growth, creator, or monetization work, start with
+`docs/product/HANDOFF.md`. It records the settled product decisions and routes
+each independently implementable feature to its own agent brief.
+
 ## What this software is
 
 An NBA game-outcome predictor built on public box-score data (1998 onward). It contains two models with different jobs:
