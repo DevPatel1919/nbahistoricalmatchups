@@ -1,0 +1,6 @@
+# Cloudflare Pages: client-side routing fallback.
+# Reverse-order matchup URLs (/2017-warriors-vs-1998-bulls) are NOT redirected
+# here -- there is no static rule that can swap two arbitrary path segments
+# for ~348k pairs. ResultPage.tsx looks up the canonical order at runtime and
+# issues a client-side redirect (react-router <Navigate replace>) instead.
+/*    /index.html   200

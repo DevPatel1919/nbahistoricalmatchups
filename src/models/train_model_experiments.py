@@ -124,26 +124,29 @@ def add_derived_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _build_pool(df: pd.DataFrame) -> pd.DataFrame:
-    """Build unique (season, team_id) rows with core stat values from both game sides."""
+    """
+    League reference distribution for each season: every team's end-of-season
+    core stats from the PREVIOUS season.
+
+    Matchup features are point-in-time, so a team's last row in a season holds
+    its (near-)complete regular-season profile. Shifting the season by one means
+    a game is only ever normalised against a season that has already finished.
+    """
     avail = [s for s in CORE_STATS if f"home_{s}" in df.columns and f"away_{s}" in df.columns]
-    home_side = df[["season", "home_team_id"] + [f"home_{s}" for s in avail]].rename(
+    home_side = df[["season", "game_date", "home_team_id"] + [f"home_{s}" for s in avail]].rename(
         columns={"home_team_id": "team_id", **{f"home_{s}": s for s in avail}}
     )
-    away_side = df[["season", "away_team_id"] + [f"away_{s}" for s in avail]].rename(
+    away_side = df[["season", "game_date", "away_team_id"] + [f"away_{s}" for s in avail]].rename(
         columns={"away_team_id": "team_id", **{f"away_{s}": s for s in avail}}
     )
     pool = pd.concat([home_side, away_side], ignore_index=True)
-    return pool.drop_duplicates(subset=["season", "team_id"])
+    pool = pool.sort_values("game_date").drop_duplicates(subset=["season", "team_id"], keep="last")
+    pool["season"] = pool["season"] + 1
+    return pool.drop(columns=["game_date", "team_id"])
 
 
-def _merge_pool(df: pd.DataFrame, pool: pd.DataFrame, new_cols: list) -> pd.DataFrame:
-    """Merge pool features back onto matchup rows for both home and away teams."""
-    for side, id_col in [("home", "home_team_id"), ("away", "away_team_id")]:
-        side_pool = pool[["season", "team_id"] + new_cols].rename(
-            columns={"team_id": id_col, **{c: f"{side}_{c}" for c in new_cols}}
-        )
-        df = df.merge(side_pool, on=["season", id_col], how="left")
-    return df
+def _side_values(df: pd.DataFrame, stat: str):
+    return [("home", df[f"home_{stat}"]), ("away", df[f"away_{stat}"])]
 
 
 def add_era_adjusted_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -151,18 +154,15 @@ def add_era_adjusted_features(df: pd.DataFrame) -> pd.DataFrame:
     pool = _build_pool(df)
     avail = [s for s in CORE_STATS if s in pool.columns]
 
-    def z(x: pd.Series) -> pd.Series:
-        s = x.std()
-        return (x - x.mean()) / s if (not pd.isna(s) and s > 0) else pd.Series(0.0, index=x.index)
-
+    ref = pool.groupby("season")[avail].agg(["mean", "std"])
+    new = {}
     for stat in avail:
-        pool[stat + "_z"] = pool.groupby("season")[stat].transform(z)
-
-    z_cols = [s + "_z" for s in avail]
-    df = _merge_pool(df, pool, z_cols)
-    for c in z_cols:
-        df[c + "_diff"] = df[f"home_{c}"] - df[f"away_{c}"]
-    return df
+        mean = df["season"].map(ref[(stat, "mean")])
+        std  = df["season"].map(ref[(stat, "std")]).where(lambda x: x > 0)
+        for side, values in _side_values(df, stat):
+            new[f"{side}_{stat}_z"] = (values - mean) / std
+        new[f"{stat}_z_diff"] = new[f"home_{stat}_z"] - new[f"away_{stat}_z"]
+    return pd.concat([df, pd.DataFrame(new, index=df.index)], axis=1)
 
 
 def add_percentile_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -170,14 +170,20 @@ def add_percentile_features(df: pd.DataFrame) -> pd.DataFrame:
     pool = _build_pool(df)
     avail = [s for s in CORE_STATS if s in pool.columns]
 
+    new = {}
     for stat in avail:
-        pool[stat + "_pctile"] = pool.groupby("season")[stat].rank(pct=True)
-
-    p_cols = [s + "_pctile" for s in avail]
-    df = _merge_pool(df, pool, p_cols)
-    for c in p_cols:
-        df[c + "_diff"] = df[f"home_{c}"] - df[f"away_{c}"]
-    return df
+        ref = {season: np.sort(g.dropna().to_numpy()) for season, g in pool.groupby("season")[stat]}
+        for side, values in _side_values(df, stat):
+            pct = pd.Series(np.nan, index=df.index)
+            for season, idx in df.groupby("season").groups.items():
+                r = ref.get(season)
+                if r is None or len(r) == 0:
+                    continue
+                v = values.loc[idx]
+                pct.loc[idx] = np.where(v.isna(), np.nan, np.searchsorted(r, v.fillna(0), side="right") / len(r))
+            new[f"{side}_{stat}_pctile"] = pct
+        new[f"{stat}_pctile_diff"] = new[f"home_{stat}_pctile"] - new[f"away_{stat}_pctile"]
+    return pd.concat([df, pd.DataFrame(new, index=df.index)], axis=1)
 
 
 # ---------------------------------------------------------------------------
@@ -599,7 +605,7 @@ def main():
     # Experiment metrics JSON
     with open(EXP_DIR / "experiment_metrics.json", "w") as f:
         json.dump({
-            "baseline_note":              "Baseline was the original train_model.py result, approximately 0.597 test log_loss and 0.738 test ROC-AUC.",
+            "baseline_note":              "Trained on point-in-time (pre-game) features. Earlier results (0.7104 test accuracy) used full-season playoff stats that included the predicted game and are not comparable.",
             "best_model_name":            best_result["model_type"],
             "best_dataset_filter":        best_result["dataset_filter"],
             "best_feature_set":           best_result["feature_set"],

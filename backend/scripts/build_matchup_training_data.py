@@ -2,20 +2,44 @@
 build_matchup_training_data.py
 
 Builds a historical NBA matchup training dataset.
-One row = one real historical game, with completed home/away team-season
-profiles attached and difference features added.
+One row = one real historical game, with home/away team profiles attached and
+difference features added.
 
-Run from repo root:
+Profiles are point-in-time: each team's regular_*, play_in_* and playoff_*
+stats are aggregated only from that team's games in the same season that
+tipped off BEFORE the game being described. A game never sees its own result
+or any later result. (The season-level profiles in
+team_season_profiles_extended.csv include every game of the season and are
+only safe as prediction inputs, not as training features.)
+
+Run from repo root (after build_team_season_profiles_extended.py and
+build_pregame_features.py):
     python backend/scripts/build_matchup_training_data.py
 """
 
 import pandas as pd
 from pathlib import Path
 
-REPO_ROOT     = Path(__file__).resolve().parents[2]
-GAMES_PATH    = REPO_ROOT / "data" / "raw" / "games.csv"
-PROFILES_PATH = REPO_ROOT / "data" / "processed" / "team_season_profiles_extended.csv"
-OUTPUT_PATH   = REPO_ROOT / "data" / "processed" / "matchup_training_data.csv"
+from build_team_season_profiles_extended import (
+    GAME_TYPE_PLAY_IN,
+    GAME_TYPE_PLAYOFF,
+    GAME_TYPE_REGULAR,
+    MEAN_STATS,
+    PCT_STATS,
+)
+
+REPO_ROOT         = Path(__file__).resolve().parents[2]
+GAMES_PATH        = REPO_ROOT / "data" / "raw" / "games.csv"
+STATS_PATH        = REPO_ROOT / "data" / "raw" / "TeamStatisticsExtended.csv"
+TEAM_HISTORY_PATH = REPO_ROOT / "data" / "processed" / "team_histories_cleaned.csv"
+PREGAME_PATH      = REPO_ROOT / "data" / "processed" / "pregame_team_features.csv"
+OUTPUT_PATH       = REPO_ROOT / "data" / "processed" / "matchup_training_data.csv"
+
+PROFILE_BLOCKS = [
+    ("regular", GAME_TYPE_REGULAR),
+    ("play_in", GAME_TYPE_PLAY_IN),
+    ("playoff", GAME_TYPE_PLAYOFF),
+]
 
 MODERN_ERA_START = 1997
 
@@ -64,6 +88,62 @@ def assign_season(dates: pd.Series) -> pd.Series:
     return dt.dt.year.where(dt.dt.month < 10, dt.dt.year + 1)
 
 
+def parse_game_time(dates: pd.Series) -> pd.Series:
+    """Naive EST timestamps; some rows omit the leading zero on the hour."""
+    return pd.to_datetime(dates, format="mixed")
+
+
+def cumulative_profiles(stats: pd.DataFrame, prefix: str) -> pd.DataFrame:
+    """
+    Running per-(team, season) profile for one game type.
+
+    Each row holds the profile AFTER that game (the game itself included), so
+    callers must attach it strictly before the game they describe.
+    """
+    stats = stats.sort_values(["teamId", "game_time"]).reset_index(drop=True)
+    grp   = stats.groupby(["teamId", "season"])
+
+    out = stats[["teamId", "season", "game_time"]].copy()
+    games = grp.cumcount() + 1
+    wins  = grp["win"].cumsum()
+    out[prefix + "_games_played"] = games
+    out[prefix + "_wins"]         = wins
+    out[prefix + "_losses"]       = games - wins
+    out[prefix + "_win_pct"]      = wins / games
+
+    def running_sum(col):
+        return stats[col].fillna(0).groupby([stats["teamId"], stats["season"]]).cumsum()
+
+    for name, (made, att) in PCT_STATS.items():
+        total_att = running_sum(att)
+        out[prefix + "_" + name] = (running_sum(made) / total_att).where(total_att > 0)
+
+    for name, (col, _digits) in MEAN_STATS.items():
+        count = stats[col].notna().astype(int).groupby([stats["teamId"], stats["season"]]).cumsum()
+        out[prefix + "_" + name] = (running_sum(col) / count).where(count > 0)
+
+    return out
+
+
+def attach_pregame_profile(games: pd.DataFrame, profile: pd.DataFrame, side: str) -> pd.DataFrame:
+    """Attach the latest profile row strictly before each game for home or away team."""
+    id_col = side + "_team_id"
+    right  = profile.rename(columns={"teamId": id_col, "game_time": "_profile_time"})
+    right  = right.rename(columns={
+        c: side + "_" + c for c in right.columns if c not in (id_col, "season", "_profile_time")
+    })
+    merged = pd.merge_asof(
+        games.sort_values("game_time"),
+        right.sort_values("_profile_time"),
+        left_on="game_time",
+        right_on="_profile_time",
+        by=[id_col, "season"],
+        allow_exact_matches=False,   # never include the game itself
+        direction="backward",
+    )
+    return merged.drop(columns="_profile_time")
+
+
 def main():
     # Load and clean games
     games = pd.read_csv(GAMES_PATH, low_memory=False)
@@ -99,33 +179,70 @@ def main():
     # Label
     games["home_win"] = (games["homeScore"] > games["awayScore"]).astype(int)
 
-    # Load profiles 
-    profiles = pd.read_csv(PROFILES_PATH, low_memory=False)
-    profiles["team_id"] = pd.to_numeric(profiles["team_id"], errors="coerce")
+    # Load per-team-game stats used to build point-in-time profiles
+    histories   = pd.read_csv(TEAM_HISTORY_PATH)
+    allowed_ids = set(pd.to_numeric(histories["team_id"], errors="coerce").dropna().astype(int))
 
-    # Drop team_city / team_name from profiles before merge to avoid collision
-    # (we already have them from games under home_team_city etc.)
-    profile_cols = [c for c in profiles.columns if c not in ("team_city", "team_name")]
-    profiles = profiles[profile_cols]
+    stats = pd.read_csv(STATS_PATH, low_memory=False)
+    stats["teamId"]    = pd.to_numeric(stats["teamId"], errors="coerce")
+    stats["win"]       = pd.to_numeric(stats["win"],    errors="coerce").fillna(0).astype(int)
+    stats              = stats[stats["teamId"].isin(allowed_ids)].copy()
+    stats["season"]    = assign_season(stats["gameDateTimeEst"])
+    stats              = stats[stats["season"] > MODERN_ERA_START].copy()
+    stats["game_time"] = parse_game_time(stats["gameDateTimeEst"])
 
-    stat_cols = [c for c in profiles.columns if c not in ("team_id", "season")]
+    # Use the stats file's timestamp for each game so a game's own stat row can
+    # never sort before it (games.csv and the stats file disagree on a few dates).
+    stats_time = stats.drop_duplicates("gameId").set_index("gameId")["game_time"]
+    games = games[games["home_team_id"].isin(allowed_ids) & games["away_team_id"].isin(allowed_ids)].copy()
+    games["game_time"] = games["game_id"].map(stats_time).fillna(parse_game_time(games["game_date"]))
 
-    # Merge home team profile
-    home_profiles = profiles.rename(
-        columns={c: "home_" + c for c in stat_cols}
-    ).rename(columns={"team_id": "home_team_id"})
+    out = games
+    for prefix, game_type in PROFILE_BLOCKS:
+        profile = cumulative_profiles(stats[stats["gameType"] == game_type], prefix)
+        for side in ("home", "away"):
+            out = attach_pregame_profile(out, profile, side)
+    out = out.copy()  # defragment after the many asof merges
 
-    out = games.merge(home_profiles, on=["home_team_id", "season"], how="inner")
+    flags = {}
+    for side in ("home", "away"):
+        # No prior games of a type -> zero counts; play-in/playoff stats also 0,
+        # matching team_season_profiles_extended.csv for non-participants.
+        for prefix, _ in PROFILE_BLOCKS:
+            for c in ("_games_played", "_wins", "_losses"):
+                out[side + "_" + prefix + c] = out[side + "_" + prefix + c].fillna(0).astype(int)
+        for prefix in ("play_in", "playoff"):
+            cols = [c for c in out.columns if c.startswith(side + "_" + prefix + "_")]
+            out[cols] = out[cols].fillna(0)
 
-    # Merge away team profile
-    away_profiles = profiles.rename(
-        columns={c: "away_" + c for c in stat_cols}
-    ).rename(columns={"team_id": "away_team_id"})
+        # Participation flags as known at tip-off
+        flags[side + "_made_play_in"] = (
+            out["game_type"].isin({"Play-In", "Play-in Tournament"})
+            | (out[side + "_play_in_games_played"] > 0)
+        ).astype(int)
+        flags[side + "_made_playoffs"] = (
+            out["game_type"].isin({"Playoffs", "Playoff"})
+            | (out[side + "_playoff_games_played"] > 0)
+        ).astype(int)
+    out = pd.concat([out, pd.DataFrame(flags, index=out.index)], axis=1)
 
-    out = out.merge(away_profiles, on=["away_team_id", "season"], how="inner")
+    # Teams with no regular-season stats that season (old inner-join behavior)
+    for side in ("home", "away"):
+        has_season = stats[stats["gameType"] == GAME_TYPE_REGULAR][["teamId", "season"]].drop_duplicates()
+        has_season = has_season.rename(columns={"teamId": side + "_team_id"})
+        out = out.merge(has_season, on=[side + "_team_id", "season"], how="inner")
+
+    # Elo / form / rest / lineup features (from build_pregame_features.py)
+    pregame = pd.read_csv(PREGAME_PATH)
+    pregame_cols = [c for c in pregame.columns if c not in ("game_id", "team_id")]
+    for side in ("home", "away"):
+        out = out.merge(
+            pregame.rename(columns={"team_id": side + "_team_id", **{c: side + "_" + c for c in pregame_cols}}),
+            on=["game_id", side + "_team_id"], how="left",
+        )
 
     # Difference features 
-    for stat in DIFF_STATS:
+    for stat in DIFF_STATS + pregame_cols:
         home_col = "home_" + stat
         away_col = "away_" + stat
         if home_col in out.columns and away_col in out.columns:
