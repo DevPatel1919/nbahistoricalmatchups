@@ -3,6 +3,7 @@ import { Navigate, useNavigate, useParams } from "react-router-dom";
 import type { IndexTeam, OpponentResult } from "../types";
 import { loadIndex, loadTeamFile } from "../lib/dataLoader";
 import { buildMatchupSlug, canonicalOrder, parseMatchupSlug } from "../lib/slug";
+import { track } from "../lib/analytics";
 import WinnerCard from "../components/WinnerCard";
 import SeriesOdds from "../components/SeriesOdds";
 import StatComparison from "../components/StatComparison";
@@ -14,7 +15,9 @@ export default function ResultPage() {
   const navigate = useNavigate();
 
   const [teams, setTeams] = useState<IndexTeam[] | null>(null);
-  const [result, setResult] = useState<OpponentResult | null>(null);
+  // Keyed by the pair it belongs to, so a result for a previous matchup is
+  // discarded during render rather than cleared by a setState in the effect.
+  const [loaded, setLoaded] = useState<{ pair: string; result: OpponentResult } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [changing, setChanging] = useState<"a" | "b" | null>(null);
@@ -32,6 +35,12 @@ export default function ResultPage() {
   const teamA = teams?.find((t) => t.key === keyA);
   const teamB = teams?.find((t) => t.key === keyB);
 
+  const pair = teamA && teamB ? `${teamA.key}|${teamB.key}` : null;
+  // Only the result belonging to the pair currently on screen counts. A result
+  // left over from a previous pair is ignored here, during render, so the
+  // effect below never has to clear it synchronously.
+  const result = loaded && loaded.pair === pair ? loaded.result : null;
+
   useEffect(() => {
     // The canonical-order check below can redirect the SAME mounted ResultPage
     // to a new matchupSlug (react-router keeps this component instance across
@@ -39,8 +48,7 @@ export default function ResultPage() {
     // (teamA, teamB) pair while the previous pair's fetch may still be in
     // flight. Guard against that stale response overwriting a newer one.
     let cancelled = false;
-    setResult(null);
-    if (!teamA || !teamB) return;
+    if (!teamA || !teamB || !pair) return;
     loadTeamFile(teamA.key)
       .then((file) => {
         if (cancelled) return;
@@ -49,7 +57,13 @@ export default function ResultPage() {
           setError(`No result found for ${teamA.key} vs ${teamB.key}`);
           return;
         }
-        setResult(r);
+        setLoaded({ pair, result: r });
+        track({
+          name: "matchup_viewed",
+          matchup: buildMatchupSlug(teamA.key, teamB.key),
+          teamA: teamA.key,
+          teamB: teamB.key,
+        });
       })
       .catch((e) => {
         if (!cancelled) setError(String(e));
@@ -57,7 +71,7 @@ export default function ResultPage() {
     return () => {
       cancelled = true;
     };
-  }, [teamA, teamB]);
+  }, [teamA, teamB, pair]);
 
   if (error) {
     return <p className="center-note">{error}</p>;
@@ -88,13 +102,16 @@ export default function ResultPage() {
   const handleSwap = (side: "a" | "b", newTeam: IndexTeam) => {
     const other = side === "a" ? teamB : teamA;
     const [first, second] = canonicalOrder(newTeam.key, newTeam.season, other.key, other.season);
+    const matchup = buildMatchupSlug(first, second);
     setChanging(null);
-    navigate(`/${buildMatchupSlug(first, second)}`);
+    track({ name: "matchup_team_swapped", side, matchup });
+    navigate(`/${matchup}`);
   };
 
   const handleCopyLink = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
+      track({ name: "matchup_link_copied", matchup: buildMatchupSlug(teamA.key, teamB.key) });
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {

@@ -23,6 +23,8 @@
   --border-strong: rgba(216, 162, 74, 0.45);
   --accent: #d8a24a;
   --accent-text: #241a05;
+  --side-a: #d8a24a;
+  --side-b: #5fa8d3;
   --win: #3fbf7f;
   --loss: #e0656a;
   --shadow: rgba(0, 0, 0, 0.5);
@@ -41,6 +43,8 @@
   --border-strong: rgba(138, 90, 31, 0.5);
   --accent: #8a5a1f;
   --accent-text: #fff8ea;
+  --side-a: #8a5a1f;
+  --side-b: #2a6f97;
   --win: #1f8a4c;
   --loss: #c23b3f;
   --shadow: rgba(60, 40, 10, 0.12);

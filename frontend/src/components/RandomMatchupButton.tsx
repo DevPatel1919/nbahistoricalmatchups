@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import type { IndexTeam } from "../types";
 import { buildMatchupSlug, canonicalOrder } from "../lib/slug";
+import { track } from "../lib/analytics";
 
 interface Props {
   teams: IndexTeam[];
@@ -19,7 +20,9 @@ export default function RandomMatchupButton({ teams, label = "Random matchup", c
       b = teams[Math.floor(Math.random() * teams.length)];
     }
     const [first, second] = canonicalOrder(a.key, a.season, b.key, b.season);
-    navigate(`/${buildMatchupSlug(first, second)}`);
+    const matchup = buildMatchupSlug(first, second);
+    track({ name: "random_matchup_rolled", matchup });
+    navigate(`/${matchup}`);
   };
 
   return (

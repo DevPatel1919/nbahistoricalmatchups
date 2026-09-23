@@ -23,7 +23,12 @@ export default function CountUpPercent({ value, durationMs = 700 }: Props) {
 
     const tick = (now: number) => {
       const elapsed = now - start;
-      const progress = Math.min(1, elapsed / durationMs);
+      // requestAnimationFrame hands back the timestamp of the START of the
+      // frame, which can predate the performance.now() captured when the
+      // animation was scheduled. Without the lower clamp that makes `elapsed`
+      // negative on the first tick and paints a negative win probability
+      // ("-0.9%") for one frame.
+      const progress = Math.min(1, Math.max(0, elapsed / durationMs));
       const eased = 1 - (1 - progress) ** 3;
       setDisplay(Math.round((from + (target - from) * eased) * 10) / 10);
       if (progress < 1) {
