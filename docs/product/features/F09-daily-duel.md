@@ -486,9 +486,22 @@ raw files. It exits 0 on 350 games. The one tolerance: a team's first game may
 have no feature row, so an unknown `back_to_back` there is not counted as a
 mismatch.
 
+**Displayed rest is calendar days (found in Session 3).** `rest_days` in the
+matchup data floors the elapsed time between tip-offs. A back-to-back whose
+second game tips earlier in the day therefore reads as 0 days and
+`back_to_back = 0`. That is 1,374 home rows (4%), and a 1-day flag can also hide
+a 2-calendar-day gap. The generator therefore computes `restDays` from the
+calendar dates of each team's strictly earlier games in
+`TeamStatisticsExtended.csv`, and `backToBack` is `restDays == 1`.
+`test_displayed_rest_uses_only_earlier_games` recomputes 150 sampled puzzles
+from raw files. **Owner / model follow-up:** the pre-game model was trained on
+the floored version. Fixing `build_pregame_features.py` means retraining and
+re-checking the model, which F09 does not own. The model's inputs, and so
+every benchmark probability, are unchanged.
+
 **Verification.** `python scripts/generate_duel_pool.py` (about 8 s);
-`python -m pytest tests/test_duel_pool.py` passes 15 tests: the points table,
-era mapping, keyed opaque ids, winner cross-check, result-blind selection
+`python -m pytest tests/test_duel_pool.py` passes 17 tests: the points table,
+era mapping, keyed opaque ids, winner cross-check, calendar-day rest, result-blind selection
 metadata, band bounds, disjoint partitions, whitelisted public fields, no
 answer or model value in any public artifact, both policies satisfiable per
 era, and 200 sampled probabilities matching a live `predict_proba` call

@@ -10,6 +10,7 @@ Reads
   data/processed/matchup_training_data.csv   point-in-time features (the rows the
                                              pre-game model was trained and scored on)
   data/raw/Games.csv                         the actual winner (independent truth source)
+  data/raw/TeamStatisticsExtended.csv        tip-off times, for calendar-day rest
   models/pregame/pregame_model.pkl           the shipped pre-game model
   models/pregame/pregame_columns.json
 
@@ -47,6 +48,7 @@ import pandas as pd
 REPO_ROOT    = Path(__file__).resolve().parents[1]
 MATCHUP_PATH = REPO_ROOT / "data" / "processed" / "matchup_training_data.csv"
 GAMES_PATH   = REPO_ROOT / "data" / "raw" / "Games.csv"
+STATS_PATH   = REPO_ROOT / "data" / "raw" / "TeamStatisticsExtended.csv"
 MODEL_PATH   = REPO_ROOT / "models" / "pregame" / "pregame_model.pkl"
 COLUMNS_PATH = REPO_ROOT / "models" / "pregame" / "pregame_columns.json"
 OUT_DIR      = REPO_ROOT / "data" / "processed" / "duel_pool"
@@ -57,6 +59,8 @@ POOL_VERSION        = "duel-pool-v1"
 GAME_TYPES          = ["Regular Season", "Playoffs"]
 MODEL_TRAINED_UP_TO = 2021   # pregame_metrics.json: trained on seasons <= 2021
 MIN_GAMES_ENTERING  = 10     # both teams need a readable season-to-date record
+REST_CAP_DAYS       = 7      # build_pregame_features.REST_CAP_DAYS
+REST_GAME_TYPES     = ["Regular Season", "Playoffs", "Play-in Tournament"]
 
 ERAS = [
     ("1998-2004", 1998, 2004),
@@ -139,13 +143,34 @@ def load_salt() -> str:
 # Candidates
 # ---------------------------------------------------------------------------
 
+# Rest is not taken from the matchup data: its rest_days floors the time between
+# tip-offs, so a back-to-back whose second game tips earlier in the day reads as
+# 0 days and not a back-to-back (about 4% of rows). Players see calendar days.
 SNAPSHOT_SOURCE = {
-    "restDays":                "rest_days",
-    "backToBack":              "back_to_back",
     "last10NetRating":         "form10_net_rating",
     "last10WinPct":            "form10_win_pct",
     "missingRotationStrength": "missing_rotation_gmsc30",
 }
+
+
+def calendar_rest(stats: pd.DataFrame) -> pd.DataFrame:
+    """Calendar days since each team's previous game this season (games that tipped earlier only)."""
+    s = stats[stats["gameType"].isin(REST_GAME_TYPES)][["gameId", "teamId", "gameDateTimeEst"]].copy()
+    s["t"] = pd.to_datetime(s["gameDateTimeEst"], format="mixed")
+    s["season"] = s["t"].dt.year.where(s["t"].dt.month < 10, s["t"].dt.year + 1)
+    s = s.sort_values(["teamId", "t"])
+    previous = s.groupby(["teamId", "season"])["t"].shift()
+    s["rest_calendar"] = (s["t"].dt.normalize() - previous.dt.normalize()).dt.days.clip(upper=REST_CAP_DAYS)
+    return s.rename(columns={"gameId": "game_id", "teamId": "team_id"})[["game_id", "team_id", "rest_calendar"]]
+
+
+def attach_calendar_rest(df: pd.DataFrame, rest: pd.DataFrame) -> pd.DataFrame:
+    if rest.duplicated(["game_id", "team_id"]).any():
+        raise ValueError("Duplicate (game, team) rows in the team statistics.")
+    for side in ("home", "away"):
+        df = df.merge(rest.rename(columns={"team_id": side + "_team_id", "rest_calendar": side + "_rest_calendar"}),
+                      on=["game_id", side + "_team_id"], how="left")
+    return df.dropna(subset=["home_rest_calendar", "away_rest_calendar"]).reset_index(drop=True)
 
 
 def load_candidates(matchup: pd.DataFrame, games: pd.DataFrame) -> pd.DataFrame:
@@ -255,8 +280,8 @@ def team_snapshot(row, side: str) -> dict:
         "name":                    str(row[side + "_team_name"]),
         "winsEntering":            int(row[side + "_regular_wins"]),
         "lossesEntering":          int(row[side + "_regular_losses"]),
-        "restDays":                int(row[side + "_rest_days"]),
-        "backToBack":              bool(row[side + "_back_to_back"]),
+        "restDays":                int(row[side + "_rest_calendar"]),
+        "backToBack":              bool(row[side + "_rest_calendar"] == 1),
         "last10NetRating":         round(float(row[side + "_form10_net_rating"]), 1),
         "last10WinPct":            round(float(row[side + "_form10_win_pct"]), 2),
         "missingRotationStrength": round(float(row[side + "_missing_rotation_gmsc30"]), 1),
@@ -406,8 +431,9 @@ def gate_report(df: pd.DataFrame, sets: np.ndarray, rng: np.random.Generator) ->
 # Main
 # ---------------------------------------------------------------------------
 
-def build_pool(matchup: pd.DataFrame, games: pd.DataFrame, model, columns: list, salt: str) -> pd.DataFrame:
-    df = load_candidates(matchup, games)
+def build_pool(matchup: pd.DataFrame, games: pd.DataFrame, stats: pd.DataFrame, model, columns: list,
+               salt: str) -> pd.DataFrame:
+    df = attach_calendar_rest(load_candidates(matchup, games), calendar_rest(stats))
     df = attach_model(df, model, columns)
     df = attach_selection_metadata(df)
     df = attach_search_k(df, matchup[matchup["game_type"].isin(GAME_TYPES)])
@@ -474,7 +500,7 @@ def verdict(unranked: dict, ranked: dict) -> list:
 
 
 def main():
-    for path in (MATCHUP_PATH, GAMES_PATH, MODEL_PATH, COLUMNS_PATH):
+    for path in (MATCHUP_PATH, GAMES_PATH, STATS_PATH, MODEL_PATH, COLUMNS_PATH):
         if not path.exists():
             raise FileNotFoundError("Missing: " + str(path))
     salt = load_salt()
@@ -482,11 +508,13 @@ def main():
     matchup = pd.read_csv(MATCHUP_PATH, low_memory=False)
     games   = pd.read_csv(GAMES_PATH, low_memory=False,
                           usecols=["gameId", "hometeamId", "awayteamId", "winner"])
+    stats   = pd.read_csv(STATS_PATH, low_memory=False,
+                          usecols=["gameId", "teamId", "gameDateTimeEst", "gameType"])
     with open(MODEL_PATH, "rb") as f:
         model = pickle.load(f)
     columns = json.loads(COLUMNS_PATH.read_text())
 
-    df = build_pool(matchup, games, model, columns, salt)
+    df = build_pool(matchup, games, stats, model, columns, salt)
     print("Candidates: " + str(len(df)))
 
     stats = pool_statistics(df)

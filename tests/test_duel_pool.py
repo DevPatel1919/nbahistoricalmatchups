@@ -64,7 +64,14 @@ def synthetic_matchup(n: int = 400, seed: int = 0) -> tuple:
         "gameId": matchup["game_id"], "hometeamId": 1, "awayteamId": 2,
         "winner": np.where(matchup["home_win"] == 1, 1, 2),
     })
-    return matchup, games
+    # Every game is a day after the previous one, so each team has one day of rest.
+    times = pd.Timestamp("2019-01-01 19:00") + pd.to_timedelta(np.arange(n) + 1, unit="D")
+    stats = pd.concat([
+        pd.DataFrame({"gameId": matchup["game_id"], "teamId": team, "gameType": matchup["game_type"],
+                      "gameDateTimeEst": times.strftime("%Y-%m-%d %H:%M:%S")})
+        for team in (1, 2)
+    ])
+    return matchup, games, stats
 
 
 class SigmoidModel:
@@ -76,8 +83,8 @@ class SigmoidModel:
 
 @pytest.fixture(scope="module")
 def pool():
-    matchup, games = synthetic_matchup()
-    return gen.build_pool(matchup, games, SigmoidModel(), ["x"], "test-salt")
+    matchup, games, stats = synthetic_matchup()
+    return gen.build_pool(matchup, games, stats, SigmoidModel(), ["x"], "test-salt")
 
 
 # ---------------------------------------------------------------------------
@@ -107,16 +114,30 @@ def test_puzzle_id_is_keyed_and_opaque():
 
 
 def test_winner_disagreement_is_rejected():
-    matchup, games = synthetic_matchup(50)
+    matchup, games, _ = synthetic_matchup(50)
     games.loc[3, "winner"] = 1 if games.loc[3, "winner"] == 2 else 2
     with pytest.raises(ValueError, match="winner"):
         gen.load_candidates(matchup, games)
 
 
 def test_early_season_games_are_excluded():
-    matchup, games = synthetic_matchup(50)
+    matchup, games, _ = synthetic_matchup(50)
     matchup.loc[0, "home_regular_games_played"] = gen.MIN_GAMES_ENTERING - 1
     assert 20000000 not in set(gen.load_candidates(matchup, games)["game_id"])
+
+
+def test_rest_counts_calendar_days_not_elapsed_hours():
+    stats = pd.DataFrame({
+        "gameId": [1, 2, 3, 4], "teamId": 7, "gameType": "Regular Season",
+        # 22.5 hours apart but on consecutive days, then two clear days, then 9 days.
+        "gameDateTimeEst": ["2019-01-01 21:30:00", "2019-01-02 20:00:00", "2019-01-04 13:00:00",
+                            "2019-01-13 19:00:00"],
+    })
+    rest = gen.calendar_rest(stats).set_index("game_id")["rest_calendar"]
+    assert pd.isna(rest[1])
+    assert rest[2] == 1
+    assert rest[3] == 2
+    assert rest[4] == gen.REST_CAP_DAYS
 
 
 def test_bands_follow_favourite_probability(pool):
@@ -202,6 +223,28 @@ def test_both_policies_can_be_satisfied_in_every_era(artifacts):
             assert sum(1 for r in sim if eras[r["puzzleId"]] == era and r["band"] == band) >= slots * 10
         assert sum(1 for r in ranked if eras[r["puzzleId"]] == era) >= 5 * 10
     assert all(r["rankedEligible"] for r in ranked)
+
+
+@needs_pool
+def test_displayed_rest_uses_only_earlier_games(artifacts):
+    """Point-in-time check for the one display field not taken from the matchup data."""
+    s = pd.read_csv(gen.STATS_PATH, low_memory=False, usecols=["gameId", "teamId", "gameDateTimeEst", "gameType"])
+    s = s[s["gameType"].isin(gen.REST_GAME_TYPES)].copy()
+    s["t"] = pd.to_datetime(s["gameDateTimeEst"], format="mixed")
+    s["season"] = s["t"].dt.year.where(s["t"].dt.month < 10, s["t"].dt.year + 1)
+    teams = pd.read_csv(gen.MATCHUP_PATH, low_memory=False, usecols=["game_id", "home_team_id", "away_team_id"])
+    teams = teams.set_index("game_id")
+    views = {p["puzzleId"]: p for part in ("sim", "ranked") for p in artifacts[part + "_public"]["puzzles"]}
+    answers = artifacts["sim_private"]["answers"] + artifacts["ranked_private"]["answers"]
+    for i in np.random.default_rng(2).choice(len(answers), 150, replace=False):
+        a = answers[i]
+        game = s[s["gameId"] == a["gameId"]].iloc[0]
+        for side in ("home", "away"):
+            team = teams.loc[a["gameId"], side + "_team_id"]
+            prior = s[(s["teamId"] == team) & (s["season"] == game["season"]) & (s["t"] < game["t"])]
+            expected = min((game["t"].normalize() - prior["t"].max().normalize()).days, gen.REST_CAP_DAYS)
+            assert views[a["puzzleId"]][side]["restDays"] == expected
+            assert views[a["puzzleId"]][side]["backToBack"] == (expected == 1)
 
 
 @needs_pool
