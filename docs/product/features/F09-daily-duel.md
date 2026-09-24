@@ -386,3 +386,110 @@ invented statistics, and redistribution of the underlying game database.
 
 Each session appends: what shipped, where it lives, interface changes, test and
 verification commands, measured numbers, and anything the next session must know.
+
+### 2026-09-23 — Session 1: pool generator
+
+**Shipped.** `scripts/generate_duel_pool.py` (tests: `tests/test_duel_pool.py`).
+Candidates are regular-season and playoff rows of
+`data/processed/matchup_training_data.csv` (the rows the pre-game model saw)
+where both teams have played at least 10 games and every display field is
+known. The winner comes from `data/raw/Games.csv` and must agree with the
+training label for every game, or the script fails. Model probability comes
+from `models/pregame/pregame_model.pkl`. For playoff games,
+`winsEntering`/`lossesEntering` are the final regular-season record, since a
+playoff record would expose the series game number.
+
+**Artifacts** (`data/processed/duel_pool/`, gitignored, Worker-only):
+`{sim,ranked}_public.json` (`{version, puzzles: PuzzleView[]}`) and
+`{sim,ranked}_private.json` (`{version, answers: PrivateAnswer[]}`).
+A private answer holds `puzzleId, gameId, season, partition, actualWinner,
+modelHomeWinProbability, modelInSample, band, homePick, betterRecordPick,
+heuristicDiverges, rankedEligible, searchK`. Puzzle ids are
+`pz_` + 16 hex of HMAC-SHA256(`DUEL_POOL_SALT`, gameId), so they carry no date
+or game number. **Owner:** set a long random `DUEL_POOL_SALT` in `.env` before
+generating the production pool. Aggregate statistics are committed in
+`reports/duel_pool_report.json`.
+
+**Partitioning.** Every candidate lands in exactly one partition. Ranked-eligible
+candidates (`|p − 0.5| ≥ 0.10` and a heuristic divergence) go to ranked with
+probability 0.8 from a keyed hash; everything else is sim. Sim therefore never
+holds an answer that ranked can serve, and the reverse.
+
+**Pool numbers** (pool `duel-pool-v1`, local salt):
+
+| | Candidates | Sim | Ranked | Playoff share | Model accuracy |
+|---|---|---|---|---|---|
+| 1998-2004 | 6,711 | 5,322 | 1,389 | 7.8% | 69.2% |
+| 2005-2011 | 8,088 | 6,352 | 1,736 | 7.3% | 69.0% |
+| 2012-2016 | 5,548 | 4,340 | 1,208 | 7.7% | 68.9% |
+| 2017-2021 | 5,459 | 4,222 | 1,237 | 7.4% | 66.7% |
+| 2022-2026 | 4,583 | 3,491 | 1,092 | 7.3% | 68.2% |
+| **All** | **30,389** | **23,727** | **6,662** | **7.5%** | |
+
+The shipped model was fit on seasons ≤ 2021, so its probabilities there are
+in-sample: 68.5% accuracy / 0.201 Brier in-sample versus 68.2% / 0.206 on
+2022–2026. The optimism is small, but the result screen must say the model was
+trained on games up to 2021 (`modelInSample` is in the private record).
+Every era can fill every unranked band (smallest: 836 lock-band sim puzzles
+in 2022-2026) and has at least 1,092 ranked puzzles.
+
+**Archetype gates** (20,000 simulated five-puzzle sets per policy; naive
+archetypes scored at their *best* fixed tier, the most generous reading):
+
+| Archetype | Unranked acc. | Unranked pts/puzzle | Ranked acc. | Ranked pts/puzzle |
+|---|---|---|---|---|
+| always-home | 63.2% | 5.2 | 40.8% | −4.7 |
+| always-better-record | 65.1% | 8.2 | 58.9% | 2.6 |
+| form-chaser | 61.3% | 3.5 | 63.9% | 6.2 |
+| random | 49.5% | −1.2 | 50.2% | −0.9 |
+| model-follower (nearest tier) | 67.2% | 17.1 | 69.5% | 16.0 |
+| model (continuous benchmark) | 67.2% | 17.9 | 69.5% | 17.7 |
+
+Model-follower wins 66.4% of five-puzzle duels against the best naive archetype
+in unranked (always-better-record) and 61.7% in ranked (form-chaser).
+
+**Verdict: the format passes.** Always-home is nowhere near the model
+(−11.9 pts/puzzle unranked, −20.7 ranked). Always-better-record comes within
+2.1 accuracy points of the model on the unranked profile, but scores less than
+half the model's points, because the model sizes its confidence and a fixed
+tier cannot. The benchmark line is honest. The ranked filter does what it
+claims for accuracy: the gap to the best naive archetype widens from 2.1 to
+5.7 points, and to 13.4 pts/puzzle against always-better-record. It also makes
+recent form a better naive read than the standings, which is the skill the
+brief wants the ladder to measure. The gap is moderate: a model-level player
+loses about 38% of ranked duels to a pure form-chaser, so individual duels
+stay noisy, as the brief says.
+
+**Findings that block ranked play (Sessions 6–7), recorded for the owner:**
+
+1. *Lookup de-identification is infeasible as written.* The abuse model says to
+   reject candidates whose entering-record pairing is searchable. Against the
+   public Kaggle dataset, the era, game type, and both entering records alone
+   identify the game uniquely for 88.5% of candidates (median k = 1; k ≥ 5 for
+   1.7%). Dropping team names does not help. Tested coarsenings (win% to 5–10
+   points, net rating to 2.5–5, rest capped at 3, missing-rotation bucketed)
+   reach k ≥ 5 for 0% of games, because about 10 displayed fields cover a
+   space far larger than 33k games. Applying the rule would empty the pool. No
+   dates, names-to-date mapping, or scores are shown, so casual searching is
+   impractical. A scripted join against the dataset is not prevented. The
+   workable control is statistical: honest play cannot sustain much above the
+   model's ~68% accuracy, so sustained performance above that ceiling is flagged
+   for review. `searchK` is stored per puzzle so a later policy can use it.
+2. *Ranked capacity.* "Any puzzle whose answer has ever been served is
+   permanently ineligible for ranked" makes ranked puzzles single-use. 6,662
+   ranked puzzles is 1,332 ranked duels in total, growing by about 250 a
+   season. Raising `RANKED_SHARE` to 1.0 gives about 1,660 duels.
+
+**Point-in-time.** `src/models/test_pregame_leakage.py` now also recomputes
+`form10_win_pct`, `rest_days`, and `back_to_back` (all shown to players) from
+raw files. It exits 0 on 350 games. The one tolerance: a team's first game may
+have no feature row, so an unknown `back_to_back` there is not counted as a
+mismatch.
+
+**Verification.** `python scripts/generate_duel_pool.py` (about 8 s);
+`python -m pytest tests/test_duel_pool.py` passes 15 tests: the points table,
+era mapping, keyed opaque ids, winner cross-check, result-blind selection
+metadata, band bounds, disjoint partitions, whitelisted public fields, no
+answer or model value in any public artifact, both policies satisfiable per
+era, and 200 sampled probabilities matching a live `predict_proba` call
+(max diff < 1e-5). `python src/models/test_pregame_leakage.py` exits 0.

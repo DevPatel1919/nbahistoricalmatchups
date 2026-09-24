@@ -23,6 +23,7 @@ STATS_PATH = REPO_ROOT / "data" / "raw" / "TeamStatisticsExtended.csv"
 SAMPLE_GAMES  = 300
 LATEST_PLAYOFF_GAMES = 50
 TOLERANCE     = 1e-6
+REST_CAP_DAYS = 7   # build_pregame_features.REST_CAP_DAYS
 
 
 def close(a, b) -> bool:
@@ -63,13 +64,25 @@ def main() -> int:
                     if not close(r[col], expected):
                         failures.append((r["game_id"], col, r[col], expected))
 
-            # Recent form: last 10 games of any tracked type this season
+            # Recent form and rest: games of any tracked type this season.
+            # form10_win_pct, rest_days, and back_to_back are shown to players
+            # in F09 duel puzzles, so they are checked here too.
             if side + "_form10_net_rating" in m.columns:
                 prior = team[team["gameType"].isin(["Regular Season", "Playoffs", "Play-in Tournament"])].sort_values("t")
-                expected = prior["netRating"].tail(10).mean() if len(prior) >= 3 else np.nan
-                col = side + "_form10_net_rating"
-                if not close(r[col], expected):
-                    failures.append((r["game_id"], col, r[col], expected))
+                rest  = min((t - prior["t"].iloc[-1]).days, REST_CAP_DAYS) if len(prior) else np.nan
+                checks = {
+                    "form10_net_rating": prior["netRating"].tail(10).mean() if len(prior) >= 3 else np.nan,
+                    "form10_win_pct":    prior["win"].tail(10).mean() if len(prior) >= 3 else np.nan,
+                    "rest_days":         rest,
+                    "back_to_back":      float(rest == 1) if len(prior) else 0.0,
+                }
+                for stat, expected in checks.items():
+                    col = side + "_" + stat
+                    # A team's first game may have no feature row at all; unknown is not leaky.
+                    if stat == "back_to_back" and not len(prior) and pd.isna(r[col]):
+                        continue
+                    if not close(r[col], expected):
+                        failures.append((r["game_id"], col, r[col], expected))
 
     print("Checked " + str(len(rows)) + " games, " + str(len(failures)) + " mismatches.")
     for f in failures[:20]:
