@@ -538,3 +538,86 @@ and 0.8, where adjacent tiers tie); the believed side dominates; zero-sum and
 mirror symmetry over 5,000 random duels; K 24/40/32; bot accuracy converging
 within 0.006 of 0.45/0.6/0.75 over 100k puzzles; Beta mean; the 20-pick
 window; the tier mirror; composition, shuffling, and determinism.
+
+### 2026-09-23 — Session 3: Worker foundation and guest play
+
+**Shipped.** `worker/`, a separate npm package, because the Workers test pool
+needs vitest 4 and the frontend is on vitest 5. It imports the domain from
+`frontend/src/duel`, so there is one scoring implementation. Config is in
+`worker/wrangler.jsonc`, the schema in `worker/migrations/0001_guest_play.sql`.
+
+**Endpoints** (JSON, `cache-control: no-store`; CORS only for `ALLOWED_ORIGINS`):
+
+| Method + path | Auth | Returns |
+|---|---|---|
+| `GET /v1/health` | none | `{ ok, poolVersion }` |
+| `POST /v1/guests` | none; 10/hour per IP | `201 { guestToken }` |
+| `POST /v1/sets` `{ mode: "solo"\|"bot", draw: DrawMode }` | `Authorization: Bearer <guestToken>`; 40/hour per guest, 120/hour per IP | `201 IssuedSet`: `duelId, mode, draw, puzzles: PuzzleView[5], setToken, expiresAt, opponent` (bot: name + disclosure only) |
+| `GET /v1/duels/:id` | owner only (others get 404) | `{state:"open", set}` \| `{state:"expired"}` \| `{state:"revealed", result}` |
+| `POST /v1/duels/:id/submission` `{ setToken, picks }` | owner + `Idempotency-Key`; 60/hour per guest | `DuelResult`: answers, your scored picks, the model benchmark, the Sparring Partner when a bot duel |
+
+Errors are `{ error, message }` from a fixed table in `src/http.ts`. Unhandled
+exceptions log only the error class and return `internal`.
+
+**How each Session 3 control is met.**
+- *No answer before lock:* pre-lock responses are built by `toPuzzleView`,
+  which copies whitelisted fields only. Answers are read only inside
+  `submitPicks`, after the pick is validated.
+- *Token binding:* the set token is HMAC-signed
+  `{ typ: "set", sub: participant, duel, exp }` with `SET_TOKEN_SECRET`, TTL 20
+  minutes (`SET_TTL_MS`). The duel row's `issued_to` and `expires_at` are also
+  checked, so a token cannot outlive its set.
+- *Double submission:* `submissions` has `PRIMARY KEY (duel_id, participant)`
+  and `UNIQUE (participant, idempotency_key)`. The submission, its five
+  `scored_picks`, and `served_answers` are written in one D1 batch. A retry
+  with the same key returns the stored result; any other key gets 409.
+- *Rate limits:* fixed-window KV counters (`src/ratelimit.ts`) return 429 with
+  `Retry-After`. The KV keys use a keyed hash of the IP, never the raw
+  address. KV is eventually consistent, so these are soft limits. The D1
+  constraint, not the counter, is what blocks double submission.
+- *Instrumentation from the first recorded result:* `ms_to_submit` per
+  submission, and a row per pick (tier, side, correct, points) for per-tier
+  accuracy and confidence entropy.
+- *Pool:* KV keys `pool:<v>:puzzle:<id>` hold `{view, answer}`;
+  `pool:<v>:index:sim:<era|all>:<band>` and `pool:<v>:index:ranked:<era|all>`
+  hold id lists. `served_answers` records every puzzle revealed, which is the
+  runtime record ranked single use needs.
+
+**Stored identifiers.** A random guest id and a creation time. No IP address,
+user agent, or email.
+
+**Loading the pool.** `python scripts/generate_duel_pool.py`, then
+`cd worker && node scripts/build-pool-kv.mjs` writes `worker/.pool-kv/*.json`
+(gitignored), then `npx wrangler kv bulk put --binding POOL --remote <file>`
+for each file. `node scripts/seed-local.mjs [--fixture]` applies migrations and
+seeds local state. The local KV proxy fails on bulk writes near 1 MB, so it
+writes 250-entry chunks: about 8 minutes for the real pool, seconds for the
+fixture.
+
+**Verification.** `cd worker && npm test` runs 18 tests inside workerd with
+local D1/KV. `npx tsc --noEmit` is clean. They cover: whitelisted set payloads;
+composition and sim-only draws; forged, unknown, and malformed auth; answer
+markers (field names and the fixture's distinctive probabilities) absent from
+every pre-lock response, including every error path and a broken pool; the
+fixed 503; server-side scoring that ignores client-sent points; bot disclosure
+next to the model; five token-mismatch shapes; five invalid pick shapes; the
+missing idempotency key; same-key retry and different-key 409; six
+concurrent submissions leaving exactly one row; a raw duplicate `INSERT`
+rejected by D1; token and row TTL; owner-only reload; per-IP and
+per-participant 429; no raw IP in KV; CORS. Two mutation checks were run.
+Leaking the model probability into `toPuzzleView` fails two tests. Deleting
+the application-level duplicate check still passes every test, because the D1
+constraint alone blocks the second submission. A manual run against
+`wrangler dev` with the full 30,389-puzzle pool completed a bot duel.
+
+**Owner configuration (before the first deploy).**
+1. `wrangler d1 create court-of-all-time-duel` and put the id in `wrangler.jsonc`.
+   Then `npm run db:migrate:remote`.
+2. `wrangler kv namespace create POOL` and `... RATE_LIMITS`, and put the ids in
+   `wrangler.jsonc`.
+3. `wrangler secret put GUEST_TOKEN_SECRET` and `wrangler secret put SET_TOKEN_SECRET`,
+   each a long random string.
+4. Set `ALLOWED_ORIGINS` to the production site origin(s).
+5. Set `DUEL_POOL_SALT` in the repo `.env`, generate the pool, load it into KV,
+   and set `POOL_VERSION` to match.
+6. Add a WAF rate-limit rule in front of `/v1/*` (defence in depth for the soft KV limits).

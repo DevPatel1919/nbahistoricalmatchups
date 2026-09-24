@@ -1,0 +1,4 @@
+# Copy to .dev.vars for `npm run dev`. Production values are set with
+# `wrangler secret put <NAME>` and must be long random strings.
+GUEST_TOKEN_SECRET=local-guest-secret-change-me
+SET_TOKEN_SECRET=local-set-secret-change-me-too
