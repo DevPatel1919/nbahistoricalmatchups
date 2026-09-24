@@ -493,3 +493,35 @@ metadata, band bounds, disjoint partitions, whitelisted public fields, no
 answer or model value in any public artifact, both policies satisfiable per
 era, and 200 sampled probabilities matching a live `predict_proba` call
 (max diff < 1e-5). `python src/models/test_pregame_leakage.py` exits 0.
+
+### 2026-09-23 — Session 2: domain logic
+
+**Shipped.** `frontend/src/duel/` (pure TypeScript, imported by the Worker and
+the frontend; public interface in `index.ts`). It follows the F03 engine
+precedent of living in the frontend tree, and reuses the F03 `createRng`/`Rng`.
+
+- `types.ts`: the brief's types plus `ERA_KEYS`, `CONFIDENCE_PROBABILITY`,
+  `BANDS`, `UNRANKED_COMPOSITION`, and type guards.
+- `scoring.ts`: `pointsFor`, `scorePick`, `scoreModel` (the continuous
+  benchmark), `scoreSet`, `totalPoints`, `expectedPoints`.
+- `duel.ts`: `resolveDuel`: total, then best single correct call, then draw.
+- `elo.ts`: `applyElo`. **Interface decision:** when one player is provisional
+  (K 40) and the other established (K 24), the duel uses their mean (32), so
+  one integer delta goes to one side and its negation to the other (zero-sum).
+  Rounding is half away from zero, so swapping the players mirrors the delta
+  exactly.
+- `bot.ts`: `sampleBotAccuracy` samples Beta(1 + correct, 1 + wrong) over
+  the player's last 20 scored picks, clamped to [0.40, 0.85], using order
+  statistics of the injected RNG. `drawBotPicks` is correct with that
+  probability, and its tier mix mirrors the player's recent mix with add-one
+  smoothing. `BOT_DISPLAY_NAME` and `BOT_DISCLOSURE` hold the required copy.
+- `selection.ts`: `drawUnrankedSet` (1 lock + 2 favourite + 2 toss-up,
+  shuffled so position reveals nothing) and `drawRankedSet`.
+
+**Verification.** `tests/unit/duel-domain.test.ts` has 21 tests: the exact
+table at every tier; the model scored by the same formula; honest-tier
+optimality over a 0.001 belief grid (the indifference points are exactly 0.625
+and 0.8, where adjacent tiers tie); the believed side dominates; zero-sum and
+mirror symmetry over 5,000 random duels; K 24/40/32; bot accuracy converging
+within 0.006 of 0.45/0.6/0.75 over 100k puzzles; Beta mean; the 20-pick
+window; the tier mirror; composition, shuffling, and determinism.
