@@ -1,8 +1,9 @@
-// Best-of-7 series odds from a single-game neutral-court win probability.
-// Each game is treated as an independent trial at the same probability
+// Series odds from a single-game neutral-court win probability. Each game is
+// treated as an independent trial at the same probability
 // (see docs/frontend-handoff.md, "Series odds").
 //
-// P(series) = sum over k=4..7 of C(k-1, 3) * p^4 * (1-p)^(k-4)
+// With w = ceil(bestOf / 2) wins needed:
+// P(series) = sum over k=w..2w-1 of C(k-1, w-1) * p^w * (1-p)^(k-w)
 
 function choose(n: number, k: number): number {
   if (k < 0 || k > n) return 0;
@@ -13,10 +14,11 @@ function choose(n: number, k: number): number {
   return result;
 }
 
-export function seriesWinProbability(p: number): number {
+export function seriesWinProbability(p: number, bestOf: number = 7): number {
+  const need = Math.ceil(bestOf / 2);
   let total = 0;
-  for (let k = 4; k <= 7; k++) {
-    total += choose(k - 1, 3) * p ** 4 * (1 - p) ** (k - 4);
+  for (let k = need; k <= 2 * need - 1; k++) {
+    total += choose(k - 1, need - 1) * p ** need * (1 - p) ** (k - need);
   }
   return total;
 }

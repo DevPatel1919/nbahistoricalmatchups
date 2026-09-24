@@ -15,7 +15,8 @@ A pair passes if:
     |exported_p - live_neutral_p| <= 1e-6
     |exported_m - live_neutral_m| <= 0.05
 
-Exits non-zero if any pair fails, or if setup is broken.
+Exits non-zero if any pair fails, if setup is broken, or if index.json was
+exported from a release other than the active one.
 
 The exported JSON stores each team-season's ERA-CORRECT name (e.g. "2005
 Seattle SuperSonics"), but predict_matchup() looks teams up by the name in
@@ -41,7 +42,7 @@ if str(_REPO_ROOT_FOR_IMPORTS) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT_FOR_IMPORTS))
 
 from src.models.model_config import PROFILES_PATH
-from src.models.predict_matchup import predict_matchup
+from src.models.predict_matchup import get_release, predict_matchup
 
 REPO_ROOT  = Path(__file__).resolve().parent.parent
 DATA_DIR   = REPO_ROOT / "frontend" / "public" / "data"
@@ -84,6 +85,15 @@ def main():
         raise ValueError("Missing " + str(INDEX_PATH) + " -- run scripts/export_static_site_data.py first.")
 
     index = json.load(open(INDEX_PATH))
+
+    active = get_release().version
+    exported_release = index.get("release", {}).get("version")
+    if exported_release != active:
+        print("FAILED: index.json was exported from release " + str(exported_release)
+              + " but the active release is " + active + ". Re-run scripts/export_static_site_data.py.")
+        sys.exit(1)
+    print("Release: " + active)
+
     teams = index["teams"]
     if len(teams) == 0:
         raise ValueError("index.json has no teams.")

@@ -1,11 +1,13 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import type { MatchupEntry } from "../lib/analytics";
+import { Link, useNavigate } from "react-router-dom";
 import type { IndexTeam } from "../types";
 import { loadIndex } from "../lib/dataLoader";
 import { buildMatchupSlug, canonicalOrder } from "../lib/slug";
 import SearchPicker from "../components/SearchPicker";
 import BrowseGrid from "../components/BrowseGrid";
 import RandomMatchupButton from "../components/RandomMatchupButton";
+import { DUEL_API } from "../lib/duelApi";
 
 const SUGGESTIONS: [string, string][] = [
   ["1998-bulls", "2017-warriors"],
@@ -29,22 +31,26 @@ export default function HomePage() {
 
   const byKey = (key: string) => teams?.find((t) => t.key === key);
 
-  const handlePick = (team: IndexTeam) => {
+  // The surface the second team came from is the matchup's entry surface.
+  const entry = useRef<MatchupEntry>("home-search");
+
+  const handlePick = (team: IndexTeam, source: MatchupEntry) => {
     if (!slotA) {
       setSlotA(team);
     } else if (!slotB && team.key !== slotA.key) {
+      entry.current = source;
       setSlotB(team);
     }
   };
 
-  const goToMatchup = (a: IndexTeam, b: IndexTeam) => {
+  const goToMatchup = (a: IndexTeam, b: IndexTeam, from: MatchupEntry) => {
     const [first, second] = canonicalOrder(a.key, a.season, b.key, b.season);
-    navigate(`/${buildMatchupSlug(first, second)}`);
+    navigate(`/${buildMatchupSlug(first, second)}`, { state: { entry: from } });
   };
 
   useEffect(() => {
     if (slotA && slotB) {
-      goToMatchup(slotA, slotB);
+      goToMatchup(slotA, slotB, entry.current);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slotA, slotB]);
@@ -71,7 +77,7 @@ export default function HomePage() {
 
         <SearchPicker
           teams={teams}
-          onSelect={handlePick}
+          onSelect={(t) => handlePick(t, "home-search")}
           excludeKey={slotA?.key}
           placeholder='Try "98 bulls" or "2017 warriors"'
           autoFocus
@@ -104,6 +110,34 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section className="tournament-cta" aria-labelledby="tournament-cta-heading">
+        <h2 id="tournament-cta-heading">The Champions Bracket</h2>
+        <p>Sixteen title teams since 1998. Fill your bracket, then reveal how the model's plays out.</p>
+        <div className="picker-actions">
+          <Link className="btn btn--primary" to="/tournament">
+            Make your picks
+          </Link>
+          <Link className="btn" to="/tournament/new">
+            Build your own
+          </Link>
+        </div>
+      </section>
+
+      {DUEL_API && (
+        <section className="tournament-cta" aria-labelledby="duel-cta-heading">
+          <h2 id="duel-cta-heading">Duel mode</h2>
+          <p>
+            Five real games with the scores hidden. Call the winners, size your confidence, and see how the pre-game
+            model did.
+          </p>
+          <div className="picker-actions">
+            <Link className="btn btn--primary" to="/duel">
+              Play a set
+            </Link>
+          </div>
+        </section>
+      )}
+
       <section className="browse" style={{ marginTop: 32 }}>
         <h2>Suggested matchups</h2>
         <div className="browse-grid">
@@ -112,7 +146,7 @@ export default function HomePage() {
             const b = byKey(keyB);
             if (!a || !b) return null;
             return (
-              <button key={keyA + keyB} type="button" onClick={() => goToMatchup(a, b)}>
+              <button key={keyA + keyB} type="button" onClick={() => goToMatchup(a, b, "suggested")}>
                 <span className="franchise-name">
                   {a.season} {a.name}
                 </span>
@@ -125,7 +159,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <BrowseGrid teams={teams} onSelect={handlePick} />
+      <BrowseGrid teams={teams} onSelect={(t) => handlePick(t, "browse")} />
     </>
   );
 }

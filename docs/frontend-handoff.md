@@ -1,6 +1,9 @@
 # Frontend handoff: Court of All Time
 
-Build spec for the public website in front of the historical matchup simulator. Written for a coding agent with repo access and no prior context. Read `CONTRIBUTING.md` first for the repo's conventions and its point-in-time rule.
+Build spec for the public website in front of the historical matchup simulator.
+Written for a coding agent with repo access and no prior context. Read
+`CONTRIBUTING.md`, `docs/product/HANDOFF.md`, and
+`docs/product/features/F02-public-matchup-mvp.md` first.
 
 ## The product
 
@@ -17,7 +20,7 @@ Settled with the owner. Do not silently revisit; raise it if one blocks you.
 | # | Decision | Choice |
 |---|---|---|
 | 1 | Audience | Public fun site for fans |
-| 2 | Model | The current shipped model, as is |
+| 2 | Model | The versioned historical-entertainment release approved by F01 |
 | 3 | Home court | Always neutral, no toggle |
 | 4 | Team names | The name used that season (2005 Seattle SuperSonics) |
 | 5 | Serving | Precompute every matchup, host static files |
@@ -27,7 +30,7 @@ Settled with the owner. Do not silently revisit; raise it if one blocks you.
 | 9 | URLs | `/1998-bulls-vs-2017-warriors`, canonical order, reverse redirects |
 | 10 | Series odds | Each game independent at neutral win probability |
 | 11 | Stat rows | Six: record, net rating, offensive rating, defensive rating, pace, true shooting % |
-| 12 | Theme | Dark by default with a light toggle; NBA-flavoured identity of its own |
+| 12 | Theme | Dark by default with a light toggle; independent basketball identity subject to F00 brand review |
 | 13 | Analytics | Cloudflare Web Analytics |
 | 14 | Data refresh | Manual, once a year after the Finals |
 | 15 | Repo layout | `frontend/` folder in this repo |
@@ -36,18 +39,16 @@ Settled with the owner. Do not silently revisit; raise it if one blocks you.
 **v1.1:** a "greatest teams" ranking page, each team-season's average win probability against all others (the export already contains everything it needs).
 **Out of scope:** an explanation of why the model picked a winner. The model leans mostly on playoff win percentage, so the breakdown would read strangely.
 
-## Prerequisite: predictions must work again
+## Prerequisite: approve and verify one model release
 
-`predict_matchup` currently raises an error. A retrain left a new model in `models/experiments/` next to a stale column list in `models/production/`, and `src/models/model_config.py` loads one from each.
+Complete `docs/product/features/F01-model-release-integrity.md` before building
+against the export. The historical-entertainment release must promote its model,
+regressor, columns, metrics, schema, and version as one validated bundle. Do not
+restore or replace artifacts individually and do not use file-by-file fallback.
 
-Fix it before anything else, then confirm:
-
-```
-git checkout -- models/experiments/      # restores the shipped model
-python -c "from src.models.predict_matchup import predict_matchup; print(predict_matchup('Warriors', 2017, 'Bulls', 1998))"
-```
-
-The honest retrain is preserved in `models/experiments/pregame_retrain/` and is **not** what this site serves; see "Honesty rules" below.
+After F01, the clean matchup smoke suite and `scripts/verify_static_export.py`
+must pass. The release manifest, rather than whichever artifact happens to exist
+in `models/production/` or `models/experiments/`, defines what the site serves.
 
 ## Architecture
 
@@ -115,7 +116,11 @@ This is verified to yield 2005 Seattle SuperSonics, New Jersey Nets, Charlotte B
 
 ### Team colors
 
-No NBA or team logos anywhere on the site: they are trademarked and this site is public. Team **colors** are fine and carry the identity. Hand-write `frontend/src/data/team-colors.ts` mapping franchise id to a primary and secondary hex color, including historical color sets where a franchise's identity changed (Sonics green/gold, Bobcats orange/blue). Keep the set small and readable against the dark theme; adjust any color that fails contrast rather than using the exact official value.
+No league/team logos, jerseys, player imagery, or official-looking visual system
+appears on the site. Use an independent palette by default. If F00's written
+brand review approves team-associated colors, keep a small mapping in
+`frontend/src/data/team-colors.ts` and adjust any color that fails contrast
+rather than reproducing an official specification.
 
 ### Output files
 
@@ -179,7 +184,7 @@ A single search box is the primary path: typing `bulls 98`, `98 bulls` or `2017 
 
 ### Result page
 
-- **Winner card:** both teams with their color accents, the winner's win probability large, the projected margin as "wins by 4.8".
+- **Winner card:** both teams with their side accents, the winner's win probability large, the projected margin rounded, as "wins by about 5 pts" (the regressor is typically off by ~10 points, so never show a decimal).
 - **Series odds:** "In a best-of-7: Warriors win the series 71% of the time." From single-game probability `p`, the chance of winning a 7-game series is the chance of taking 4 games before the opponent does:
 
   ```
@@ -206,7 +211,9 @@ Requirements: mobile-first, works down to 360px wide; contrast at least 4.5:1 fo
 ### Copy and honesty rules
 
 - **Never show an accuracy figure.** The shipped model's advertised 71% came from a leak: its playoff features included the game it was predicting. See `CONTRIBUTING.md`.
-- The `/about` page says, in plain language: results come from a logistic regression over season statistics; each team is represented by its full-season record and playoff run; matchups across eras ignore rule and pace differences; results are for fun.
+- The `/about` page describes the F01-approved release in plain language and
+  states its actual inputs and limitations. Matchups across eras ignore rule
+  and pace differences; results are model estimates for entertainment.
 - Never use NBA, team or league logos, or wording that implies an official connection.
 
 ## Step 3: acceptance checks

@@ -1,0 +1,106 @@
+// Client for the duel Worker (F09). The only module that calls it. Nothing
+// else in the site depends on the Worker: without VITE_DUEL_API the duel
+// pages say so and every other route is unaffected.
+
+import type { ApiErrorBody, DrawMode, DuelResult, DuelState, IssuedSet, Pick, PlayMode } from "../duel";
+import { clearGuestToken, readGuestToken, writeGuestToken } from "./duelStorage";
+
+/** Base URL of the duel API for this build, or null when duel mode is off. */
+export const DUEL_API: string | null = import.meta.env.VITE_DUEL_API?.replace(/\/+$/, "") || null;
+
+export class DuelApiError extends Error {
+  readonly code: string;
+  readonly status: number;
+  constructor(code: string, status: number) {
+    super(code);
+    this.code = code;
+    this.status = status;
+  }
+}
+
+type RequestOptions = { method?: "GET" | "POST"; body?: unknown; token?: string; idempotencyKey?: string };
+
+async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  if (!DUEL_API) throw new DuelApiError("not_configured", 0);
+  const headers: Record<string, string> = {};
+  if (options.body !== undefined) headers["content-type"] = "application/json";
+  if (options.token) headers.authorization = "Bearer " + options.token;
+  if (options.idempotencyKey) headers["idempotency-key"] = options.idempotencyKey;
+  let response: Response;
+  try {
+    response = await fetch(DUEL_API + path, {
+      method: options.method ?? "GET",
+      headers,
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    });
+  } catch {
+    throw new DuelApiError("network", 0);
+  }
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as ApiErrorBody | null;
+    throw new DuelApiError(body?.error ?? "http_" + response.status, response.status);
+  }
+  return (await response.json()) as T;
+}
+
+async function guestToken(): Promise<string> {
+  const stored = readGuestToken();
+  if (stored) return stored;
+  const { guestToken } = await request<{ guestToken: string }>("/v1/guests", { method: "POST" });
+  writeGuestToken(guestToken);
+  return guestToken;
+}
+
+/** Runs a call as the guest, replacing a token the server no longer accepts once. */
+async function asGuest<T>(call: (token: string) => Promise<T>): Promise<T> {
+  try {
+    return await call(await guestToken());
+  } catch (error) {
+    if (!(error instanceof DuelApiError) || error.code !== "unauthorized") throw error;
+    clearGuestToken();
+    return call(await guestToken());
+  }
+}
+
+export function startSet(mode: PlayMode, draw: DrawMode): Promise<IssuedSet> {
+  return asGuest((token) => request<IssuedSet>("/v1/sets", { method: "POST", token, body: { mode, draw } }));
+}
+
+export function fetchDuel(duelId: string): Promise<DuelState> {
+  return request<DuelState>("/v1/duels/" + encodeURIComponent(duelId), { token: readGuestToken() ?? undefined });
+}
+
+export function submitPicks(duelId: string, setToken: string, picks: Pick[], idempotencyKey: string): Promise<DuelResult> {
+  const token = readGuestToken();
+  if (!token) return Promise.reject(new DuelApiError("unauthorized", 401));
+  return request<DuelResult>("/v1/duels/" + encodeURIComponent(duelId) + "/submission", {
+    method: "POST",
+    token,
+    idempotencyKey,
+    body: { setToken, picks },
+  });
+}
+
+/** Plain-language message for an API failure. */
+export function describeDuelError(error: unknown): string {
+  const code = error instanceof DuelApiError ? error.code : "unknown";
+  switch (code) {
+    case "not_configured":
+      return "Duel mode isn't switched on for this version of the site.";
+    case "network":
+    case "pool_unavailable":
+    case "internal":
+      return "Duel mode is unavailable right now. The matchup explorer and tournaments still work.";
+    case "rate_limited":
+      return "That's a lot of duels in a short time. Try again in a little while.";
+    case "set_expired":
+      return "This set expired before it was locked in. Start a new one.";
+    case "not_found":
+    case "unauthorized":
+      return "This duel can't be found. It may belong to another browser.";
+    case "already_submitted":
+      return "Picks for this duel were already locked in.";
+    default:
+      return "Something went wrong with this duel.";
+  }
+}

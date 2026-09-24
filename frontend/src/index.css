@@ -23,6 +23,8 @@
   --border-strong: rgba(216, 162, 74, 0.45);
   --accent: #d8a24a;
   --accent-text: #241a05;
+  --side-a: #d8a24a;
+  --side-b: #5fa8d3;
   --win: #3fbf7f;
   --loss: #e0656a;
   --shadow: rgba(0, 0, 0, 0.5);
@@ -41,6 +43,8 @@
   --border-strong: rgba(138, 90, 31, 0.5);
   --accent: #8a5a1f;
   --accent-text: #fff8ea;
+  --side-a: #8a5a1f;
+  --side-b: #2a6f97;
   --win: #1f8a4c;
   --loss: #c23b3f;
   --shadow: rgba(60, 40, 10, 0.12);
@@ -158,6 +162,14 @@ button {
 .site-nav a:hover,
 .site-nav a:focus-visible {
   color: var(--text);
+}
+
+/* With duel mode's nav link the header no longer fits one row at 360px:
+   let the nav drop below the brand instead of overflowing. */
+.site-header__inner,
+.site-nav {
+  flex-wrap: wrap;
+  row-gap: 8px;
 }
 
 /* --- Theme toggle -------------------------------------------------------*/
@@ -677,5 +689,1027 @@ button {
 
   .picker-slots {
     flex-direction: column;
+  }
+}
+
+/* --- Tournament (F04) -----------------------------------------------------*/
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.tournament-cta {
+  margin-top: 32px;
+  padding: 20px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}
+
+.tournament-cta h2 {
+  margin: 0 0 6px;
+  font-family: var(--font-score);
+  font-size: 1.4rem;
+}
+
+.tournament-cta p {
+  margin: 0 0 12px;
+  color: var(--text-dim);
+}
+
+.tournament-cta .btn,
+.tournament__actions .btn {
+  text-decoration: none;
+}
+
+.tournament__header h1 {
+  font-family: var(--font-score);
+  font-size: clamp(1.8rem, 5vw, 2.6rem);
+  margin: 0 0 4px;
+  line-height: 1.1;
+}
+
+.tournament__meta,
+.tournament__lede,
+.tournament__hint {
+  color: var(--text-dim);
+}
+
+.tournament__meta {
+  margin: 0 0 20px;
+}
+
+.tournament__hint {
+  font-size: 0.9rem;
+}
+
+.tournament h2 {
+  font-size: 1.15rem;
+  margin: 28px 0 8px;
+}
+
+.tournament__bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tournament__bar h2 {
+  margin-bottom: 0;
+}
+
+.tournament__progress {
+  margin: 0;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.tournament__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.tournament-invalid h1 {
+  font-size: 1.4rem;
+}
+
+.tournament-invalid__detail {
+  font-size: 0.85rem;
+  color: var(--text-faint);
+  overflow-wrap: anywhere;
+}
+
+.btn--small {
+  padding: 4px 10px;
+  font-size: 0.8rem;
+}
+
+/* Bracket: one column per round on wide screens, stacked rounds on narrow. */
+
+.bracket {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+@media (min-width: 760px) {
+  .bracket[data-rounds="4"] {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .bracket[data-rounds="3"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .bracket__round {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .bracket__series-list {
+    flex: 1;
+    justify-content: space-around;
+  }
+}
+
+.tournament .bracket__round-name {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--court-line);
+}
+
+.bracket__series-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bracket__series {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  overflow: hidden;
+}
+
+.bracket__team {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.bracket__team + .bracket__team {
+  border-top: 1px solid var(--border);
+}
+
+.bracket__team--choice {
+  cursor: pointer;
+}
+
+.bracket__team--choice:hover {
+  background: var(--bg-elevated);
+}
+
+.bracket__team--choice:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.bracket__team--picked,
+.bracket__team--picked:hover {
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.bracket__team--picked:focus-visible {
+  outline-color: var(--text);
+}
+
+.bracket__team--empty {
+  color: var(--text-faint);
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
+.bracket__team--won {
+  font-weight: 700;
+}
+
+.bracket__team--lost {
+  color: var(--text-faint);
+}
+
+.bracket__seed {
+  flex: none;
+  min-width: 1.6em;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.bracket__name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.bracket__mark {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.bracket__wins {
+  font-size: 1.1rem;
+}
+
+.bracket__pick-line {
+  margin: 0;
+  padding: 6px 10px;
+  border-top: 1px dashed var(--border);
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.bracket__verdict--right {
+  color: var(--win);
+  font-weight: 600;
+}
+
+.bracket__verdict--wrong {
+  color: var(--loss);
+  font-weight: 600;
+}
+
+.bracket__hidden {
+  color: var(--text-faint);
+}
+
+/* Summary */
+
+.tournament-summary {
+  margin-top: 8px;
+  padding: 18px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}
+
+.tournament .tournament-summary h2 {
+  margin: 0 0 12px;
+  font-family: var(--font-score);
+  font-size: 1.6rem;
+}
+
+.tournament-summary h2:focus {
+  outline: none;
+}
+
+.tournament-summary__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.tournament-summary__facts dt {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.tournament-summary__facts dd {
+  margin: 2px 0 0;
+  font-size: 1.1rem;
+}
+
+.tournament-summary__facts dd.scoreboard {
+  font-size: 1.8rem;
+}
+
+.tournament-summary__of {
+  font-size: 1rem;
+  color: var(--text-dim);
+}
+
+.tournament-summary__line {
+  margin: 14px 0 0;
+  color: var(--text-dim);
+}
+
+/* Tables (entrants, score by round, title odds) */
+
+.table-scroll {
+  overflow-x: auto;
+  margin: 12px 0;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.data-table caption {
+  text-align: left;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  padding-bottom: 6px;
+}
+
+.data-table th,
+.data-table td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.data-table thead th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.data-table tbody th {
+  font-weight: 500;
+}
+
+.data-table .num {
+  text-align: right;
+}
+
+.tournament-assumptions {
+  margin-top: 36px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.tournament-assumptions ul {
+  padding-left: 20px;
+}
+
+.tournament-assumptions li {
+  margin-bottom: 6px;
+}
+
+/* Builder */
+
+.builder__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.builder__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}
+
+.builder__name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.builder__stat {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.builder__options {
+  margin: 18px 0 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+
+.builder__options legend {
+  padding: 0 6px;
+  font-weight: 600;
+}
+
+.builder__options label {
+  cursor: pointer;
+}
+
+/* --- Growth and demand (F05) ----------------------------------------------*/
+
+.tournament__check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+/* Challenge link: pick before the reveal */
+
+.challenge {
+  text-align: center;
+  padding: 32px 0 16px;
+}
+
+.challenge__kicker {
+  margin: 0;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--court-line);
+}
+
+.challenge h1 {
+  font-family: var(--font-score);
+  font-size: clamp(1.8rem, 5vw, 2.6rem);
+  margin: 8px 0;
+}
+
+.challenge__hint {
+  color: var(--text-dim);
+  margin: 0 0 24px;
+}
+
+.challenge__choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.challenge__choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 20px 16px;
+  font-size: 1.05rem;
+}
+
+.challenge__season {
+  font-family: var(--font-score);
+  font-size: 1.8rem;
+  color: var(--accent);
+}
+
+.challenge__record {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.challenge__verdict {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  font-weight: 600;
+}
+
+/* Offers */
+
+.plans .offer-panel + .offer-panel {
+  margin-top: 36px;
+}
+
+.offer-panel {
+  margin-top: 32px;
+}
+
+.offer-panel h2 {
+  font-size: 1.3rem;
+  margin: 0 0 6px;
+}
+
+.offer-panel__intro {
+  margin: 0 0 6px;
+  color: var(--text-dim);
+}
+
+.offer-panel__badge {
+  display: inline-block;
+  margin: 4px 0 14px;
+  padding: 3px 10px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.offer-panel__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.offer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}
+
+.offer--chosen {
+  border-color: var(--accent);
+}
+
+.offer h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.offer__price {
+  margin: 0;
+}
+
+.offer__price .scoreboard {
+  font-size: 2rem;
+  color: var(--accent);
+}
+
+.offer__cadence,
+.offer__pitch {
+  color: var(--text-dim);
+}
+
+.offer__pitch {
+  margin: 0;
+}
+
+.offer ul {
+  margin: 0 0 6px;
+  padding-left: 18px;
+  font-size: 0.9rem;
+}
+
+.offer .btn {
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+.interest-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: auto;
+}
+
+.interest-form label {
+  font-size: 0.9rem;
+}
+
+.interest-form__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.interest-form__row input {
+  flex: 1 1 160px;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font: inherit;
+}
+
+.interest-form__note,
+.interest-form__fine {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.interest-form__error {
+  margin: 0;
+  color: var(--loss);
+  font-size: 0.85rem;
+}
+
+.analytics-opt-out {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Card render route: the canvas at exactly 1200x630, nothing else. */
+
+.card-page {
+  width: 1200px;
+  height: 630px;
+  overflow: hidden;
+}
+
+.card-page canvas {
+  display: block;
+  width: 1200px;
+  height: 630px;
+}
+
+/* --- Duel mode (F09) -------------------------------------------------------*/
+
+.duel h1,
+.reveal__headline {
+  font-family: var(--font-score);
+  font-size: clamp(1.7rem, 5vw, 2.4rem);
+  line-height: 1.15;
+  margin: 6px 0 8px;
+}
+
+.duel__lede,
+.duel__fine,
+.reveal__fine {
+  color: var(--text-dim);
+}
+
+.duel__fine,
+.reveal__fine {
+  font-size: 0.85rem;
+}
+
+.duel h2,
+.duel-review h2 {
+  font-size: 1.15rem;
+  margin: 24px 0 8px;
+}
+
+.duel__scoring .data-table {
+  max-width: 360px;
+}
+
+.duel__setup {
+  margin-top: 24px;
+  display: grid;
+  gap: 16px;
+  justify-items: start;
+}
+
+.duel__setup fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+  width: 100%;
+}
+
+.duel__setup legend {
+  font-weight: 600;
+  padding: 0 4px;
+}
+
+.duel__option {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.duel__option input {
+  margin-top: 4px;
+}
+
+.duel__option-note {
+  display: block;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.duel__era {
+  display: grid;
+  gap: 4px;
+  font-weight: 600;
+}
+
+.duel__era select {
+  font: inherit;
+  font-weight: 400;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elevated);
+  color: var(--text);
+  min-width: 200px;
+}
+
+.duel__error {
+  color: var(--loss);
+  margin: 0;
+}
+
+.duel-play__bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px 16px;
+}
+
+.duel-play__progress {
+  margin: 0;
+  font-family: var(--font-score);
+  color: var(--court-line);
+  letter-spacing: 0.04em;
+}
+
+.duel-play__opponent {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.duel-play__disclosure {
+  display: block;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.puzzle {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}
+
+.puzzle__header h2 {
+  margin: 0;
+  font-family: var(--font-score);
+  font-size: 1.4rem;
+}
+
+.puzzle__meta {
+  margin: 2px 0 12px;
+  color: var(--text-dim);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.puzzle__badge {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+
+.puzzle__table {
+  width: 100%;
+}
+
+.puzzle__table thead th {
+  vertical-align: bottom;
+}
+
+.puzzle__side-label {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+
+.puzzle__team {
+  display: block;
+  font-weight: 600;
+}
+
+.puzzle__hint {
+  display: block;
+  font-weight: 400;
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  max-width: 28ch;
+}
+
+.puzzle__choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 16px 0 12px;
+}
+
+.puzzle__choice {
+  justify-content: center;
+  padding: 12px 10px;
+  font-size: 1rem;
+  border-radius: var(--radius);
+}
+
+.puzzle__choice--picked {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.confidence {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.confidence legend {
+  font-weight: 600;
+  margin-bottom: 6px;
+  padding: 0;
+}
+
+.confidence__option {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-align: center;
+}
+
+.confidence__option input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.confidence__option:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.confidence__option--chosen {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.confidence__name {
+  font-weight: 600;
+}
+
+.confidence__stakes {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.duel-play__nav {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 16px;
+}
+
+.duel-review__list {
+  padding-left: 20px;
+  display: grid;
+  gap: 10px;
+}
+
+.duel-review__list li > span {
+  margin-right: 8px;
+}
+
+.duel-review__change {
+  padding: 4px 12px;
+  font-size: 0.8rem;
+}
+
+.reveal__scores {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.reveal__score {
+  padding: 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  text-align: center;
+}
+
+.reveal__score dt {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.reveal__score dd {
+  margin: 4px 0 0;
+  font-family: var(--font-score);
+  font-size: 1.8rem;
+}
+
+.reveal__score--benchmark {
+  border-style: dashed;
+}
+
+.reveal__disclosure,
+.reveal__benchmark {
+  font-size: 0.9rem;
+  padding: 10px 12px;
+  border-left: 3px solid var(--court-line);
+  background: var(--bg-card);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.reveal__games {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.reveal-game {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.reveal-game__title {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.reveal-game__result {
+  margin: 2px 0 8px;
+  color: var(--court-line);
+  font-weight: 600;
+}
+
+.reveal-game__picks {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.reveal-pick {
+  display: grid;
+  grid-template-columns: minmax(84px, auto) 1fr auto;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 0.9rem;
+}
+
+.reveal-pick__who {
+  color: var(--text-dim);
+}
+
+.reveal-pick__points {
+  font-family: var(--font-score);
+  font-variant-numeric: tabular-nums;
+}
+
+.reveal-pick--right .reveal-pick__points {
+  color: var(--win);
+}
+
+.reveal-pick--wrong .reveal-pick__points {
+  color: var(--loss);
+}
+
+.duel__again {
+  margin-top: 20px;
+}
+
+@media (max-width: 480px) {
+  .confidence {
+    grid-template-columns: 1fr;
+  }
+
+  .confidence__option {
+    flex-direction: row;
+    justify-content: space-between;
   }
 }

@@ -1,0 +1,233 @@
+{
+  "version": "duel-pool-v1",
+  "pool": {
+    "candidates": 30389,
+    "sim": 23727,
+    "ranked": 6662,
+    "rankedDuelCapacity": 1332,
+    "playoffShare": 0.0749,
+    "modelAccuracy": {
+      "inSample (seasons <= 2021)": {
+        "games": 25806,
+        "accuracy": 0.6852,
+        "brier": 0.2014
+      },
+      "outOfSample (seasons > 2021)": {
+        "games": 4583,
+        "accuracy": 0.6816,
+        "brier": 0.2063
+      }
+    },
+    "perEra": {
+      "1998-2004": {
+        "candidates": 6711,
+        "sim": 5322,
+        "ranked": 1389,
+        "playoffShare": 0.0781,
+        "simByBand": {
+          "lock": 1084,
+          "favorite": 2223,
+          "tossup": 2002
+        },
+        "modelAccuracy": 0.6916
+      },
+      "2005-2011": {
+        "candidates": 8088,
+        "sim": 6352,
+        "ranked": 1736,
+        "playoffShare": 0.0725,
+        "simByBand": {
+          "lock": 1354,
+          "favorite": 2605,
+          "tossup": 2380
+        },
+        "modelAccuracy": 0.6897
+      },
+      "2012-2016": {
+        "candidates": 5548,
+        "sim": 4340,
+        "ranked": 1208,
+        "playoffShare": 0.0766,
+        "simByBand": {
+          "lock": 1002,
+          "favorite": 1749,
+          "tossup": 1567
+        },
+        "modelAccuracy": 0.6889
+      },
+      "2017-2021": {
+        "candidates": 5459,
+        "sim": 4222,
+        "ranked": 1237,
+        "playoffShare": 0.0744,
+        "simByBand": {
+          "lock": 950,
+          "favorite": 1688,
+          "tossup": 1571
+        },
+        "modelAccuracy": 0.667
+      },
+      "2022-2026": {
+        "candidates": 4583,
+        "sim": 3491,
+        "ranked": 1092,
+        "playoffShare": 0.0731,
+        "simByBand": {
+          "lock": 836,
+          "favorite": 1344,
+          "tossup": 1282
+        },
+        "modelAccuracy": 0.6816
+      }
+    },
+    "searchability": {
+      "definition": "games in the full dataset sharing era, game type, and both entering records",
+      "shareUniqueK1": 0.8845,
+      "shareKAtLeast5": 0.0165,
+      "medianK": 1.0
+    }
+  },
+  "gates": {
+    "unrankedComposition": {
+      "puzzlesSampled": 100000,
+      "archetypes": {
+        "always-home": {
+          "tier": "confident",
+          "accuracy": 0.6322,
+          "meanPointsPerPuzzle": 5.15
+        },
+        "always-better-record": {
+          "tier": "confident",
+          "accuracy": 0.6511,
+          "meanPointsPerPuzzle": 8.17
+        },
+        "form-chaser": {
+          "tier": "lean",
+          "accuracy": 0.6125,
+          "meanPointsPerPuzzle": 3.5
+        },
+        "random": {
+          "tier": "lean",
+          "accuracy": 0.4947,
+          "meanPointsPerPuzzle": -1.21
+        },
+        "model-follower": {
+          "tier": "nearest",
+          "accuracy": 0.6718,
+          "meanPointsPerPuzzle": 17.05
+        },
+        "model (continuous benchmark)": {
+          "tier": "continuous",
+          "accuracy": 0.6718,
+          "meanPointsPerPuzzle": 17.87
+        }
+      },
+      "modelFollowerDuelWinRate": {
+        "model-follower vs always-home": 0.6919,
+        "model-follower vs always-better-record": 0.6642,
+        "model-follower vs form-chaser": 0.7663,
+        "model-follower vs random": 0.7831
+      },
+      "bestNaive": "always-better-record",
+      "accuracyGapModelMinusBestNaive": 0.0207,
+      "pointsGapModelMinusBestNaive": 8.88
+    },
+    "rankedSignalDivergence": {
+      "puzzlesSampled": 100000,
+      "archetypes": {
+        "always-home": {
+          "tier": "lean",
+          "accuracy": 0.408,
+          "meanPointsPerPuzzle": -4.68
+        },
+        "always-better-record": {
+          "tier": "lean",
+          "accuracy": 0.5892,
+          "meanPointsPerPuzzle": 2.57
+        },
+        "form-chaser": {
+          "tier": "confident",
+          "accuracy": 0.6386,
+          "meanPointsPerPuzzle": 6.18
+        },
+        "random": {
+          "tier": "lean",
+          "accuracy": 0.5023,
+          "meanPointsPerPuzzle": -0.91
+        },
+        "model-follower": {
+          "tier": "nearest",
+          "accuracy": 0.6954,
+          "meanPointsPerPuzzle": 15.97
+        },
+        "model (continuous benchmark)": {
+          "tier": "continuous",
+          "accuracy": 0.6954,
+          "meanPointsPerPuzzle": 17.66
+        }
+      },
+      "modelFollowerDuelWinRate": {
+        "model-follower vs always-home": 0.726,
+        "model-follower vs always-better-record": 0.686,
+        "model-follower vs form-chaser": 0.6166,
+        "model-follower vs random": 0.7075
+      },
+      "bestNaive": "form-chaser",
+      "accuracyGapModelMinusBestNaive": 0.0568,
+      "pointsGapModelMinusBestNaive": 9.79
+    },
+    "uniformAllCandidates (reference)": {
+      "puzzlesSampled": 100000,
+      "archetypes": {
+        "always-home": {
+          "tier": "lean",
+          "accuracy": 0.592,
+          "meanPointsPerPuzzle": 2.68
+        },
+        "always-better-record": {
+          "tier": "confident",
+          "accuracy": 0.6463,
+          "meanPointsPerPuzzle": 7.4
+        },
+        "form-chaser": {
+          "tier": "confident",
+          "accuracy": 0.6241,
+          "meanPointsPerPuzzle": 3.85
+        },
+        "random": {
+          "tier": "lean",
+          "accuracy": 0.5,
+          "meanPointsPerPuzzle": -1.0
+        },
+        "model-follower": {
+          "tier": "nearest",
+          "accuracy": 0.6844,
+          "meanPointsPerPuzzle": 18.02
+        },
+        "model (continuous benchmark)": {
+          "tier": "continuous",
+          "accuracy": 0.6844,
+          "meanPointsPerPuzzle": 19.15
+        }
+      },
+      "modelFollowerDuelWinRate": {
+        "model-follower vs always-home": 0.73,
+        "model-follower vs always-better-record": 0.6336,
+        "model-follower vs form-chaser": 0.6601,
+        "model-follower vs random": 0.7451
+      },
+      "bestNaive": "always-better-record",
+      "accuracyGapModelMinusBestNaive": 0.0381,
+      "pointsGapModelMinusBestNaive": 10.62
+    }
+  },
+  "verdict": [
+    "unranked: model-follower beats always-home by 11.9 pts/puzzle and always-better-record by 8.88 pts/puzzle; wins 0.6642 of five-puzzle duels against the best naive archetype (always-better-record).",
+    "ranked: model-follower beats always-home by 20.65 pts/puzzle and always-better-record by 13.4 pts/puzzle; wins 0.6166 of five-puzzle duels against the best naive archetype (form-chaser)."
+  ],
+  "notes": [
+    "Naive archetypes are scored at their best fixed tier (the most generous reading of each).",
+    "Model probabilities for seasons <= 2021 are in-sample: the shipped model was fit on those games.",
+    "Duel win rate counts ties as half a win."
+  ]
+}

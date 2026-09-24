@@ -10,14 +10,16 @@ Primary entry point:
 
 Accepts team name (full, city-only, or team-name-only), case-insensitive.
 Looks up profiles from team_season_profiles_extended.csv, builds the exact
-feature row expected by best_experiment_model.pkl, and returns a prediction dict.
+feature row expected by the active model release, and returns a prediction dict.
+
+All model artifacts come from one validated release bundle (src/models/release.py).
+If the release is missing, partial, or inconsistent, the first call raises a
+single ReleaseError before any inference runs.
 
 This is a PRODUCTION module. Do not import train_model_experiments.py from here.
 """
 
-import json
 import math
-import pickle
 import warnings
 from pathlib import Path
 from typing import Optional
@@ -25,22 +27,20 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from src.models.model_config import (
-    CLF_MODEL_PATH     as _CLF_PATH,
-    REG_MODEL_PATH     as _REG_PATH,
-    MODEL_COLUMNS_PATH as _COLS_PATH,
-    PROFILES_PATH      as _PROFILES_PATH,
-    CLASSIFICATION_MODEL,
-    REGRESSION_MODEL,
-    MODEL_NAME,
-    MODEL_VERSION,
-    FEATURE_COUNT,
+from src.models.model_config import PROFILES_PATH as _PROFILES_PATH
+from src.models.release import (
+    Release,
+    ReleaseError,
+    check_profiles,
+    load_active_release,
+    parse_base_stats,
 )
 
 # ---------------------------------------------------------------------------
 # Lazy-loaded singletons
 # ---------------------------------------------------------------------------
 
+_release  = None   # Release
 _clf      = None
 _reg      = None
 _cols     = None   # list[str]
@@ -48,40 +48,37 @@ _profiles = None   # pd.DataFrame
 
 
 def _load() -> None:
-    global _clf, _reg, _cols, _profiles
+    global _release, _clf, _reg, _cols, _profiles
 
     if _clf is not None:
         return
 
-    for p, label in [(_CLF_PATH, "classification model"), (_COLS_PATH, "model columns"), (_PROFILES_PATH, "team profiles")]:
-        if not p.exists():
-            raise FileNotFoundError(f"Required file not found: {p}  ({label})")
+    release = load_active_release()
 
-    with open(_CLF_PATH, "rb") as f:
-        _clf = pickle.load(f)
+    if not _PROFILES_PATH.exists():
+        raise FileNotFoundError(f"Required file not found: {_PROFILES_PATH}  (team profiles)")
+    profiles = pd.read_csv(_PROFILES_PATH)
+    check_profiles(release, profiles.columns)
 
-    with open(_COLS_PATH) as f:
-        _cols = json.load(f)
-
-    _profiles = pd.read_csv(_PROFILES_PATH)
+    _release, _clf, _reg, _cols, _profiles = release, release.classifier, release.regressor, release.columns, profiles
 
     # Normalise text columns for matching
     _profiles["_team_full"]   = (_profiles["team_city"] + " " + _profiles["team_name"]).str.lower().str.strip()
     _profiles["_team_city_l"] = _profiles["team_city"].str.lower().str.strip()
     _profiles["_team_name_l"] = _profiles["team_name"].str.lower().str.strip()
 
-    if _REG_PATH.exists():
-        with open(_REG_PATH, "rb") as f:
-            _reg = pickle.load(f)
-    else:
-        _reg = None
-
 
 def reload() -> None:
     """Force a reload of all model artifacts and the profiles CSV."""
-    global _clf, _reg, _cols, _profiles
-    _clf = _reg = _cols = _profiles = None
+    global _release, _clf, _reg, _cols, _profiles
+    _release = _clf = _reg = _cols = _profiles = None
     _load()
+
+
+def get_release() -> Release:
+    """Return the validated release bundle that predictions are served from."""
+    _load()
+    return _release
 
 
 # ---------------------------------------------------------------------------
@@ -151,18 +148,7 @@ def list_available_teams(season: Optional[int] = None) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 # Base stat names needed by the model (stripped of home_/away_ prefix and _diff suffix).
-# Derived once at module level for efficiency.
-def _parse_base_stats(cols: list[str]) -> list[str]:
-    """Extract the set of unique base stat names from model column list."""
-    bases = set()
-    for col in cols:
-        if col.startswith("home_"):
-            bases.add(col[5:])
-        elif col.startswith("away_"):
-            bases.add(col[5:])
-        elif col.endswith("_diff"):
-            bases.add(col[:-5])
-    return sorted(bases)
+_parse_base_stats = parse_base_stats
 
 
 def build_model_input(team_a: pd.Series, team_b: pd.Series, model_cols: list[str]) -> pd.DataFrame:
@@ -312,10 +298,13 @@ def predict_matchup(
         predicted_winner        - team_a or team_b label
         team_a_win_probability  - float [0, 1]
         team_b_win_probability  - float [0, 1]
-        projected_margin_team_a - float, positive = team_a wins by N pts
-        classification_model    - "LogisticRegression"
-        regression_model        - "HistGradientBoostingRegressor" or "unavailable"
-        model_feature_count     - 71
+        projected_margin_team_a - float, positive = team_a wins by N pts. A rough
+                                  estimate, not a precise score line.
+        classification_model    - final estimator of the release classifier
+        regression_model        - final estimator of the release regressor
+        model_feature_count     - column count pinned by the release manifest
+        model_release           - active release version
+        model_purpose           - release purpose, e.g. "historical_entertainment"
         warnings                - list of warning strings (empty = clean)
     """
     _load()
@@ -347,25 +336,13 @@ def predict_matchup(
     predicted_winner = label_a if team_a_prob >= team_b_prob else label_b
     win_pct          = team_a_prob if team_a_prob >= team_b_prob else team_b_prob
 
-    # 6. Regression
-    if _reg is not None:
-        try:
-            margin = float(_reg.predict(X)[0])
-            # positive = team_a (home) wins by margin
-        except Exception as e:
-            margin = None
-            warn.append(f"Regression prediction failed: {e}")
-    else:
-        margin = None
-        warn.append("Point margin model (point_margin_model.pkl) not found.")
+    # 6. Regression (positive = team_a (home) wins by margin)
+    margin = float(_reg.predict(X)[0])
 
     # 7. Human-readable margin text
-    if margin is not None:
-        abs_margin = abs(round(margin, 1))
-        margin_leader = label_a if margin >= 0 else label_b
-        projected_margin_winner_text = f"{margin_leader} by {abs_margin} pts"
-    else:
-        projected_margin_winner_text = "unavailable"
+    abs_margin = abs(round(margin, 1))
+    margin_leader = label_a if margin >= 0 else label_b
+    projected_margin_winner_text = f"{margin_leader} by about {abs_margin} pts"
 
     return {
         "team_a":                        label_a,
@@ -374,11 +351,13 @@ def predict_matchup(
         "predicted_winner":              predicted_winner,
         "team_a_win_probability":        round(team_a_prob, 4),
         "team_b_win_probability":        round(team_b_prob, 4),
-        "projected_margin_team_a":       round(margin, 1) if margin is not None else None,
+        "projected_margin_team_a":       round(margin, 1),
         "projected_margin_winner_text":  projected_margin_winner_text,
-        "classification_model":          CLASSIFICATION_MODEL,
-        "regression_model":              REGRESSION_MODEL if _reg is not None else "unavailable",
+        "classification_model":          _release.classifier_name,
+        "regression_model":              _release.regressor_name,
         "model_feature_count":           len(_cols),
+        "model_release":                 _release.version,
+        "model_purpose":                 _release.purpose,
         "warnings":                      warn,
     }
 

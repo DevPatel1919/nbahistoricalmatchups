@@ -1,6 +1,7 @@
 import { Link, Outlet } from "react-router-dom";
 import ThemeToggle from "./ThemeToggle";
 import { useTheme } from "../hooks/useTheme";
+import { DUEL_API } from "../lib/duelApi";
 
 export default function Layout() {
   const [theme, toggleTheme] = useTheme();
@@ -14,6 +15,9 @@ export default function Layout() {
             <span className="brand__name">Court of All Time</span>
           </Link>
           <nav className="site-nav" aria-label="Primary">
+            <Link to="/tournament">Tournament</Link>
+            {DUEL_API && <Link to="/duel">Duel</Link>}
+            <Link to="/plans">Plans</Link>
             <Link to="/about">About</Link>
             <ThemeToggle theme={theme} onToggle={toggleTheme} />
           </nav>

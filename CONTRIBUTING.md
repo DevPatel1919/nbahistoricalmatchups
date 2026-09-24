@@ -2,13 +2,17 @@
 
 Guide for anyone (human or agent) changing this repo. Read it before touching features, training, or model artifacts.
 
+For product, tournament, growth, creator, or monetization work, start with
+`docs/product/HANDOFF.md`. It records the settled product decisions and routes
+each independently implementable feature to its own agent brief.
+
 ## What this software is
 
 An NBA game-outcome predictor built on public box-score data (1998 onward). It contains two models with different jobs:
 
 | Model | Question it answers | Inputs | Code | Artifacts |
 |---|---|---|---|---|
-| **Historical matchup simulator** | "Who wins: 2017 Warriors vs 1998 Bulls?" | Completed full-season team profiles | `src/models/train_model_experiments.py`, `src/models/predict_matchup.py` | `models/experiments/`, `models/production/` |
+| **Historical matchup simulator** | "Who wins: 2017 Warriors vs 1998 Bulls?" | Completed full-season team profiles | `src/models/train_model_experiments.py`, `src/models/predict_matchup.py` | `models/experiments/` (training), `models/releases/` (served) |
 | **Pre-game model** | "Who wins tonight's game?" Intended for betting. | Only what is known before tip-off: season-to-date stats, Elo, recent form, rest, lineup strength | `src/models/train_pregame_model.py` | `models/pregame/` |
 
 The long-term goal is a betting app that makes money. That means the pre-game model is judged against sportsbook prices, not on raw accuracy. Sportsbook closing lines pick the winner roughly 68–70% of the time. A model beyond that range is almost certainly **leaking**, meaning it is seeing information from after tip-off.
@@ -46,6 +50,16 @@ python src/models/train_pregame_model.py                  # ~15 s
 python src/models/train_model_experiments.py              # historical simulator, 10+ min
 ```
 
+Training never changes what is served. To ship a historical-simulator run, build it into a release, activate it, then re-export and verify the static site data:
+
+```
+python scripts/promote_release.py --build hist-vN --from models/experiments --info release_info.json
+python scripts/promote_release.py --activate hist-vN      # --activate <previous> rolls back
+python scripts/export_static_site_data.py
+python scripts/verify_static_export.py                     # must pass before deploy
+python -m pytest tests/test_release_integrity.py           # release checks + matchup smoke suite
+```
+
 - Raw inputs live in `data/raw/` and outputs in `data/processed/`. Both are gitignored, so running these scripts is the only way to get the data.
 - Each script's module docstring states what it reads and writes.
 
@@ -67,12 +81,13 @@ Match the surrounding code:
 - **Validation:** check inputs and outputs explicitly (empty frames, duplicate keys, nulls in required columns) and `raise ValueError` with a descriptive message.
 - **Models:** sklearn `Pipeline` of `SimpleImputer(median)` → `StandardScaler` → estimator. Pickle the whole pipeline and save its column list as JSON next to it.
 - **Constants:** shared stat definitions live in one place. `MEAN_STATS` / `PCT_STATS` in `build_team_season_profiles_extended.py` are imported by the matchup builder, so add a stat there once.
-- **Artifacts:** training scripts write to their own folder (`models/experiments/` or `models/pregame/`). Promote a model to `models/production/` only deliberately, together with its matching column list.
+- **Artifacts:** training scripts write to their own folder (`models/experiments/` or `models/pregame/`). The simulator is served only from an immutable release bundle in `models/releases/<version>/`, whose `manifest.json` pins every file by sha256. `models/production/` holds nothing but the `ACTIVE_RELEASE` pointer. Never copy loose artifacts there, and never edit a built release; build a new version instead.
 
 ## Known gotchas
 
 - **2022 season is almost missing:** it has 4 games in the matchup data, because most of its rows in the raw files have no `gameType`. Walk-forward skips it, and the test split effectively covers 2023–2026.
 - **Mixed date formats:** `gameDateTimeEst` omits the leading zero on some hours. Parse it with `pd.to_datetime(..., format="mixed")`.
-- **Artifact paths can mismatch:** `src/models/model_config.py` loads each artifact from `models/production/` if the file exists there, otherwise from `models/experiments/`. Production currently has only the column list, so a retrain of the experiments model loads new weights with a stale column list and `predict_matchup` breaks. Keep the model and its columns in the same folder.
+- **Releases are all-or-nothing:** `src/models/release.py` loads the active release as one unit and raises a single `ReleaseError` before inference if any file is missing, any hash differs, the column count or estimator feature names disagree with `columns.json`, or `models/production/` contains anything besides `ACTIVE_RELEASE`. There is no file-by-file fallback. Before Sep 2026 there was, and a retrain paired 196-feature weights with a stale 70-column list. Release files are marked `-text` in `.gitattributes` so line-ending conversion cannot change their hashes.
+- **No public accuracy for `hist-v1`:** the served simulator's recorded 71.04% came from leaky training features. Its `metrics.json` sets `publicAccuracyClaim` to null. Do not quote a number until an honest release replaces it.
 - **Some features can't be served:** `predict_matchup` builds features only from raw profile columns. A historical-simulator model that selects `_z` or `_pctile` features cannot be served until the prediction code computes them.
 - **Long jobs on Windows:** a long training run started with the shell's background option can die silently when the session moves on. Launch it with PowerShell `Start-Process` and redirect output to a log file.

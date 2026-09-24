@@ -17,8 +17,15 @@ export interface IndexTeam {
   trueShooting: number;
 }
 
+/** The model release that produced this export (see models/releases/). */
+export interface ReleaseInfo {
+  version: string;
+  purpose: string;
+}
+
 export interface IndexData {
   generated: string;
+  release: ReleaseInfo;
   teams: IndexTeam[];
 }
 

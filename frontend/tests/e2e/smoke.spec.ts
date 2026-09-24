@@ -20,14 +20,14 @@ test("a share URL loads the same numbers directly", async ({ page }) => {
   await page.goto("/1998-bulls-vs-2017-warriors");
 
   await expect(page.locator(".winner-card__prob")).toContainText("73.8%");
-  await expect(page.locator(".winner-card__margin")).toContainText("wins by 0.6");
+  await expect(page.locator(".winner-card__margin")).toContainText("wins by about 1 pt");
   await expect(page.locator(".stat-comparison")).toContainText("62-20");
   await expect(page.locator(".stat-comparison")).toContainText("67-15");
 
   // Reloading the exact same URL must show the exact same numbers.
   await page.reload();
   await expect(page.locator(".winner-card__prob")).toContainText("73.8%");
-  await expect(page.locator(".winner-card__margin")).toContainText("wins by 0.6");
+  await expect(page.locator(".winner-card__margin")).toContainText("wins by about 1 pt");
 });
 
 test("the reverse-order URL redirects to the canonical URL", async ({ page }) => {
@@ -61,11 +61,11 @@ test("A vs B equals B vs A (neutral-site symmetry)", async ({ page }) => {
   // and read a mid-animation frame).
   await page.goto("/1998-bulls-vs-2017-warriors");
   await expect(page.locator(".winner-card__prob")).toContainText("73.8%");
-  await expect(page.locator(".winner-card__margin")).toContainText("wins by 0.6");
+  await expect(page.locator(".winner-card__margin")).toContainText("wins by about 1 pt");
 
   await page.goto("/2017-warriors-vs-1998-bulls");
   await expect(page.locator(".winner-card__prob")).toContainText("73.8%");
-  await expect(page.locator(".winner-card__margin")).toContainText("wins by 0.6");
+  await expect(page.locator(".winner-card__margin")).toContainText("wins by about 1 pt");
 });
 
 test("/about renders without a bare accuracy figure", async ({ page }) => {

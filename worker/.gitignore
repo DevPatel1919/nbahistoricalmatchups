@@ -1,0 +1,5 @@
+node_modules/
+.wrangler/
+.dev.vars
+# Bulk KV files hold puzzle answers; they must never be committed or served statically.
+.pool-kv/

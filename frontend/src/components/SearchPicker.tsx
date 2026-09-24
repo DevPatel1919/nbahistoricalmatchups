@@ -52,6 +52,7 @@ export default function SearchPicker({ teams, onSelect, placeholder, excludeKey,
         aria-label={placeholder ?? "Search for a team and season"}
         aria-autocomplete="list"
         aria-controls={listId}
+        aria-activedescendant={results.length > 0 ? `${listId}-opt-${highlighted}` : undefined}
         autoFocus={autoFocus}
         onChange={(e) => {
           setQuery(e.target.value);
@@ -66,6 +67,7 @@ export default function SearchPicker({ teams, onSelect, placeholder, excludeKey,
               <button
                 type="button"
                 role="option"
+                id={`${listId}-opt-${i}`}
                 aria-selected={i === highlighted}
                 className="search-results__item"
                 onMouseEnter={() => setHighlighted(i)}

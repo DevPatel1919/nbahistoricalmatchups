@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { track } from "../lib/analytics";
 
 export type Theme = "dark" | "light";
 
@@ -26,9 +27,14 @@ export function useTheme(): [Theme, () => void] {
     }
   }, [theme]);
 
+  // Derives the next theme from `theme` rather than from a functional update,
+  // so the analytics call stays out of the state updater (which StrictMode
+  // invokes twice and would therefore double-report).
   const toggle = useCallback(() => {
-    setTheme((t) => (t === "dark" ? "light" : "dark"));
-  }, []);
+    const next: Theme = theme === "dark" ? "light" : "dark";
+    track({ name: "theme_changed", theme: next });
+    setTheme(next);
+  }, [theme]);
 
   return [theme, toggle];
 }

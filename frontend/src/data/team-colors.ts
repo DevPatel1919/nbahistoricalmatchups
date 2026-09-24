@@ -1,10 +1,14 @@
-// Team color accents. No NBA or team logos anywhere on the site (they are
-// trademarked); colors carry the identity instead. Keyed by era-correct
+// Team color accents, OFF by default. The site uses an independent side-A /
+// side-B palette (--side-a / --side-b in index.css) until F00's written brand
+// review approves team-associated colors; flip TEAM_COLORS_APPROVED only then.
+// No NBA or team logos anywhere on the site (they are trademarked). Keyed by era-correct
 // nickname exactly as exported in index.json/teams/*.json, so a franchise
 // whose identity changed (Sonics -> Thunder, Bobcats -> Hornets) gets its
 // own historically-accurate entry instead of sharing one with its modern
 // successor. Values are adjusted from official hex where needed for
 // contrast against the dark theme (see docs/frontend-handoff.md).
+
+export const TEAM_COLORS_APPROVED = false;
 
 export interface TeamColors {
   primary: string;

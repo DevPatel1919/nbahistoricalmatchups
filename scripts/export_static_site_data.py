@@ -17,6 +17,10 @@ every pair and averaging:
     m_ba = projected margin for B when B is home
     neutral_margin_a = (m_ab - m_ba) / 2
 
+Model artifacts come from the active release bundle (src/models/release.py),
+the same one predict_matchup() serves, and index.json records its version so
+verify_static_export.py can refuse data exported from a different release.
+
 There are 835 * 834 = 696,390 ordered pairs. Calling predict_matchup() in a
 per-pair loop builds a one-row DataFrame per call and takes hours, so this
 script loads the classifier/regressor once, builds a vectorised feature
@@ -47,13 +51,8 @@ _REPO_ROOT_FOR_IMPORTS = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT_FOR_IMPORTS) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT_FOR_IMPORTS))
 
-from src.models.model_config import (
-    CLF_MODEL_PATH,
-    REG_MODEL_PATH,
-    MODEL_COLUMNS_PATH,
-    PROFILES_PATH,
-)
-from src.models.predict_matchup import _parse_base_stats
+from src.models.model_config import PROFILES_PATH
+from src.models.release import check_profiles, load_active_release, parse_base_stats
 
 REPO_ROOT   = Path(__file__).resolve().parent.parent
 STATS_PATH  = REPO_ROOT / "data" / "raw" / "TeamStatisticsExtended.csv"
@@ -161,7 +160,7 @@ def score_all_ordered_pairs(profiles: pd.DataFrame, clf, reg, model_cols: list[s
         M[i, j] = rounded projected margin for team i, with i at home
     """
     n = len(profiles)
-    base_stats = _parse_base_stats(model_cols)
+    base_stats = parse_base_stats(model_cols)
     base_arrays = build_base_stat_arrays(profiles, base_stats)
 
     classes = list(clf.classes_)
@@ -225,20 +224,16 @@ def build_index_entry(row: pd.Series) -> dict:
 
 
 def main():
+    print("Loading active model release...")
+    release = load_active_release()
+    clf, reg, model_cols = release.classifier, release.regressor, release.columns
+    print("Release: " + release.version + "  (" + release.purpose + ", " + str(len(model_cols)) + " columns)")
+
     print("Loading profiles with era-correct identity...")
     profiles = load_profiles_with_identity()
+    check_profiles(release, profiles.columns)
     n = len(profiles)
     print("Team-seasons: " + str(n))
-
-    print("Loading model artifacts...")
-    import pickle
-    with open(CLF_MODEL_PATH, "rb") as f:
-        clf = pickle.load(f)
-    with open(REG_MODEL_PATH, "rb") as f:
-        reg = pickle.load(f)
-    with open(MODEL_COLUMNS_PATH) as f:
-        model_cols = json.load(f)
-    print("Model columns: " + str(len(model_cols)))
 
     print("Scoring all " + str(n * (n - 1)) + " ordered pairs in chunks of " + str(CHUNK_SIZE) + "...")
     P, M = score_all_ordered_pairs(profiles, clf, reg, model_cols)
@@ -277,6 +272,7 @@ def main():
     print("Building index.json...")
     index_payload = {
         "generated": date.today().isoformat(),
+        "release":   {"version": release.version, "purpose": release.purpose},
         "teams": [build_index_entry(profiles.iloc[i]) for i in range(n)],
     }
     if len({t["key"] for t in index_payload["teams"]}) != n:
