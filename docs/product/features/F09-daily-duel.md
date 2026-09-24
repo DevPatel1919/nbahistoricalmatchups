@@ -1,6 +1,6 @@
 # F09: Duel mode (forecasting game and ranked ladder)
 
-Status: **accepted, not started**. Owner decisions recorded 2026-09-22.
+Status: **Sessions 1–4 complete (guest play works end to end); Sessions 5–8 not started.** Ranked play (Sessions 6–7) is blocked on two owner decisions recorded in the Session 1 handoff. Owner decisions recorded 2026-09-22.
 
 This brief is implemented over multiple sessions. Each session in the session
 plan is independently assignable, ends in a verifiable state, and has its own
@@ -621,3 +621,74 @@ constraint alone blocks the second submission. A manual run against
 5. Set `DUEL_POOL_SALT` in the repo `.env`, generate the pool, load it into KV,
    and set `POOL_VERSION` to match.
 6. Add a WAF rate-limit rule in front of `/v1/*` (defence in depth for the soft KV limits).
+
+### 2026-09-23 — Session 4: play surface
+
+**Routes.** `/duel` (`pages/DuelHomePage.tsx`) lets the player choose the
+opponent (Sparring Partner, shown with its disclosure, or Solo), the era (Any,
+or one of the five buckets), and see the scoring table. `/duel/:duelId`
+(`pages/DuelPlayPage.tsx`) shows one game at a time
+(`components/duel/PuzzleCard.tsx`: a stats table, "X won" buttons with
+`aria-pressed`, and a confidence radio group showing each tier's stakes). Then
+a review list with "Change" links, "Lock in picks", and the reveal
+(`components/duel/DuelReveal.tsx`). The reveal always shows the pre-game model
+as a dashed "benchmark" score, with a note that it was trained through 2021.
+In a bot duel it also shows the Sparring Partner's persistent disclosure, next
+to its name while playing and on the result.
+
+**Backend isolation.** `VITE_DUEL_API` (in `src/env.d.ts`) is the only switch.
+Without it, the header has no Duel link, the home page has no duel card,
+`/duel` shows `DuelUnavailable`, and nothing calls a backend.
+`lib/duelApi.ts` is the only module that talks to the Worker. The explorer and
+tournaments never import it. Errors map to plain copy that points back to the
+explorer and tournaments.
+
+**Client state.** The guest token is in `localStorage` `ct:duel:guest:v1`,
+held in memory when storage is blocked; a rejected token is replaced once.
+In-progress picks and the submission's idempotency key are in `sessionStorage`
+`ct:duel:draft:v1:<duelId>`, validated on load. Retries reuse the key. After
+reveal the router state is cleared, so a reload fetches the stored result
+rather than re-opening the pre-lock set.
+
+**Interface changes.** The wire types moved to `frontend/src/duel/api.ts`
+(`IssuedSet`, `DuelResult`, `DuelState`); the Worker imports them.
+`DuelResult.puzzles[]` now includes each puzzle's `view` (already public) so
+the reveal can name teams after a reload. The Worker gained a
+`RATE_LIMIT_SCALE` var: 1 in `wrangler.jsonc`, 100 only for the local e2e run.
+A missing or malformed value falls back to 1 (tested). Header CSS now wraps:
+the extra nav link overflowed the header by 42 px at 360 px on every page.
+
+**Analytics (added deliberately; no alternate names).** `duel_started`
+`{ mode, drawKind, era }` fires when a set is issued. `duel_completed`
+`{ mode, drawKind, outcome: win|loss|draw|solo, beatModel }` fires once on
+lock-in, and not on a reload of a revealed duel. Failures use the existing
+`app_error` with surface `duel-start`, `duel-submit`, or `duel-load`. No
+puzzle id, pick, or team is ever a property.
+
+**Verification.**
+
+| Check | Command | Result |
+|---|---|---|
+| Types + build | `cd frontend && npm run build` | passes |
+| Lint | `npm run lint` | clean |
+| Unit | `npm test` | 130 passed (21 domain + 6 UI helpers new since F05) |
+| E2E | `npx playwright test` | 40 passed (6 new in `tests/e2e/duel.spec.ts`) |
+| Worker | `cd worker && npm test` | 20 passed |
+| Python | `python -m pytest tests` / `python src/models/test_pregame_leakage.py` | 40 passed / exit 0 |
+
+Playwright now starts two servers: the Worker (`wrangler dev` on 8788, fresh
+local D1/KV seeded with the fixture pool) and Vite with `VITE_DUEL_API` set.
+The duel e2e tests cover: the full bot loop at 360 px by keyboard with no
+horizontal overflow; every API body received before lock scanned for answer
+fields and the fixture's distinctive probabilities; disclosure and benchmark
+on the result; solo mode; a mid-set reload keeping picks and a post-reveal
+reload showing the identical result without re-firing `duel_completed`; lock-in
+gated on side plus confidence; the explorer and tournament making zero requests
+to the API; and, with the API aborted, matchups and tournaments working while
+`/duel` shows the unavailable copy. Screenshots of `/duel`, a game, and the
+reveal were reviewed at 360 px and 1280 px.
+
+**Not done / next.** Friend duels by invite link are Session 6 in this plan.
+Accounts (Session 5), ranked (6), leaderboard and anti-abuse (7), and
+hardening (8) are not started. After a reload the reveal's "Play another set"
+uses a random draw, because the result does not carry the draw mode.

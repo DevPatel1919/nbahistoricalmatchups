@@ -2,7 +2,9 @@
 // into local KV. Uses the real generated pool when worker/.pool-kv/ exists
 // (run build-pool-kv.mjs first), otherwise the synthetic fixture pool.
 //
-//   node scripts/seed-local.mjs [--fixture] [--persist-to <dir>]
+//   node scripts/seed-local.mjs [--fixture] [--fresh] [--persist-to <dir>]
+//
+// --fresh deletes the persisted local state first (used by the frontend e2e run).
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -16,6 +18,7 @@ const persistAt = args.indexOf("--persist-to");
 const persist = persistAt >= 0 ? ["--persist-to", args[persistAt + 1]] : [];
 const realDir = join(WORKER_DIR, ".pool-kv");
 const useFixture = args.includes("--fixture") || !existsSync(realDir);
+if (args.includes("--fresh") && persistAt >= 0) rmSync(join(WORKER_DIR, args[persistAt + 1]), { recursive: true, force: true });
 
 function wrangler(...rest) {
   execFileSync(process.platform === "win32" ? "npx.cmd" : "npx", ["wrangler", ...rest, ...persist], {

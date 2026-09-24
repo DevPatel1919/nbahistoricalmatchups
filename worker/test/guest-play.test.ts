@@ -355,3 +355,22 @@ describe("CORS and health", () => {
     expect(preflight.headers.get("access-control-allow-headers")).toContain("idempotency-key");
   });
 });
+
+describe("configuration", () => {
+  it("ships with unscaled rate limits", () => {
+    expect(env.RATE_LIMIT_SCALE).toBe("1");
+  });
+});
+
+describe("rate limit scale", () => {
+  it("treats a missing or malformed scale as 1", async () => {
+    const { enforce } = await import("../src/ratelimit");
+    const limit = { name: "scale-test", max: 2, windowSeconds: 3600 };
+    for (const [i, scale] of [Number(undefined), Number("abc"), 0].entries()) {
+      const subject = "scale-subject-" + i;
+      await enforce(env.RATE_LIMITS, limit, subject, scale);
+      await enforce(env.RATE_LIMITS, limit, subject, scale);
+      await expect(enforce(env.RATE_LIMITS, limit, subject, scale)).rejects.toThrow("rate_limited");
+    }
+  });
+});

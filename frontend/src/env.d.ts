@@ -8,4 +8,6 @@ interface ImportMetaEnv {
   readonly VITE_PLAUSIBLE_HOST?: string;
   /** Owner's form endpoint for interest emails and creator demo requests (components/InterestForm.tsx). */
   readonly VITE_INTEREST_ENDPOINT?: string;
+  /** Base URL of the duel Worker (F09, worker/). Without it duel mode is off and nothing calls a backend. */
+  readonly VITE_DUEL_API?: string;
 }

@@ -9,6 +9,8 @@
 // names, email addresses, free text, or URLs carrying personal state (picks)
 // in a property.
 
+import type { EraKey } from "../duel/types";
+
 /** Bumped when an event's meaning or required properties change. */
 export const ANALYTICS_SCHEMA_VERSION = 1;
 
@@ -45,6 +47,9 @@ export type AnalyticsEvent =
   | { name: "offer_viewed"; surface: string; audience: "fan" | "creator" }
   | { name: "challenge_answered"; agreedWithModel: boolean }
   | { name: "app_error"; surface: string; code: string }
+  // F09 duel mode (new actions). `era` is the chosen bucket or "any"; no puzzle or pick data.
+  | { name: "duel_started"; mode: "solo" | "bot"; drawKind: "random" | "era"; era: EraKey | "any" }
+  | { name: "duel_completed"; mode: "solo" | "bot"; drawKind: "random" | "era"; outcome: "win" | "loss" | "draw" | "solo"; beatModel: boolean }
   // Feature interactions (F02).
   | { name: "random_matchup_rolled"; matchup: string }
   | { name: "matchup_team_swapped"; side: "a" | "b"; matchup: string }

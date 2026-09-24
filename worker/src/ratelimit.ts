@@ -14,11 +14,14 @@ export const LIMITS = {
   submitPerParticipant: { name: "submit-sub", max: 60, windowSeconds: 3600 },
 } as const satisfies Record<string, Limit>;
 
-export async function enforce(kv: KVNamespace, limit: Limit, subject: string, now = Date.now()): Promise<void> {
+/** `scale` multiplies every limit; production uses 1 (wrangler.jsonc), local e2e runs raise it. */
+export async function enforce(kv: KVNamespace, limit: Limit, subject: string, scale = 1, now = Date.now()): Promise<void> {
+  // A missing or malformed scale must never disable a limit.
+  const max = limit.max * (Number.isFinite(scale) ? Math.max(1, scale) : 1);
   const window = Math.floor(now / 1000 / limit.windowSeconds);
   const key = "rl:" + limit.name + ":" + subject + ":" + window;
   const count = Number((await kv.get(key)) ?? "0");
-  if (count >= limit.max) {
+  if (count >= max) {
     const retryAfter = (window + 1) * limit.windowSeconds - Math.floor(now / 1000);
     throw new ApiError("rate_limited", Math.max(1, retryAfter));
   }

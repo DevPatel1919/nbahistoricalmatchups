@@ -2,6 +2,7 @@
 // storage, or React. The Worker scores with it; the frontend only displays.
 
 export * from "./types";
+export type * from "./api";
 export { expectedPoints, pointsFor, scoreModel, scorePick, scoreSet, totalPoints, type ScoredPick } from "./scoring";
 export { resolveDuel, type DuelOutcome, type DuelResolution } from "./duel";
 export {

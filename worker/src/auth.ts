@@ -14,7 +14,7 @@ export async function clientKey(request: Request, env: Env): Promise<string> {
 }
 
 export async function createGuest(request: Request, env: Env): Promise<{ guestToken: string }> {
-  await enforce(env.RATE_LIMITS, LIMITS.guestCreatePerIp, await clientKey(request, env));
+  await enforce(env.RATE_LIMITS, LIMITS.guestCreatePerIp, await clientKey(request, env), Number(env.RATE_LIMIT_SCALE));
   const guestId = randomId("g");
   await env.DB.prepare("INSERT INTO guests (id, created_at) VALUES (?, ?)").bind(guestId, Date.now()).run();
   return { guestToken: await sign({ v: 1, typ: "guest", sub: guestId }, env.GUEST_TOKEN_SECRET) };

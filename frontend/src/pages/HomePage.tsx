@@ -7,6 +7,7 @@ import { buildMatchupSlug, canonicalOrder } from "../lib/slug";
 import SearchPicker from "../components/SearchPicker";
 import BrowseGrid from "../components/BrowseGrid";
 import RandomMatchupButton from "../components/RandomMatchupButton";
+import { DUEL_API } from "../lib/duelApi";
 
 const SUGGESTIONS: [string, string][] = [
   ["1998-bulls", "2017-warriors"],
@@ -121,6 +122,21 @@ export default function HomePage() {
           </Link>
         </div>
       </section>
+
+      {DUEL_API && (
+        <section className="tournament-cta" aria-labelledby="duel-cta-heading">
+          <h2 id="duel-cta-heading">Duel mode</h2>
+          <p>
+            Five real games with the scores hidden. Call the winners, size your confidence, and see how the pre-game
+            model did.
+          </p>
+          <div className="picker-actions">
+            <Link className="btn btn--primary" to="/duel">
+              Play a set
+            </Link>
+          </div>
+        </section>
+      )}
 
       <section className="browse" style={{ marginTop: 32 }}>
         <h2>Suggested matchups</h2>

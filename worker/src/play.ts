@@ -18,11 +18,14 @@ import {
   type Band,
   type Confidence,
   type DrawMode,
+  type DuelResult,
+  type DuelState,
+  type IssuedSet,
   type Pick,
-  type PuzzleView,
+  type PlayMode,
   type RecentPick,
+  type RevealedPick,
   type ScoredPick,
-  type Side,
 } from "../../frontend/src/duel";
 import type { Participant } from "./auth";
 import type { Env } from "./env";
@@ -33,37 +36,6 @@ import { randomId, sign, verify } from "./tokens";
 
 export const SET_TTL_MS = 20 * 60 * 1000;
 export const MODEL_TRAINED_THROUGH_SEASON = 2021;
-
-export type PlayMode = "solo" | "bot";
-
-export type IssuedSet = {
-  duelId: string;
-  mode: PlayMode;
-  draw: DrawMode;
-  puzzles: PuzzleView[];
-  setToken: string;
-  expiresAt: number;
-  opponent: { kind: "bot"; name: string; disclosure: string } | null;
-};
-
-export type RevealedPick = ScoredPick & { confidence: Confidence | null };
-
-export type DuelResult = {
-  duelId: string;
-  mode: PlayMode;
-  puzzles: { puzzleId: string; actualWinner: Side; modelInSample: boolean }[];
-  you: { total: number; picks: RevealedPick[] };
-  model: { label: string; total: number; picks: RevealedPick[]; trainedThroughSeason: number };
-  opponent: {
-    kind: "bot";
-    name: string;
-    disclosure: string;
-    total: number;
-    picks: RevealedPick[];
-    outcome: "you" | "opponent" | "draw";
-    decidedBy: "total" | "best-correct-call" | "draw";
-  } | null;
-};
 
 type DuelRow = {
   id: string;
@@ -107,8 +79,8 @@ export async function issueSet(env: Env, participant: Participant, ipKey: string
   const b = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
   const mode = parseMode(b.mode);
   const draw = parseDraw(b.draw);
-  await enforce(env.RATE_LIMITS, LIMITS.setIssuePerParticipant, participant.id);
-  await enforce(env.RATE_LIMITS, LIMITS.setIssuePerIp, ipKey);
+  await enforce(env.RATE_LIMITS, LIMITS.setIssuePerParticipant, participant.id, Number(env.RATE_LIMIT_SCALE));
+  await enforce(env.RATE_LIMITS, LIMITS.setIssuePerIp, ipKey, Number(env.RATE_LIMIT_SCALE));
 
   const era = draw.kind === "era" ? draw.era : "all";
   const indexes = await Promise.all(BANDS.map((band) => readIndex(env.POOL, simIndexKey(env.POOL_VERSION, era, band))));
@@ -157,11 +129,11 @@ async function storedSubmission(env: Env, duelId: string, participant: Participa
     .first<{ idempotency_key: string; result: string }>();
 }
 
-export async function readDuel(env: Env, participant: Participant, duelId: string) {
+export async function readDuel(env: Env, participant: Participant, duelId: string): Promise<DuelState> {
   const duel = await loadOwnDuel(env, participant, duelId);
   const submitted = await storedSubmission(env, duelId, participant);
-  if (submitted) return { state: "revealed" as const, result: JSON.parse(submitted.result) as DuelResult };
-  if (Date.now() > duel.expires_at) return { state: "expired" as const, duelId };
+  if (submitted) return { state: "revealed", result: JSON.parse(submitted.result) as DuelResult };
+  if (Date.now() > duel.expires_at) return { state: "expired", duelId };
   const ids = JSON.parse(duel.puzzle_ids) as string[];
   const puzzles = await readPuzzles(env.POOL, env.POOL_VERSION, ids);
   const set: IssuedSet = {
@@ -173,7 +145,7 @@ export async function readDuel(env: Env, participant: Participant, duelId: strin
     expiresAt: duel.expires_at,
     opponent: duel.mode === "bot" ? BOT_OPPONENT : null,
   };
-  return { state: "open" as const, set };
+  return { state: "open", set };
 }
 
 // ---------------------------------------------------------------------------
@@ -221,7 +193,7 @@ export async function submitPicks(
   body: unknown,
 ): Promise<DuelResult> {
   if (!idempotencyKey || idempotencyKey.length > 100) throw new ApiError("missing_idempotency_key");
-  await enforce(env.RATE_LIMITS, LIMITS.submitPerParticipant, participant.id);
+  await enforce(env.RATE_LIMITS, LIMITS.submitPerParticipant, participant.id, Number(env.RATE_LIMIT_SCALE));
 
   const b = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
   const token = typeof b.setToken === "string" ? await verify(b.setToken, env.SET_TOKEN_SECRET) : null;
@@ -266,7 +238,12 @@ export async function submitPicks(
   const result: DuelResult = {
     duelId,
     mode: duel.mode,
-    puzzles: answers.map((a) => ({ puzzleId: a.puzzleId, actualWinner: a.actualWinner, modelInSample: a.modelInSample })),
+    puzzles: stored.map((p) => ({
+      puzzleId: p.answer.puzzleId,
+      view: toPuzzleView(p),
+      actualWinner: p.answer.actualWinner,
+      modelInSample: p.answer.modelInSample,
+    })),
     you: { total: totalPoints(you), picks: withConfidence(you, picks) },
     model: {
       label: "Pre-game model",
