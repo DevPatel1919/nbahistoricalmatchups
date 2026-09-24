@@ -2,3 +2,6 @@
 # `wrangler secret put <NAME>` and must be long random strings.
 GUEST_TOKEN_SECRET=local-guest-secret-change-me
 SET_TOKEN_SECRET=local-set-secret-change-me-too
+EMAIL_HASH_SECRET=local-email-secret-change-me
+# Local only: email goes to GET /v1/dev/outbox and Turnstile accepts its dummy token.
+AUTH_TEST_DOUBLES=1

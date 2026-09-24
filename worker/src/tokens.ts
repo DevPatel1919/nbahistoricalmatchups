@@ -51,3 +51,9 @@ export async function keyedHash(value: string, secret: string): Promise<string> 
 export function randomId(prefix: string, bytes = 16): string {
   return prefix + "_" + b64url(crypto.getRandomValues(new Uint8Array(bytes)));
 }
+
+/** Hex SHA-256, for storing high-entropy secrets (magic links, sessions) by hash only. */
+export async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(value));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}

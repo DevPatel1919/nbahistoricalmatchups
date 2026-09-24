@@ -11,6 +11,10 @@
     // Comma-separated origins allowed to call the API from a browser.
     "ALLOWED_ORIGINS": "http://localhost:4317,http://localhost:5173",
     "POOL_VERSION": "duel-pool-v1",
+    // Site origin that magic-link emails point at. Must be one of ALLOWED_ORIGINS.
+    "APP_ORIGIN": "http://localhost:4317",
+    // Verified sender for magic-link email, e.g. "Court of All Time <signin@example.com>".
+    "EMAIL_FROM": "",
     // Multiplies every rate limit. Keep "1" in production.
     "RATE_LIMIT_SCALE": "1"
   },
@@ -23,6 +27,12 @@
     { "binding": "POOL", "id": "00000000000000000000000000000000" },
     { "binding": "RATE_LIMITS", "id": "00000000000000000000000000000001" }
   ]
-  // Secrets (never in this file): `wrangler secret put GUEST_TOKEN_SECRET` and
-  // `wrangler secret put SET_TOKEN_SECRET`. Local dev reads them from .dev.vars.
+  // Secrets (never in this file), each set with `wrangler secret put <NAME>`:
+  //   GUEST_TOKEN_SECRET, SET_TOKEN_SECRET  long random strings
+  //   EMAIL_HASH_SECRET                     long random string; never rotate it (accounts are keyed by it)
+  //   EMAIL_API_KEY                         Resend API key for magic-link email
+  //   TURNSTILE_SECRET_KEY                  Turnstile widget secret
+  // Local dev reads them from .dev.vars. AUTH_TEST_DOUBLES="1" (local only)
+  // replaces email and Turnstile with doubles; it is ignored unless every
+  // allowed origin is localhost.
 }
