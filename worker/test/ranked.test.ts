@@ -463,6 +463,8 @@ describe("queue rules", () => {
     const setA = await queued(a); // creator at 1200
     expect((await ranked(b)).body.opponent).toBeNull(); // 300 apart, window 100
     await emptyQueue();
+    // b was just dealt a set of its own; forget it so a's next random set cannot overlap it.
+    await env.DB.prepare("DELETE FROM ranked_exposures WHERE account_id = ?").bind(b.accountId).run();
     const again = await queued(a);
     await env.DB.prepare("UPDATE matches SET created_at = created_at - ? WHERE id = ?").bind(4 * 3600 * 1000, await matchOf(again.duelId)).run();
     expect((await ranked(b)).body.opponent?.name).toBe(a.name); // window 100 + 4 x 50 = 300
