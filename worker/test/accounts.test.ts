@@ -320,6 +320,21 @@ describe("guest upgrade", () => {
     expect(second.account.completedDuels).toBe(0);
   });
 
+  it("a set opened as a guest can be locked in after signing in mid-set, and only by that account", async () => {
+    const guest = await newGuest();
+    const set = await call("/v1/sets", post({ mode: "bot", draw: { kind: "random" } }, { headers: auth(guest) }));
+    const { sessionToken } = await signIn(freshEmail(), guest);
+    const picks = set.body.puzzles.map((p: { puzzleId: string }) => ({ puzzleId: p.puzzleId, side: "away", confidence: "lean" }));
+    const body = { setToken: set.body.setToken, picks };
+    const stranger = await signIn();
+    const denied = await call("/v1/duels/" + set.body.duelId + "/submission", post(body, { headers: { ...auth(stranger.sessionToken), "idempotency-key": "x" } }));
+    expect(denied.status).toBe(403);
+    const r = await call("/v1/duels/" + set.body.duelId + "/submission", post(body, { headers: { ...auth(sessionToken), "idempotency-key": "y" } }));
+    expect(r.status).toBe(200);
+    const row = await env.DB.prepare("SELECT participant FROM submissions WHERE duel_id = ?").bind(set.body.duelId).first<{ participant: string }>();
+    expect(row?.participant).toMatch(/^a:/);
+  });
+
   it("an invalid guest token never blocks sign-in", async () => {
     const r = await signIn(freshEmail(), "not-a-token");
     expect(r.account.completedDuels).toBe(0);
