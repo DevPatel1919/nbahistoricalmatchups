@@ -4,9 +4,11 @@
 import { isConfidence, type Confidence, type Side } from "../duel";
 
 const GUEST_KEY = "ct:duel:guest:v1";
+const SESSION_KEY = "ct:duel:session:v1";
 const DRAFT_PREFIX = "ct:duel:draft:v1:";
 
 let memoryToken: string | null = null;
+let memorySession: string | null = null;
 
 export function readGuestToken(): string | null {
   try {
@@ -29,6 +31,33 @@ export function clearGuestToken(): void {
   memoryToken = null;
   try {
     localStorage.removeItem(GUEST_KEY);
+  } catch {
+    // Nothing stored.
+  }
+}
+
+/** The account session token, present only while signed in. */
+export function readSessionToken(): string | null {
+  try {
+    return localStorage.getItem(SESSION_KEY) ?? memorySession;
+  } catch {
+    return memorySession;
+  }
+}
+
+export function writeSessionToken(token: string): void {
+  memorySession = token;
+  try {
+    localStorage.setItem(SESSION_KEY, token);
+  } catch {
+    // Storage blocked: signed in for this page only.
+  }
+}
+
+export function clearSessionToken(): void {
+  memorySession = null;
+  try {
+    localStorage.removeItem(SESSION_KEY);
   } catch {
     // Nothing stored.
   }
