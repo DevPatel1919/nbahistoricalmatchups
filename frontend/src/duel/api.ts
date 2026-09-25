@@ -102,7 +102,38 @@ export type AccountView = {
   ranked: { eligible: boolean; minCompletedDuels: number; needsDisplayName: boolean };
   /** Null until the first rated duel. */
   rating: RatingView | null;
+  /** True while an integrity review keeps this account off the leaderboard. Play and rating are unaffected. */
+  hiddenFromBoard: boolean;
 };
 
 /** POST /v1/auth/verify */
 export type SignInResult = { sessionToken: string; account: AccountView };
+
+/** "daily": rated duels since midnight UTC, by rating change. "30d": the last 30 days, by current rating. */
+export type LeaderboardKind = "daily" | "30d";
+
+export type LeaderboardEntry = {
+  rank: number;
+  name: string;
+  rating: number;
+  /** Fewer than 10 rated duels in total. */
+  provisional: boolean;
+  /** Rated duels in the board's window, and their results. */
+  duels: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  /** Rating change over the window. */
+  change: number;
+};
+
+/** GET /v1/leaderboard?board=… Public: display names and rated results only. */
+export type LeaderboardView = {
+  board: LeaderboardKind;
+  /** Epoch ms: the window's start. */
+  windowStart: number;
+  generatedAt: number;
+  /** Rated duels in the window needed to appear. */
+  minDuels: number;
+  entries: LeaderboardEntry[];
+};
