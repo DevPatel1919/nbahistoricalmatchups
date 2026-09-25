@@ -7,8 +7,6 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ELO_START, applyElo, pointsFor, resolveDuel, scorePick } from "../../frontend/src/duel";
-import { RANKED_MIN_COMPLETED_DUELS } from "../src/accounts";
-import { handle } from "../src/index";
 import {
   RANKED_MAX_WAITING,
   RANKED_REUSE_COOLDOWN_MS,
@@ -16,135 +14,35 @@ import {
   settleDue,
   settleMatch,
 } from "../src/matches";
-import { DummyTokenCheck, MemoryMailer, TURNSTILE_DUMMY_TOKEN } from "../src/services";
-import { sha256Hex, sign } from "../src/tokens";
-import { fixturePoolEntries } from "../scripts/fixture-pool.mjs";
+import { TURNSTILE_DUMMY_TOKEN } from "../src/services";
+import { sign } from "../src/tokens";
+import {
+  ANSWERS,
+  RANKED_IDS,
+  account,
+  auth,
+  call,
+  emptyQueue,
+  friend,
+  guest,
+  lock,
+  mailer,
+  matchOf,
+  picksFor,
+  post,
+  queued,
+  ranked,
+  read,
+  rightPicks,
+  unique,
+  wrongPicks,
+} from "./helpers";
 
-const mailer = new MemoryMailer();
-let counter = 0;
-const unique = () => ++counter + "-" + Math.random().toString(36).slice(2, 8);
-const freshIp = () => "198.18.0." + (counter % 250) + "-" + unique();
-
-const ANSWERS = new Map(
-  fixturePoolEntries()
-    .filter((e) => e.key.includes(":puzzle:"))
-    .map((e) => {
-      const p = JSON.parse(e.value);
-      return [p.view.puzzleId as string, p.answer];
-    }),
-);
-const RANKED_IDS = [...ANSWERS.values()].filter((a) => a.partition === "ranked").map((a) => a.puzzleId as string);
 // Pre-resolution responses must carry none of these: answers, model values, or picks.
 const HIDDEN_MARKERS = ["actualWinner", "modelHomeWinProbability", "modelInSample", "partition", "0.691234", "0.308766", '"picks"', '"confidence"', '"side"', '"points"', '"correct"'];
 
-type CallInit = RequestInit & { ip?: string };
-
-async function call(path: string, init: CallInit = {}) {
-  const headers = new Headers(init.headers);
-  headers.set("cf-connecting-ip", init.ip ?? freshIp());
-  if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
-  const response = await handle(new Request("https://duel.test" + path, { ...init, headers }), env, {
-    mailer,
-    humanCheck: new DummyTokenCheck(),
-  });
-  const text = await response.text();
-  return { status: response.status, text, body: text ? JSON.parse(text) : null };
-}
-
-const auth = (token: string) => ({ authorization: "Bearer " + token });
-const post = (body: unknown, token?: string): CallInit => ({ method: "POST", body: JSON.stringify(body), headers: token ? auth(token) : {} });
-
 function expectHidden(text: string) {
   for (const marker of HIDDEN_MARKERS) expect(text, marker).not.toContain(marker);
-}
-
-type Player = { token: string; accountId: string; participant: string; name: string };
-
-/** A signed-in account. `eligible` fast-tracks the Session 5 gate (tested in accounts.test.ts) with completed sets written directly. */
-async function account(eligible = true): Promise<Player> {
-  const email = "ranked." + unique() + "@example.com";
-  expect((await call("/v1/auth/magic-link", post({ email, turnstileToken: TURNSTILE_DUMMY_TOKEN }))).status).toBe(202);
-  const link = /#token=(ml_[A-Za-z0-9_-]+)/.exec([...mailer.sent].reverse().find((m) => m.to === email)!.text)![1];
-  const signed = await call("/v1/auth/verify", post({ token: link }));
-  expect(signed.status).toBe(200);
-  const token = signed.body.sessionToken as string;
-  const row = await env.DB.prepare("SELECT account_id FROM sessions WHERE token_hash = ?").bind(await sha256Hex(token)).first<{ account_id: string }>();
-  const accountId = row!.account_id;
-  const participant = "a:" + accountId;
-  const name = "Player " + (counter % 100000);
-  if (eligible) {
-    const statements = [];
-    for (let i = 0; i < RANKED_MIN_COMPLETED_DUELS; i++) {
-      const duelId = "d_seed_" + unique();
-      statements.push(
-        env.DB.prepare(
-          `INSERT INTO duels (id, mode, partition, draw_kind, puzzle_ids, pool_version, issued_to, issued_at, expires_at)
-           VALUES (?, 'solo', 'sim', 'random', '[]', 'duel-pool-v1', ?, 0, 1)`,
-        ).bind(duelId, participant),
-        env.DB.prepare(
-          "INSERT INTO submissions (duel_id, participant, idempotency_key, submitted_at, ms_to_submit, total_points, result) VALUES (?, ?, ?, 0, 0, 0, '{}')",
-        ).bind(duelId, participant, unique()),
-      );
-    }
-    await env.DB.batch(statements);
-    expect((await call("/v1/account/display-name", post({ displayName: name }, token))).status).toBe(200);
-  }
-  return { token, accountId, participant, name };
-}
-
-async function guest(): Promise<string> {
-  const r = await call("/v1/guests", { method: "POST" });
-  expect(r.status).toBe(201);
-  return r.body.guestToken;
-}
-
-const ranked = (p: Player) => call("/v1/sets", post({ mode: "ranked" }, p.token));
-const friend = (token: string, draw: object = { kind: "random" }) => call("/v1/sets", post({ mode: "friend", draw }, token));
-const read = (token: string, duelId: string) => call("/v1/duels/" + duelId, { headers: auth(token) });
-
-type Side = "home" | "away";
-type Conf = "lean" | "confident" | "lock";
-function picksFor(puzzles: { puzzleId: string }[], side: (i: number) => Side = (i) => (i % 2 ? "away" : "home"), conf: Conf = "confident") {
-  return puzzles.map((p, i) => ({ puzzleId: p.puzzleId, side: side(i), confidence: conf }));
-}
-function rightPicks(puzzles: { puzzleId: string }[]) {
-  return puzzles.map((p) => ({ puzzleId: p.puzzleId, side: ANSWERS.get(p.puzzleId).actualWinner as Side, confidence: "lock" as Conf }));
-}
-function wrongPicks(puzzles: { puzzleId: string }[]) {
-  return puzzles.map((p) => ({
-    puzzleId: p.puzzleId,
-    side: (ANSWERS.get(p.puzzleId).actualWinner === "home" ? "away" : "home") as Side,
-    confidence: "lock" as Conf,
-  }));
-}
-
-async function lock(token: string, set: { duelId: string; setToken: string }, picks: object[], key = unique()) {
-  return call("/v1/duels/" + set.duelId + "/submission", {
-    method: "POST",
-    headers: { ...auth(token), "idempotency-key": key },
-    body: JSON.stringify({ setToken: set.setToken, picks }),
-  });
-}
-
-async function matchOf(duelId: string): Promise<string> {
-  const row = await env.DB.prepare("SELECT match_id FROM duels WHERE id = ?").bind(duelId).first<{ match_id: string }>();
-  return row!.match_id;
-}
-
-/** Closes every open match so a test's queue holds only what it creates. */
-async function emptyQueue() {
-  await env.DB.prepare("UPDATE matches SET open_until = 1 WHERE open_until > 1").run();
-}
-
-/** A creator's ranked set, locked in and waiting. */
-async function queued(creator: Player, picks: (p: { puzzleId: string }[]) => object[] = picksFor) {
-  const set = await ranked(creator);
-  expect(set.status).toBe(201);
-  expect(set.body.opponent).toBeNull();
-  const locked = await lock(creator.token, set.body, picks(set.body.puzzles));
-  expect(locked.status).toBe(200);
-  expect(locked.body.state).toBe("waiting");
-  return set.body;
 }
 
 beforeEach(async () => {
@@ -448,6 +346,10 @@ describe("queue rules", () => {
     await emptyQueue();
     await queued(a);
     expect((await ranked(b)).body.opponent).toBeNull();
+    // b was just dealt a set of its own; forget it so a's next random set cannot overlap it.
+    await env.DB.prepare("DELETE FROM ranked_exposures WHERE account_id = ? AND puzzle_id NOT IN (SELECT value FROM json_each(?))")
+      .bind(b.accountId, JSON.stringify(first.puzzles.map((p: { puzzleId: string }) => p.puzzleId)))
+      .run();
     // Outside the window they can meet again.
     await env.DB.prepare("UPDATE match_seats SET joined_at = joined_at - ? WHERE participant IN (?, ?)")
       .bind(REPEAT_PAIR_WINDOW_MS + 1000, a.participant, b.participant)

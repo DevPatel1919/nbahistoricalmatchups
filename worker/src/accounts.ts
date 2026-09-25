@@ -9,6 +9,7 @@
 
 import { ELO_PROVISIONAL_DUELS, type AccountView, type SignInResult } from "../../frontend/src/duel";
 import { activeGuestId, clientKey, type Participant } from "./auth";
+import { hiddenFromBoard, recordCreationNetwork } from "./integrity";
 import type { Env } from "./env";
 import { ApiError } from "./http";
 import { RENAME_WINDOW_MS, checkDisplayName } from "./names";
@@ -162,8 +163,16 @@ export async function verifyMagicLink(request: Request, env: Env, body: unknown)
     if (isUniqueViolation(error, "magic_link_redemptions")) throw new ApiError("link_invalid");
     throw error;
   }
-  const account = await env.DB.prepare("SELECT id FROM accounts WHERE email_hash = ?").bind(link.email_hash).first<{ id: string }>();
+  const account = await env.DB.prepare("SELECT id, created_at FROM accounts WHERE email_hash = ?")
+    .bind(link.email_hash)
+    .first<{ id: string; created_at: number }>();
   if (!account) throw new Error("account missing after sign-in");
+  if (!existing && account.created_at === now) {
+    // Multi-account velocity signal. It must never block a sign-in.
+    await recordCreationNetwork(env, ipKey, account.id, now).catch((error: unknown) => {
+      console.error("duel-api network signal failed", error instanceof Error ? error.name : typeof error);
+    });
+  }
   return { sessionToken, account: await accountView(env, account.id) };
 }
 
@@ -201,10 +210,11 @@ export async function signOut(env: Env, token: string): Promise<{ ok: true }> {
 type AccountRow = { display_name: string | null; name_changed_at: number | null; created_at: number };
 
 export async function accountView(env: Env, accountId: string): Promise<AccountView> {
-  const [row, count, rating] = await Promise.all([
+  const [row, count, rating, hidden] = await Promise.all([
     env.DB.prepare("SELECT display_name, name_changed_at, created_at FROM accounts WHERE id = ?").bind(accountId).first<AccountRow>(),
     env.DB.prepare("SELECT COUNT(*) AS n FROM submissions WHERE participant = ?").bind("a:" + accountId).first<{ n: number }>(),
     env.DB.prepare("SELECT rating, rated_duels FROM ratings WHERE account_id = ?").bind(accountId).first<{ rating: number; rated_duels: number }>(),
+    hiddenFromBoard(env, accountId),
   ]);
   if (!row) throw new ApiError("unauthorized");
   const completedDuels = count?.n ?? 0;
@@ -223,6 +233,7 @@ export async function accountView(env: Env, accountId: string): Promise<AccountV
     rating: rating
       ? { rating: rating.rating, ratedDuels: rating.rated_duels, provisional: rating.rated_duels < ELO_PROVISIONAL_DUELS }
       : null,
+    hiddenFromBoard: hidden,
   };
 }
 

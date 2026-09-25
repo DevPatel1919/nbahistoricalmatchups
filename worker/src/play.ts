@@ -32,6 +32,7 @@ import {
 import type { Participant } from "./auth";
 import type { Env } from "./env";
 import { ApiError } from "./http";
+import { metricsStatement } from "./integrity";
 import { matchState, settleMatch } from "./matches";
 import { readIndex, readPuzzles, simIndexKey, toPuzzleView, type StoredPuzzle } from "./pool";
 import { LIMITS, enforce } from "./ratelimit";
@@ -324,6 +325,10 @@ export async function submitPicks(
     ),
     // A match seat's answers are served when the match resolves, not now.
     ...(duel.match_id ? [] : servedStatements(env, ids, now)),
+    // Anomaly metrics for every rated seat (Session 7).
+    ...(duel.mode === "ranked" && participant.kind === "account"
+      ? [metricsStatement(env, duelId, participant.id, participant.accountId, now, now - duel.issued_at, picks, stored, result)]
+      : []),
   ];
   try {
     await env.DB.batch(statements);

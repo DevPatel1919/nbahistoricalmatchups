@@ -13,15 +13,24 @@
 //   POST /v1/auth/sign-out               (session) -> { ok }
 //   GET  /v1/account                     (session) -> AccountView
 //   POST /v1/account/display-name        (session) { displayName } -> AccountView
+//   GET  /v1/leaderboard?board=daily|30d public, edge-cached -> LeaderboardView (flagged accounts left off)
 //   GET  /v1/dev/outbox?to=              local test doubles only -> last magic-link email
+//   GET  /v1/admin/flags?status=         ADMIN_TOKEN -> the review queue (admin.ts); 404 without the token
+//   POST /v1/admin/flags/:id             ADMIN_TOKEN { decision: "clear" | "uphold", note? } -> the decided flag
+//   POST /v1/admin/sweep                 ADMIN_TOKEN -> runs the integrity detectors now
 //
 // Scheduled (wrangler.jsonc triggers): settles ranked and friend matches whose
-// timeout has passed, so forfeits and no-opponent fallbacks resolve unattended.
+// timeout has passed, so forfeits and no-opponent fallbacks resolve unattended,
+// then runs the integrity sweep (integrity.ts), which raises flags for review
+// and purges expired sign-in links and sessions.
 
+import { decideFlag, listFlags, requireAdmin, sweepNow } from "./admin";
 import { accountView, requestMagicLink, setDisplayName, signOut, verifyMagicLink } from "./accounts";
 import { clientKey, createGuest, requireAccount, requireParticipant } from "./auth";
 import type { Env } from "./env";
 import { ApiError, errorResponse, json, readJson, withCors } from "./http";
+import { runIntegritySweep } from "./integrity";
+import { leaderboardResponse, parseBoard } from "./leaderboard";
 import { acceptInvite, settleDue, startFriend, startRanked, stopWaiting } from "./matches";
 import { issueSet, readDuel, submitPicks } from "./play";
 import { ServiceUnavailable, outboxKey, servicesFor, testDoublesEnabled, type Services } from "./services";
@@ -61,6 +70,17 @@ async function route(request: Request, env: Env, services: Services): Promise<Re
     const { accountId } = await requireAccount(request, env);
     return json(await setDisplayName(env, accountId, await readJson(request)));
   }
+  if (method === "GET" && path === "/v1/leaderboard") return leaderboardResponse(env, parseBoard(url.searchParams.get("board")));
+
+  if (path.startsWith("/v1/admin/")) {
+    await requireAdmin(request, env, await clientKey(request, env));
+    if (method === "GET" && path === "/v1/admin/flags") return json(await listFlags(env, url));
+    if (method === "POST" && path === "/v1/admin/sweep") return json(await sweepNow(env));
+    const flag = /^\/v1\/admin\/flags\/([A-Za-z0-9_-]{1,64})$/.exec(path);
+    if (method === "POST" && flag) return json(await decideFlag(env, flag[1], await readJson(request), Date.now()));
+    throw new ApiError("not_found");
+  }
+
   if (method === "GET" && path === "/v1/dev/outbox" && testDoublesEnabled(env)) {
     const message = await env.RATE_LIMITS.get(outboxKey(url.searchParams.get("to") ?? ""), { type: "json" });
     if (!message) throw new ApiError("not_found");
@@ -110,9 +130,15 @@ export default {
   },
   scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
     ctx.waitUntil(
-      settleDue(env, Date.now()).catch((error: unknown) => {
-        console.error("duel-api settle sweep failed", error instanceof Error ? error.name : typeof error);
-      }),
+      (async () => {
+        // Settle first, so the integrity sweep sees every result that is due.
+        await settleDue(env, Date.now()).catch((error: unknown) => {
+          console.error("duel-api settle sweep failed", error instanceof Error ? error.name : typeof error);
+        });
+        await runIntegritySweep(env, Date.now()).catch((error: unknown) => {
+          console.error("duel-api integrity sweep failed", error instanceof Error ? error.name : typeof error);
+        });
+      })(),
     );
   },
 } satisfies ExportedHandler<Env>;
