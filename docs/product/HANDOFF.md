@@ -164,16 +164,21 @@ configures an analytics provider and an email endpoint (see
 `analytics/weekly-dashboard.md`). The `frontend/` builds and lints clean; 103
 unit tests and 34 Playwright tests pass. See each brief's handoff record.
 
-F09 (duel mode) Sessions 1–4 are built on branch `f09-duel-mode`: the offline
-puzzle pool (`scripts/generate_duel_pool.py`), the pure domain logic
+F09 (duel mode) Sessions 1–4 are merged to `main`: the offline puzzle pool
+(`scripts/generate_duel_pool.py`), the pure domain logic
 (`frontend/src/duel/`), the first server state (`worker/`: Cloudflare Worker,
-D1, KV), and guest-playable `/duel` routes gated on `VITE_DUEL_API`. The
-explorer and tournaments stay static and are tested with the API unreachable.
-Ranked play is blocked on two owner decisions recorded in the F09 brief:
-de-identified puzzles cannot stop a scripted lookup against the public dataset,
-and the single-use rule caps ranked at about 1,332 duels. Nothing is deployed;
-the owner configuration steps are in the F09 Session 3 handoff. The
-`frontend/` now has 130 unit and 40 Playwright tests; `worker/` has 20.
+D1, KV), and guest-playable `/duel` routes gated on `VITE_DUEL_API`. Session 5
+(optional accounts) is built on branch `f09-accounts`: email magic links
+behind Turnstile, moderated display names, a guest upgrade that keeps
+unranked history, and the ranked-eligibility gate. Accounts store a keyed
+email hash, never the address. The explorer and tournaments stay static and
+are tested with the API unreachable. Ranked play (Sessions 6–7) is blocked on
+owner decisions recorded in the F09 brief and restated in
+`features/F09-continuation-handoff.md`. De-identified puzzles cannot stop a
+scripted lookup against the public dataset, and the single-use rule caps
+ranked at about 1,332 duels. Nothing is deployed; the owner configuration
+steps are in the F09 Session 3 and Session 5 handoff records. The `frontend/`
+has 136 unit and 44 Playwright tests; `worker/` has 52.
 
 ## Feature map
 

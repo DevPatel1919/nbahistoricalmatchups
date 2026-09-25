@@ -45,3 +45,17 @@ export type DuelState =
   | { state: "revealed"; result: DuelResult };
 
 export type ApiErrorBody = { error: string; message: string };
+
+/** GET /v1/account. What the signed-in player sees about their own account. No email is ever returned. */
+export type AccountView = {
+  displayName: string | null;
+  createdAt: number;
+  /** Completed sets, including history merged from this browser's guest. */
+  completedDuels: number;
+  /** When the next rename is allowed (epoch ms), or null when a change is available now. */
+  nextRenameAt: number | null;
+  ranked: { eligible: boolean; minCompletedDuels: number; needsDisplayName: boolean };
+};
+
+/** POST /v1/auth/verify */
+export type SignInResult = { sessionToken: string; account: AccountView };

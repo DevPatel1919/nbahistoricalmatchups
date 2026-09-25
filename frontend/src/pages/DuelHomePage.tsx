@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import DuelUnavailable from "../components/duel/DuelUnavailable";
 import { BOT_DISCLOSURE, BOT_DISPLAY_NAME, CONFIDENCE_LEVELS, ERA_KEYS, type EraKey, type PlayMode } from "../duel";
 import { track } from "../lib/analytics";
-import { DUEL_API, DuelApiError, describeDuelError } from "../lib/duelApi";
+import { DUEL_API, DuelApiError, describeDuelError, isSignedIn } from "../lib/duelApi";
 import { beginDuel } from "../lib/duelStart";
 import { CONFIDENCE_LABELS, ERA_LABELS, formatPoints, tierStakes } from "../lib/duelFormat";
 
@@ -120,6 +120,19 @@ export default function DuelHomePage() {
       <p className="duel__fine">
         Every set shows the pre-game model's calls after you lock in, as a fixed benchmark. Guests play without an
         account. For fun only: no entry fees, prizes, or betting.
+      </p>
+
+      <p className="duel__account">
+        {isSignedIn() ? (
+          <>
+            You're signed in, so your sets count toward ranked eligibility. <Link to="/account">Your account</Link>
+          </>
+        ) : (
+          <>
+            Playing as a guest. <Link to="/account">Sign in</Link> (optional) to keep your history across devices and
+            qualify for ranked play later.
+          </>
+        )}
       </p>
     </section>
   );

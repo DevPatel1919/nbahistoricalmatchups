@@ -50,6 +50,8 @@ export type AnalyticsEvent =
   // F09 duel mode (new actions). `era` is the chosen bucket or "any"; no puzzle or pick data.
   | { name: "duel_started"; mode: "solo" | "bot"; drawKind: "random" | "era"; era: EraKey | "any" }
   | { name: "duel_completed"; mode: "solo" | "bot"; drawKind: "random" | "era"; outcome: "win" | "loss" | "draw" | "solo"; beatModel: boolean }
+  // F09 accounts (new action). No address, name, or account id.
+  | { name: "account_signed_in"; mergedGuest: boolean }
   // Feature interactions (F02).
   | { name: "random_matchup_rolled"; matchup: string }
   | { name: "matchup_team_swapped"; side: "a" | "b"; matchup: string }

@@ -10,4 +10,6 @@ interface ImportMetaEnv {
   readonly VITE_INTEREST_ENDPOINT?: string;
   /** Base URL of the duel Worker (F09, worker/). Without it duel mode is off and nothing calls a backend. */
   readonly VITE_DUEL_API?: string;
+  /** Turnstile site key for the duel sign-in form. Without it sign-in says it is unavailable; guest play is unaffected. */
+  readonly VITE_TURNSTILE_SITE_KEY?: string;
 }

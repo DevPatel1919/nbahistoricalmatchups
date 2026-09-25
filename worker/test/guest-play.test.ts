@@ -124,7 +124,9 @@ describe("puzzle issuance", () => {
     const unknownGuest = await sign({ v: 1, typ: "guest", sub: "g_never_created" }, env.GUEST_TOKEN_SECRET);
     expect((await issue(unknownGuest)).status).toBe(401);
     const token = await guest();
-    expect((await issue(token, "ranked")).status).toBe(400);
+    // Ranked is not a guest mode: the Session 5 eligibility gate answers first.
+    expect((await issue(token, "ranked")).status).toBe(403);
+    expect((await issue(token, "friend")).status).toBe(400);
     expect((await issue(token, "solo", { kind: "era", era: "1990-1997" })).status).toBe(400);
   });
 });

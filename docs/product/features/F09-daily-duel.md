@@ -1,6 +1,6 @@
 # F09: Duel mode (forecasting game and ranked ladder)
 
-Status: **Sessions 1–4 complete (guest play works end to end); Sessions 5–8 not started.** Ranked play (Sessions 6–7) is blocked on two owner decisions recorded in the Session 1 handoff. Owner decisions recorded 2026-09-22.
+Status: **Sessions 1–5 complete (guest play works end to end; optional accounts and ranked eligibility are built); Sessions 6–8 not started.** Ranked play (Sessions 6–7) is blocked on the owner decisions recorded in the Session 1 handoff and restated in `F09-continuation-handoff.md`. Owner decisions recorded 2026-09-22.
 
 This brief is implemented over multiple sessions. Each session in the session
 plan is independently assignable, ends in a verifiable state, and has its own
@@ -692,3 +692,203 @@ reveal were reviewed at 360 px and 1280 px.
 Accounts (Session 5), ranked (6), leaderboard and anti-abuse (7), and
 hardening (8) are not started. After a reload the reveal's "Play another set"
 uses a random draw, because the result does not carry the draw mode.
+
+### 2026-09-24 — Session 5: accounts
+
+**Shipped.** Worker: `src/accounts.ts` (magic links, sessions, guest upgrade,
+names, ranked gate), `src/names.ts` (moderation), `src/services.ts` (email and
+Turnstile interfaces and doubles), migration `0002_accounts.sql`. Frontend:
+`/account` (`pages/AccountPage.tsx`), `/account/verify`
+(`pages/AccountVerifyPage.tsx`), `components/account/TurnstileWidget.tsx`,
+and account calls in `lib/duelApi.ts`. Branch `f09-accounts`.
+
+**Endpoints added.**
+
+| Method + path | Auth | Returns |
+|---|---|---|
+| `POST /v1/auth/magic-link` `{ email, turnstileToken }` | none; Turnstile; 5/h per IP, 3/h per canonical address | `202 { ok }`, the same for every address |
+| `POST /v1/auth/verify` `{ token, guestToken? }` | the link; 30/h per IP; new accounts 3/day per IP and 50/h per ASN | `{ sessionToken, account: AccountView }` |
+| `POST /v1/auth/sign-out` | session | `{ ok }` |
+| `GET /v1/account` | session | `AccountView` (no email, no id) |
+| `POST /v1/account/display-name` `{ displayName }` | session; 10 attempts/h | `AccountView` |
+| `GET /v1/dev/outbox?to=` | exists only with the local doubles | last magic-link email |
+
+Every existing endpoint accepts a session token (`Bearer s_…`) as well as a
+guest token. Accounts play as participant `a:<accountId>`.
+
+**How each Session 5 control is met.**
+- *Turnstile-gated creation:* every link request passes `HumanCheck.verify`
+  before anything is written or sent. Accounts are created only by redeeming
+  such a link. A failed check returns `403 human_check_failed` and sends
+  nothing.
+- *Rate-limited creation:* the per-IP and per-address link limits, plus 3 new
+  accounts per IP per day and 50 per ASN per hour at redemption. The address
+  limit uses the canonical form (lowercase, `+tag` removed, Gmail dots
+  removed), so one inbox cannot mint accounts by aliasing. All return 429 with
+  `Retry-After`.
+- *Single-use, short-lived links:* the link token (`ml_` + 32 random bytes)
+  goes in the URL fragment, so it never reaches a server log or a `Referer`
+  header. Only its SHA-256 is stored. The TTL is 15 minutes. Redemption
+  inserts into `magic_link_redemptions`, whose primary key is the token hash,
+  in the same D1 batch that creates the account and the session and re-keys
+  the guest. A reused link fails the whole batch. Mutation checks: removing
+  the application-level "already redeemed" check still passes every test,
+  because the constraint alone blocks reuse. Removing the redemption row fails
+  three tests.
+- *Sessions:* opaque `s_` + 32 random bytes, stored as SHA-256, with a 30-day
+  TTL, revocable by sign-out. They are bearer tokens in `localStorage`, not
+  cookies, so there is no CSRF surface. Their exposure to XSS is the same as
+  the guest token's. The only third-party script is Turnstile, and it loads
+  on `/account` only.
+- *Display names:* 3–20 characters: Latin letters (accents allowed), digits,
+  and `space . _ -` between them, never doubled. Other scripts are refused
+  because a Cyrillic "а" would slip "аdmin" past the reserved list. Allowing
+  them needs a confusables table. Checks run on a folded key: NFKD, accents
+  and punctuation dropped, digits mapped to look-alike letters. Reserved
+  words (the site, staff, "Sparring Partner", "Pre-game model", "NBA", and
+  others) and a starter blocked-word list are refused as `name_not_allowed`,
+  without saying which list matched. `display_name_key` is `UNIQUE` in D1, so
+  "Guard Dog", "GUARD_DOG", and "Guard D0g" cannot coexist. The first name is
+  free, and so is one rename. After that a player gets one change per 30 days,
+  enforced in the `UPDATE`'s `WHERE` clause (`429 rename_too_soon` with
+  `Retry-After`).
+- *Guest upgrade keeps history:* the browser that opens the link sends its
+  guest token. In the same batch, `duels`, `submissions`, and `scored_picks`
+  are re-keyed from `g:<guestId>` to `a:<accountId>`, and
+  `guests.account_id` retires the guest token. `PRAGMA defer_foreign_keys`
+  lets the two foreign-keyed tables move together. A set opened as a guest
+  can still be locked in after signing in mid-set; its token is accepted only
+  for the account that guest merged into. An invalid or already merged guest
+  token never blocks sign-in.
+- *No ranked before eligibility:* `assertRankedEligible` requires an account,
+  `RANKED_MIN_COMPLETED_DUELS` (10) completed sets, and a display name.
+  Before issuing anything, `POST /v1/sets { mode: "ranked" }` answers
+  `account_required` for a guest and `ranked_locked` for an ineligible
+  account. Once eligible it answers `ranked_unavailable` until Session 6
+  replaces that line. Completed sets include solo sets and merged guest
+  history. The threshold is a constant the owner can tune.
+- *Fail closed:* if email or Turnstile is not configured, or `APP_ORIGIN` is
+  outside `ALLOWED_ORIGINS`, sign-in returns a fixed `503 auth_unavailable`.
+  Guest play is unaffected. The local doubles (`AUTH_TEST_DOUBLES = "1"`) are
+  refused unless every allowed origin is `localhost` or `127.0.0.1`.
+
+**Stored identifiers, and why each is needed.**
+
+| Where | Field | Why |
+|---|---|---|
+| `accounts` | `id` (random) | The participant key for every result row |
+| | `email_hash` = HMAC(`EMAIL_HASH_SECRET`, canonical address), `UNIQUE` | Finds the account at the next sign-in, and allows one account per inbox. It is keyed, so someone with a copy of the database cannot reverse it by hashing a list of addresses |
+| | `display_name`, `display_name_key` | Shown on the board (Session 7); the key blocks look-alikes |
+| | `name_changed_at` | The rename limit |
+| | `created_at` | Account age, a future anti-smurfing signal |
+| `magic_links` | token SHA-256, `email_hash`, created/expires | Expiry and single use |
+| `magic_link_redemptions` | token SHA-256, time | The single-use constraint |
+| `sessions` | token SHA-256, `account_id`, created/expires/revoked | Expiry and sign-out |
+| `guests` | `account_id` | Retires a merged guest and honours its open set |
+| KV (TTL ≤ 2 windows) | keyed IP hash, email hash, ASN number | Rate limits |
+
+**Not stored anywhere:** the email address (it is used once, to send the
+link), IP addresses, user agents, Turnstile tokens, and link or session
+tokens in plaintext. As a result, the product cannot email a player unless
+they ask for a link. That is deliberate.
+
+**Frontend.** `/duel` gains one line: "Playing as a guest. Sign in
+(optional)…" or "You're signed in…". Nothing blocks play, and there is no
+header link, because the header was already at its 360 px limit. Signed out,
+`/account` shows email, Turnstile, and "Email me a sign-in link", then "Check
+your email". Signed in, it shows the display name (disabled, with the next
+allowed date, while locked), a ranked checklist (sets completed out of 10,
+name chosen), "Play a set", and "Sign out". `/account/verify#token=…` reads
+the fragment once, guarded against StrictMode's double effect. It strips the
+token from the address bar and history, redeems the link, retires the guest
+token, and opens `/account` with a one-time welcome. When the server rejects
+a session, the client drops it and play continues as a guest. The session
+token is in `localStorage` `ct:duel:session:v1`. `VITE_TURNSTILE_SITE_KEY`
+switches the form on; without it, `/account` says sign-in isn't set up.
+
+**Analytics (a new action, not an alternate name).** `account_signed_in
+{ mergedGuest }`. Failures use `app_error` with surface `account-link`,
+`account-verify`, `account-name`, or `account-load`. No address, name, or
+account id is ever a property.
+
+**Interface changes.** `AccountView` and `SignInResult` are in
+`frontend/src/duel/api.ts`. `Participant` is now a guest or an account.
+`worker/src/index.ts` exports `handle(request, env, services)`, and the
+default export wires in `servicesFor(env)`. The new error codes are in
+`src/http.ts`. A guest asking for `mode: "ranked"` now gets 403 instead of
+400.
+
+**Verification.**
+
+| Check | Command | Result |
+|---|---|---|
+| Types + build | `cd frontend && npm run build` | passes |
+| Lint | `npm run lint` | clean |
+| Unit | `npm test` | 136 passed (6 new in `tests/unit/duel-account.test.ts`) |
+| E2E | `npx playwright test` | 44 passed (4 new in `tests/e2e/account.spec.ts`) |
+| Worker | `cd worker && npx tsc --noEmit && npm test` | clean; 52 passed (32 new in `test/accounts.test.ts`) |
+| Python | `python -m pytest tests` / `python src/models/test_pregame_leakage.py` | 40 passed / exit 0 |
+
+The Worker tests cover:
+
+- Turnstile rejection, with nothing mailed.
+- Malformed addresses.
+- Identical answers for new and existing addresses.
+- No address, link token, or session token in any table or KV key.
+- 429s per IP, per address (across aliases), and for account creation per IP.
+- Fail-closed 503s for a failing mailer, missing production config, and an
+  off-site `APP_ORIGIN`.
+- Canonicalisation, and one account per inbox.
+- Single use: six concurrent redemptions give exactly one success, and D1
+  rejects a raw duplicate redemption.
+- The 15-minute TTL, and malformed and unknown tokens.
+- Sign-out, forged sessions, and expired sessions.
+- Guest tokens refused as accounts, and account play under `a:`.
+- The guest re-key: no `g:` rows remain, revealed results reload for the
+  account, the retired guest is refused, and presenting it again merges
+  nothing.
+- A mid-set sign-in that locks in only for its own account.
+- Name cases: shape, reserved, look-alike, full-width, Cyrillic, and blocked.
+- Uniqueness by folded key, including a raw D1 `UPDATE`.
+- The rename schedule and the rename-attempt limit.
+- The ranked gate at 9 and 10 sets, with and without a name, issuing no set.
+- The doubles refused for any non-localhost origin.
+
+Mutation checks: the two described under single use, plus removing the
+rename window from the `UPDATE`, which fails the rename test.
+
+The e2e run starts the Worker with the doubles and stubs Turnstile's script
+in the browser. At 360 px it plays a guest set, signs in from `/duel`, reads
+the link from the dev outbox, and checks that the token is gone from the URL
+and the history merged (1 of 10). It then has a reserved name refused, saves
+a name, renames it until it locks, reloads the guest-era result as the
+account, has the used link refused, signs out, and plays as a guest again.
+Other tests cover a failed human check, a verify page with no token, and
+Turnstile loading on `/account` only, never on the explorer, tournaments, or
+duel play. Screens (`/duel`, sign-in, check email, new and named account,
+used link) were reviewed at 360 px and 1280 px, with no horizontal overflow.
+
+**Owner configuration added by Session 5 (needed before sign-in works).**
+1. `wrangler secret put EMAIL_HASH_SECRET`: a long random string. **Never
+   rotate it**; every account is keyed by it.
+2. Create a Resend account and verify the sending domain (SPF/DKIM). Then
+   `wrangler secret put EMAIL_API_KEY`, and set `EMAIL_FROM` in
+   `wrangler.jsonc`, for example `Court of All Time <signin@your-domain>`.
+   Another provider needs only a new `Mailer` in `src/services.ts`.
+3. Create a Turnstile widget for the production hostname. Then
+   `wrangler secret put TURNSTILE_SECRET_KEY`, and set
+   `VITE_TURNSTILE_SITE_KEY` in the Pages build.
+4. Set `APP_ORIGIN` to the production site origin; it must also be in
+   `ALLOWED_ORIGINS`.
+5. Run `npm run db:migrate:remote` to apply `0002_accounts.sql`.
+6. Never set `AUTH_TEST_DOUBLES` in production. It would be ignored there
+   anyway, because production origins are not localhost.
+7. Extend the blocked-word list in `worker/src/names.ts` before launch.
+
+**Not done / next.** Expired `magic_links` and `sessions` rows are not purged
+yet; a scheduled cleanup belongs in Session 8. Only the guest in the browser
+that opens the link is merged; guest history in another browser stays there.
+Players cannot delete their account yet; Session 8's privacy review should
+add that. Ranked duels, matchmaking, Elo application, and the leaderboard
+(Sessions 6–7) are not started. They remain blocked on the owner decisions
+restated in `F09-continuation-handoff.md`.

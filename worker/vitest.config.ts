@@ -13,6 +13,7 @@ export default defineConfig(async () => {
             TEST_MIGRATIONS: migrations,
             GUEST_TOKEN_SECRET: "test-guest-secret-0123456789",
             SET_TOKEN_SECRET: "test-set-secret-0123456789ab",
+            EMAIL_HASH_SECRET: "test-email-secret-0123456789",
           },
         },
       }),

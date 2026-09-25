@@ -1703,6 +1703,112 @@ button {
   margin-top: 20px;
 }
 
+.duel__account {
+  margin-top: 12px;
+  font-size: 0.9rem;
+}
+
+/* --- Duel accounts (F09 Session 5) ----------------------------------------*/
+
+.account__form {
+  margin-top: 20px;
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  max-width: 420px;
+}
+
+.account__field {
+  display: grid;
+  gap: 4px;
+  font-weight: 600;
+  width: 100%;
+}
+
+.account__field input {
+  font: inherit;
+  font-weight: 400;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elevated);
+  color: var(--text);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.account__field input:disabled {
+  opacity: 0.7;
+}
+
+.account__form .duel__fine {
+  margin: 0;
+}
+
+/* Turnstile's widget is 300px wide; keep the page from scrolling sideways at 320px. */
+.turnstile {
+  max-width: 100%;
+  overflow: hidden;
+  min-height: 65px;
+}
+
+.account__sent {
+  margin-top: 20px;
+  max-width: 480px;
+}
+
+.account__ok {
+  color: var(--win);
+  margin: 0;
+}
+
+.account__ranked {
+  margin-top: 8px;
+}
+
+.account__checklist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.account__checklist li {
+  display: grid;
+  gap: 6px;
+  padding-left: 26px;
+  position: relative;
+}
+
+.account__checklist li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+}
+
+.account__checklist li.is-done::before {
+  background: var(--win);
+  border-color: var(--win);
+}
+
+.account__checklist progress {
+  width: min(240px, 100%);
+  accent-color: var(--win);
+}
+
+.account__actions {
+  margin-top: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 @media (max-width: 480px) {
   .confidence {
     grid-template-columns: 1fr;

@@ -12,6 +12,12 @@ export const LIMITS = {
   setIssuePerParticipant: { name: "set-sub", max: 40, windowSeconds: 3600 },
   setIssuePerIp: { name: "set-ip", max: 120, windowSeconds: 3600 },
   submitPerParticipant: { name: "submit-sub", max: 60, windowSeconds: 3600 },
+  magicLinkPerIp: { name: "link-ip", max: 5, windowSeconds: 3600 },
+  magicLinkPerEmail: { name: "link-email", max: 3, windowSeconds: 3600 },
+  verifyPerIp: { name: "verify-ip", max: 30, windowSeconds: 3600 },
+  accountCreatePerIp: { name: "acct-ip", max: 3, windowSeconds: 86400 },
+  accountCreatePerAsn: { name: "acct-asn", max: 50, windowSeconds: 3600 },
+  renamePerAccount: { name: "rename-acct", max: 10, windowSeconds: 3600 },
 } as const satisfies Record<string, Limit>;
 
 /** `scale` multiplies every limit; production uses 1 (wrangler.jsonc), local e2e runs raise it. */

@@ -177,6 +177,20 @@ async function recentHistory(env: Env, participant: Participant): Promise<Recent
   return rows.results.reverse().map((r) => ({ correct: r.correct === 1, confidence: r.confidence }));
 }
 
+/**
+ * A set token names the participant it was issued to. A guest who signs in
+ * mid-set becomes an account (accounts.ts re-keys the duel), so a token issued
+ * to a guest merged into this same account still counts as theirs.
+ */
+async function tokenSubjectIs(env: Env, sub: unknown, participant: Participant): Promise<boolean> {
+  if (sub === participant.id) return true;
+  if (participant.kind !== "account" || typeof sub !== "string" || !sub.startsWith("g:")) return false;
+  const merged = await env.DB.prepare("SELECT 1 FROM guests WHERE id = ? AND account_id = ?")
+    .bind(sub.slice(2), participant.accountId)
+    .first();
+  return merged !== null;
+}
+
 function withConfidence(scored: ScoredPick[], picks: readonly Pick[] | null): RevealedPick[] {
   return scored.map((s, i) => ({ ...s, confidence: picks ? picks[i].confidence : null }));
 }
@@ -197,7 +211,7 @@ export async function submitPicks(
 
   const b = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
   const token = typeof b.setToken === "string" ? await verify(b.setToken, env.SET_TOKEN_SECRET) : null;
-  if (!token || token.v !== 1 || token.typ !== "set" || token.sub !== participant.id || token.duel !== duelId) {
+  if (!token || token.v !== 1 || token.typ !== "set" || token.duel !== duelId || !(await tokenSubjectIs(env, token.sub, participant))) {
     throw new ApiError("set_token_invalid");
   }
   const duel = await loadOwnDuel(env, participant, duelId);

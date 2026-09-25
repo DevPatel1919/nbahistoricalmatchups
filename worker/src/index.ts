@@ -6,13 +6,21 @@
 //   POST /v1/sets                        { mode, draw } -> IssuedSet (no answers)
 //   GET  /v1/duels/:id                   -> open set, expired, or revealed result
 //   POST /v1/duels/:id/submission        { setToken, picks } + Idempotency-Key -> DuelResult
+//   POST /v1/auth/magic-link             { email, turnstileToken } -> 202 (same answer for every address)
+//   POST /v1/auth/verify                 { token, guestToken? } -> { sessionToken, account }
+//   POST /v1/auth/sign-out               (session) -> { ok }
+//   GET  /v1/account                     (session) -> AccountView
+//   POST /v1/account/display-name        (session) { displayName } -> AccountView
+//   GET  /v1/dev/outbox?to=              local test doubles only -> last magic-link email
 
-import { clientKey, createGuest, requireParticipant } from "./auth";
+import { accountView, assertRankedEligible, requestMagicLink, setDisplayName, signOut, verifyMagicLink } from "./accounts";
+import { clientKey, createGuest, requireAccount, requireParticipant } from "./auth";
 import type { Env } from "./env";
 import { ApiError, errorResponse, json, readJson, withCors } from "./http";
 import { issueSet, readDuel, submitPicks } from "./play";
+import { ServiceUnavailable, outboxKey, servicesFor, testDoublesEnabled, type Services } from "./services";
 
-async function route(request: Request, env: Env): Promise<Response> {
+async function route(request: Request, env: Env, services: Services): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/+$/, "");
   const method = request.method;
@@ -23,7 +31,29 @@ async function route(request: Request, env: Env): Promise<Response> {
 
   if (method === "POST" && path === "/v1/sets") {
     const participant = await requireParticipant(request, env);
-    return json(await issueSet(env, participant, await clientKey(request, env), await readJson(request)), 201);
+    const body = await readJson(request);
+    if ((body as { mode?: unknown } | null)?.mode === "ranked") {
+      // Ranked duels are Session 6. The eligibility gate is already enforced.
+      await assertRankedEligible(env, participant);
+      throw new ApiError("ranked_unavailable");
+    }
+    return json(await issueSet(env, participant, await clientKey(request, env), body), 201);
+  }
+
+  if (method === "POST" && path === "/v1/auth/magic-link") {
+    return json(await requestMagicLink(request, env, services, await readJson(request)), 202);
+  }
+  if (method === "POST" && path === "/v1/auth/verify") return json(await verifyMagicLink(request, env, await readJson(request)));
+  if (method === "POST" && path === "/v1/auth/sign-out") return json(await signOut(env, (await requireAccount(request, env)).token));
+  if (method === "GET" && path === "/v1/account") return json(await accountView(env, (await requireAccount(request, env)).accountId));
+  if (method === "POST" && path === "/v1/account/display-name") {
+    const { accountId } = await requireAccount(request, env);
+    return json(await setDisplayName(env, accountId, await readJson(request)));
+  }
+  if (method === "GET" && path === "/v1/dev/outbox" && testDoublesEnabled(env)) {
+    const message = await env.RATE_LIMITS.get(outboxKey(url.searchParams.get("to") ?? ""), { type: "json" });
+    if (!message) throw new ApiError("not_found");
+    return json(message);
   }
 
   const duel = /^\/v1\/duels\/([A-Za-z0-9_-]{1,64})(\/submission)?$/.exec(path);
@@ -38,22 +68,30 @@ async function route(request: Request, env: Env): Promise<Response> {
   throw new ApiError("not_found");
 }
 
-export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    const origin = request.headers.get("origin");
-    if (request.method === "OPTIONS") return withCors(new Response(null, { status: 204 }), origin, env.ALLOWED_ORIGINS);
-    let response: Response;
-    try {
-      response = await route(request, env);
-    } catch (error) {
-      if (error instanceof ApiError) {
-        response = errorResponse(error);
-      } else {
-        // Log the error class only: messages from lower layers could carry data.
-        console.error("duel-api unhandled", error instanceof Error ? error.name : typeof error);
-        response = errorResponse(new ApiError("internal"));
-      }
+/** The whole API with its outside services injected; tests pass doubles here. */
+export async function handle(request: Request, env: Env, services: Services): Promise<Response> {
+  const origin = request.headers.get("origin");
+  if (request.method === "OPTIONS") return withCors(new Response(null, { status: 204 }), origin, env.ALLOWED_ORIGINS);
+  let response: Response;
+  try {
+    response = await route(request, env, services);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      response = errorResponse(error);
+    } else if (error instanceof ServiceUnavailable) {
+      console.error("duel-api auth service unavailable");
+      response = errorResponse(new ApiError("auth_unavailable"));
+    } else {
+      // Log the error class only: messages from lower layers could carry data.
+      console.error("duel-api unhandled", error instanceof Error ? error.name : typeof error);
+      response = errorResponse(new ApiError("internal"));
     }
-    return withCors(response, origin, env.ALLOWED_ORIGINS);
+  }
+  return withCors(response, origin, env.ALLOWED_ORIGINS);
+}
+
+export default {
+  fetch(request: Request, env: Env): Promise<Response> {
+    return handle(request, env, servicesFor(env));
   },
 } satisfies ExportedHandler<Env>;
