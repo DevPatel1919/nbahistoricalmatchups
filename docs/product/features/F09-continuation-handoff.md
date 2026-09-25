@@ -16,14 +16,14 @@ Read first, in order: `CONTRIBUTING.md`, `docs/product/HANDOFF.md`,
 | 2 | Pure domain logic (scoring, duel, Elo, bot, selection) | Done |
 | 3 | Worker, D1 schema, guest play loop | Done |
 | 4 | Frontend play surface (`/duel`, `/duel/:duelId`) | Done |
-| 5 | Accounts (magic link, Turnstile, names, ranked eligibility) | Done (branch `f09-accounts`, not yet merged) |
+| 5 | Accounts (magic link, Turnstile, names, ranked eligibility) | Done (PR #4, branch `f09-accounts`, not yet merged) |
 | 6 | Ranked duels, matchmaking, friend invites, Elo application | **Blocked on owner decisions** |
 | 7 | Leaderboard and anti-abuse enforcement | **Blocked on owner decisions** |
 | 8 | Hardening, load/cost review, release gate | Needs a deployed environment |
 
 All of Sessions 1–4 is merged to `main` (PR #3, merge commit `3ad3858`). PR #3
 also merged F01–F05, which had not been on `main` before. Session 5 is on
-branch `f09-accounts` and has not been pushed. Nothing is deployed: duel mode
+branch `f09-accounts`, open as PR #4. Nothing is deployed: duel mode
 stays off on the live site until the owner does the setup below and sets
 `VITE_DUEL_API`.
 
@@ -187,9 +187,8 @@ starting ranked work.
 
 ## Next session: none is unblocked
 
-Session 5 is done. Before anything else, the owner should review branch
-`f09-accounts` and decide whether to push it and open a PR. Neither has been
-done, because both need the owner's go-ahead.
+Session 5 is done and open as PR #4. Before anything else, the owner should
+review and merge it.
 
 Session 6 (ranked duels, matchmaking, friend invites, Elo application) and
 Session 7 (leaderboard, anti-abuse) stay blocked until the owner answers the
