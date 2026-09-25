@@ -451,10 +451,10 @@ describe("ranked eligibility", () => {
     await setName(sessionToken, "Ready " + (counter % 1000));
     me = await call("/v1/account", { headers: auth(sessionToken) });
     expect(me.body.ranked).toEqual({ eligible: true, minCompletedDuels: RANKED_MIN_COMPLETED_DUELS, needsDisplayName: false });
-    // The gate passes; ranked duels themselves are Session 6.
+    // The gate passes, and a ranked set is dealt (Session 6).
     const r = await ranked(sessionToken);
-    expect(r.status).toBe(403);
-    expect(r.body.error).toBe("ranked_unavailable");
+    expect(r.status).toBe(201);
+    expect(r.body.mode).toBe("ranked");
   });
 
   it("an issued set is never needed to probe eligibility", async () => {

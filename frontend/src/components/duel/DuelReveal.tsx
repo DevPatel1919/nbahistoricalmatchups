@@ -1,22 +1,7 @@
 import type { DuelResult, RevealedPick } from "../../duel";
-import { CONFIDENCE_LABELS, formatPercent, formatPoints, teamLabel } from "../../lib/duelFormat";
+import { CONFIDENCE_LABELS, formatPercent, formatPoints, matchNote, resultHeadline, teamLabel } from "../../lib/duelFormat";
 
 type Props = { result: DuelResult };
-
-/** A total in running text: true minus sign, no plus sign. */
-const n = (points: number) => (points < 0 ? "−" + Math.abs(points) : String(points));
-
-function headline(result: DuelResult): string {
-  const { you, model, opponent } = result;
-  if (opponent) {
-    if (opponent.outcome === "you") return "You beat the Sparring Partner, " + n(you.total) + " to " + n(opponent.total) + ".";
-    if (opponent.outcome === "opponent") return "The Sparring Partner won, " + n(opponent.total) + " to " + n(you.total) + ".";
-    return "A draw with the Sparring Partner at " + n(you.total) + ".";
-  }
-  if (you.total > model.total) return "You scored " + n(you.total) + ", ahead of the pre-game model.";
-  if (you.total < model.total) return "You scored " + n(you.total) + ". The pre-game model scored " + n(model.total) + ".";
-  return "You scored " + n(you.total) + ", level with the pre-game model.";
-}
 
 function PickLine({ who, pick, name, note }: { who: string; pick: RevealedPick; name: string; note: string }) {
   return (
@@ -34,11 +19,12 @@ function PickLine({ who, pick, name, note }: { who: string; pick: RevealedPick; 
 export default function DuelReveal({ result }: Props) {
   const { you, model, opponent, puzzles } = result;
   const anyInSample = puzzles.some((p) => p.modelInSample);
+  const note = matchNote(result.mode, result.match);
 
   return (
     <section className="reveal" aria-labelledby="reveal-heading">
       <h1 id="reveal-heading" className="reveal__headline">
-        {headline(result)}
+        {resultHeadline(result)}
       </h1>
 
       <dl className="reveal__scores">
@@ -58,12 +44,21 @@ export default function DuelReveal({ result }: Props) {
         </div>
       </dl>
 
-      {opponent && (
+      {note && (
+        <p className="reveal__match" data-testid="match-note">
+          {note}
+        </p>
+      )}
+
+      {opponent?.kind === "bot" && (
         <p className="reveal__disclosure" data-testid="bot-disclosure">
           <strong>{opponent.name}:</strong> {opponent.disclosure} It is told the results and plays near your
           recent accuracy. Its score never counts toward any rating.
           {opponent.decidedBy === "best-correct-call" && " Totals were level, so the higher-scoring correct call decided it."}
         </p>
+      )}
+      {opponent?.kind === "player" && opponent.decidedBy === "best-correct-call" && (
+        <p className="reveal__fine">Totals were level, so the higher-scoring correct call decided it.</p>
       )}
 
       <p className="reveal__benchmark" data-testid="model-benchmark">
@@ -79,7 +74,7 @@ export default function DuelReveal({ result }: Props) {
           const winner = p.view[p.actualWinner];
           const mine = you.picks[i];
           const theirs = model.picks[i];
-          const bot = opponent?.picks[i];
+          const theirPick = opponent?.picks?.[i];
           return (
             <li key={p.puzzleId} className="reveal-game">
               <h2 className="reveal-game__title">
@@ -94,12 +89,12 @@ export default function DuelReveal({ result }: Props) {
                   note={mine.confidence ? CONFIDENCE_LABELS[mine.confidence] : ""}
                 />
                 <PickLine who="Model" pick={theirs} name={p.view[theirs.side].name} note={formatPercent(theirs.probability)} />
-                {bot && opponent && (
+                {theirPick && opponent && (
                   <PickLine
                     who={opponent.name}
-                    pick={bot}
-                    name={p.view[bot.side].name}
-                    note={bot.confidence ? CONFIDENCE_LABELS[bot.confidence] : ""}
+                    pick={theirPick}
+                    name={p.view[theirPick.side].name}
+                    note={theirPick.confidence ? CONFIDENCE_LABELS[theirPick.confidence] : ""}
                   />
                 )}
               </ul>

@@ -6,7 +6,8 @@ export const FIXTURE_VERSION = "duel-pool-v1";
 export const FIXTURE_ERAS = ["1998-2004", "2005-2011", "2012-2016", "2017-2021", "2022-2026"];
 export const FIXTURE_BANDS = ["lock", "favorite", "tossup"];
 const PER_ERA_BAND = 6;
-const RANKED_PER_ERA = 6;
+// Enough ranked puzzles that tests can play many matches before exposure and cooldown run out.
+const RANKED_PER_ERA = 40;
 
 // Distinctive model probabilities, so a test can detect one leaking anywhere.
 const BAND_PROBABILITY = { lock: 0.871234, favorite: 0.691234, tossup: 0.541234 };

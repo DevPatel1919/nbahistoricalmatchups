@@ -7,6 +7,8 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-08-15",
   "observability": { "enabled": true },
+  // Settles ranked and friend matches whose timeout has passed (src/matches.ts settleDue).
+  "triggers": { "crons": ["*/15 * * * *"] },
   "vars": {
     // Comma-separated origins allowed to call the API from a browser.
     "ALLOWED_ORIGINS": "http://localhost:4317,http://localhost:5173",

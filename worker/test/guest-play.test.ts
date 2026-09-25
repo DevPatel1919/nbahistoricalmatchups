@@ -126,7 +126,9 @@ describe("puzzle issuance", () => {
     const token = await guest();
     // Ranked is not a guest mode: the Session 5 eligibility gate answers first.
     expect((await issue(token, "ranked")).status).toBe(403);
-    expect((await issue(token, "friend")).status).toBe(400);
+    // Friend duels are open to guests but still need a valid draw.
+    expect((await issue(token, "friend", { kind: "era", era: "1990-1997" })).status).toBe(400);
+    expect((await issue(token, "tournament")).status).toBe(400);
     expect((await issue(token, "solo", { kind: "era", era: "1990-1997" })).status).toBe(400);
   });
 });
@@ -176,19 +178,20 @@ describe("submission", () => {
     const picks = honestPicks(set.body.puzzles).map((p) => ({ ...p, points: 999, correct: true }));
     const r = await submit(token, set.body.duelId, { setToken: set.body.setToken, picks });
     expect(r.status).toBe(200);
+    expect(r.body.state).toBe("revealed");
     const expected = picks.reduce((sum, p) => {
       const correct = ANSWERS.get(p.puzzleId).actualWinner === p.side;
       return sum + pointsFor(correct ? 0.7 : 0.3);
     }, 0);
-    expect(r.body.you.total).toBe(expected);
-    expect(r.body.opponent).toBeNull();
-    expect(r.body.model.label).toBe("Pre-game model");
-    expect(r.body.model.picks).toHaveLength(5);
-    expect(r.body.model.trainedThroughSeason).toBe(2021);
-    for (const [i, p] of r.body.puzzles.entries()) {
+    expect(r.body.result.you.total).toBe(expected);
+    expect(r.body.result.opponent).toBeNull();
+    expect(r.body.result.model.label).toBe("Pre-game model");
+    expect(r.body.result.model.picks).toHaveLength(5);
+    expect(r.body.result.model.trainedThroughSeason).toBe(2021);
+    for (const [i, p] of r.body.result.puzzles.entries()) {
       expect(p.actualWinner).toBe(ANSWERS.get(p.puzzleId).actualWinner);
       const m = ANSWERS.get(p.puzzleId).modelHomeWinProbability;
-      expect(r.body.model.picks[i].points).toBe(pointsFor(p.actualWinner === "home" ? m : 1 - m));
+      expect(r.body.result.model.picks[i].points).toBe(pointsFor(p.actualWinner === "home" ? m : 1 - m));
     }
     const served = await env.DB.prepare("SELECT COUNT(*) AS n FROM served_answers WHERE puzzle_id IN (?, ?, ?, ?, ?)")
       .bind(...set.body.puzzles.map((p: { puzzleId: string }) => p.puzzleId))
@@ -203,11 +206,11 @@ describe("submission", () => {
     const set = await issue(token, "bot");
     const r = await submit(token, set.body.duelId, { setToken: set.body.setToken, picks: honestPicks(set.body.puzzles) });
     expect(r.status).toBe(200);
-    expect(r.body.opponent.name).toBe("Sparring Partner");
-    expect(r.body.opponent.disclosure).toMatch(/not a model prediction/);
-    expect(["you", "opponent", "draw"]).toContain(r.body.opponent.outcome);
-    expect(r.body.opponent.picks).toHaveLength(5);
-    expect(r.body.model.label).toBe("Pre-game model");
+    expect(r.body.result.opponent.name).toBe("Sparring Partner");
+    expect(r.body.result.opponent.disclosure).toMatch(/not a model prediction/);
+    expect(["you", "opponent", "draw"]).toContain(r.body.result.opponent.outcome);
+    expect(r.body.result.opponent.picks).toHaveLength(5);
+    expect(r.body.result.model.label).toBe("Pre-game model");
   });
 
   it("rejects submissions without a matching issued token", async () => {
@@ -312,7 +315,7 @@ describe("submission", () => {
     expect(open.body.set.puzzles).toEqual(set.body.puzzles);
     const r = await submit(token, set.body.duelId, { setToken: set.body.setToken, picks: honestPicks(set.body.puzzles) });
     const again = await call("/v1/duels/" + set.body.duelId, { headers: auth(token) });
-    expect(again.body).toEqual({ state: "revealed", result: r.body });
+    expect(again.body).toEqual(r.body);
     expect((await call("/v1/duels/" + set.body.duelId, { headers: auth(await guest()) })).status).toBe(404);
   });
 });

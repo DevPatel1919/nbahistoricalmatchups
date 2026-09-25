@@ -7,7 +7,7 @@
 // an optional display name, and timestamps. The address itself is used once, to
 // send the link, and is not written anywhere.
 
-import type { AccountView, SignInResult } from "../../frontend/src/duel";
+import { ELO_PROVISIONAL_DUELS, type AccountView, type SignInResult } from "../../frontend/src/duel";
 import { activeGuestId, clientKey, type Participant } from "./auth";
 import type { Env } from "./env";
 import { ApiError } from "./http";
@@ -181,6 +181,8 @@ function upgradeGuest(env: Env, guestId: string, accountIdSql: string, emailHash
     env.DB.prepare(`UPDATE duels SET issued_to = ${to} WHERE issued_to = ?`).bind(emailHashValue, from),
     env.DB.prepare(`UPDATE submissions SET participant = ${to} WHERE participant = ?`).bind(emailHashValue, from),
     env.DB.prepare(`UPDATE scored_picks SET participant = ${to} WHERE participant = ?`).bind(emailHashValue, from),
+    // Friend-duel seats (ranked seats are accounts already).
+    env.DB.prepare(`UPDATE match_seats SET participant = ${to} WHERE participant = ?`).bind(emailHashValue, from),
   ];
 }
 
@@ -199,9 +201,10 @@ export async function signOut(env: Env, token: string): Promise<{ ok: true }> {
 type AccountRow = { display_name: string | null; name_changed_at: number | null; created_at: number };
 
 export async function accountView(env: Env, accountId: string): Promise<AccountView> {
-  const [row, count] = await Promise.all([
+  const [row, count, rating] = await Promise.all([
     env.DB.prepare("SELECT display_name, name_changed_at, created_at FROM accounts WHERE id = ?").bind(accountId).first<AccountRow>(),
     env.DB.prepare("SELECT COUNT(*) AS n FROM submissions WHERE participant = ?").bind("a:" + accountId).first<{ n: number }>(),
+    env.DB.prepare("SELECT rating, rated_duels FROM ratings WHERE account_id = ?").bind(accountId).first<{ rating: number; rated_duels: number }>(),
   ]);
   if (!row) throw new ApiError("unauthorized");
   const completedDuels = count?.n ?? 0;
@@ -217,6 +220,9 @@ export async function accountView(env: Env, accountId: string): Promise<AccountV
       minCompletedDuels: RANKED_MIN_COMPLETED_DUELS,
       needsDisplayName,
     },
+    rating: rating
+      ? { rating: rating.rating, ratedDuels: rating.rated_duels, provisional: rating.rated_duels < ELO_PROVISIONAL_DUELS }
+      : null,
   };
 }
 

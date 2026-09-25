@@ -1,6 +1,16 @@
 // Display text for duel puzzles and results. Pure, so it is unit-tested.
 
-import { CONFIDENCE_PROBABILITY, pointsFor, type Confidence, type EraKey, type TeamSnapshot } from "../duel";
+import {
+  CONFIDENCE_PROBABILITY,
+  pointsFor,
+  type Confidence,
+  type DuelResult,
+  type EraKey,
+  type MatchSummary,
+  type PlayMode,
+  type RatingChange,
+  type TeamSnapshot,
+} from "../duel";
 
 export const ERA_LABELS: Record<EraKey, string> = {
   "1998-2004": "1998–2004",
@@ -61,4 +71,67 @@ export function formatPercent(p: number): string {
 
 export function teamLabel(team: Pick<TeamSnapshot, "city" | "name">): string {
   return team.city + " " + team.name;
+}
+
+// ---------------------------------------------------------------------------
+// Results against an opponent (F09 Session 6)
+// ---------------------------------------------------------------------------
+
+/** A total in running text: true minus sign, no plus sign. */
+function inText(points: number): string {
+  return points < 0 ? "−" + Math.abs(points) : String(points);
+}
+
+/** The one-line headline of a revealed result. */
+export function resultHeadline(result: DuelResult): string {
+  const { you, model, opponent } = result;
+  if (opponent) {
+    const name = opponent.name;
+    if (opponent.decidedBy === "forfeit") {
+      return opponent.outcome === "you" ? name + " didn't lock in in time. You win by forfeit." : "You didn't lock in in time.";
+    }
+    if (opponent.outcome === "you") return "You beat " + name + ", " + inText(you.total) + " to " + inText(opponent.total) + ".";
+    if (opponent.outcome === "opponent") return name + " won, " + inText(opponent.total) + " to " + inText(you.total) + ".";
+    return "A draw with " + name + " at " + inText(you.total) + ".";
+  }
+  if (you.total > model.total) return "You scored " + inText(you.total) + ", ahead of the pre-game model.";
+  if (you.total < model.total) return "You scored " + inText(you.total) + ". The pre-game model scored " + inText(model.total) + ".";
+  return "You scored " + inText(you.total) + ", level with the pre-game model.";
+}
+
+/** "1,200 → 1,220 (+20)" */
+export function formatRatingChange(change: RatingChange): string {
+  return change.before.toLocaleString("en-US") + " → " + change.after.toLocaleString("en-US") + " (" + formatPoints(change.delta) + ")";
+}
+
+/** How a ranked or friend duel was settled and whether it counted, in a sentence or two; null for solo and bot sets. */
+export function matchNote(mode: PlayMode, match: MatchSummary | null): string | null {
+  if (!match) return null;
+  if (mode === "friend") {
+    return match.settledBy === "no-opponent"
+      ? "Nobody took your invite in time, so this set was scored on its own. Friend duels are unranked."
+      : "Friend duels are unranked.";
+  }
+  if (match.settledBy === "no-opponent") {
+    return "No opponent joined in time, so this ranked set was scored against the Sparring Partner. It doesn't count toward your rating.";
+  }
+  if (!match.rated || !match.rating) return "This duel was unrated.";
+  const forfeit = match.settledBy === "forfeit" ? " A forfeit counts as a loss for the player who didn't lock in." : "";
+  return "Rated duel. Your rating: " + formatRatingChange(match.rating) + "." + forfeit;
+}
+
+/** "about 23 hours", "about 40 minutes", or "less than a minute". */
+export function formatTimeLeft(until: number, now: number): string {
+  const minutes = Math.floor((until - now) / 60000);
+  if (minutes < 1) return "less than a minute";
+  if (minutes < 90) return "about " + minutes + (minutes === 1 ? " minute" : " minutes");
+  const hours = Math.round(minutes / 60);
+  return "about " + hours + " hours";
+}
+
+/** The analytics outcome of a revealed result, from the viewer's point of view. */
+export function completionOutcome(result: DuelResult): { outcome: "win" | "loss" | "draw" | "solo"; beatModel: boolean } {
+  const { opponent, you, model } = result;
+  const outcome = !opponent ? "solo" : opponent.outcome === "you" ? "win" : opponent.outcome === "opponent" ? "loss" : "draw";
+  return { outcome, beatModel: you.total > model.total };
 }

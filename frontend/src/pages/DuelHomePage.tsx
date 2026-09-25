@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import DuelUnavailable from "../components/duel/DuelUnavailable";
-import { BOT_DISCLOSURE, BOT_DISPLAY_NAME, CONFIDENCE_LEVELS, ERA_KEYS, type EraKey, type PlayMode } from "../duel";
+import { BOT_DISCLOSURE, BOT_DISPLAY_NAME, CONFIDENCE_LEVELS, ERA_KEYS, type AccountView, type EraKey, type PlayMode } from "../duel";
 import { track } from "../lib/analytics";
-import { DUEL_API, DuelApiError, describeDuelError, isSignedIn } from "../lib/duelApi";
+import { DUEL_API, DuelApiError, describeDuelError, fetchAccount, isSignedIn } from "../lib/duelApi";
 import { beginDuel } from "../lib/duelStart";
 import { CONFIDENCE_LABELS, ERA_LABELS, formatPoints, tierStakes } from "../lib/duelFormat";
 
@@ -13,8 +13,33 @@ export default function DuelHomePage() {
   const [era, setEra] = useState<EraKey | "any">("any");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [account, setAccount] = useState<AccountView | null>(null);
+
+  useEffect(() => {
+    if (!DUEL_API || !isSignedIn()) return;
+    let live = true;
+    fetchAccount()
+      .then((a) => {
+        if (live) setAccount(a);
+      })
+      .catch(() => {
+        // Ranked stays unavailable until the account loads; every other mode still works.
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
 
   if (!DUEL_API) return <DuelUnavailable />;
+
+  const rankedReady = account?.ranked.eligible === true;
+  const rankedNote = !account
+    ? "Needs an account."
+    : rankedReady
+      ? "Matched with a player near your rating. Moves your rating" +
+        (account.rating ? " (" + account.rating.rating.toLocaleString("en-US") + (account.rating.provisional ? ", provisional" : "") + ")." : ".")
+      : "Unlocks after " + account.ranked.minCompletedDuels + " completed sets and a display name (" +
+        Math.min(account.completedDuels, account.ranked.minCompletedDuels) + " of " + account.ranked.minCompletedDuels + " sets).";
 
   const start = async () => {
     setBusy(true);
@@ -93,11 +118,32 @@ export default function DuelHomePage() {
               <span className="duel__option-note">Just you, with the pre-game model as a benchmark.</span>
             </span>
           </label>
+          <label className="duel__option">
+            <input type="radio" name="mode" value="friend" checked={mode === "friend"} onChange={() => setMode("friend")} />
+            <span>
+              <strong>A friend</strong>
+              <span className="duel__option-note">Play first, then send a link. Your friend gets the same five games. Unranked.</span>
+            </span>
+          </label>
+          <label className={"duel__option" + (rankedReady ? "" : " is-disabled")}>
+            <input
+              type="radio"
+              name="mode"
+              value="ranked"
+              checked={mode === "ranked"}
+              disabled={!rankedReady}
+              onChange={() => setMode("ranked")}
+            />
+            <span>
+              <strong>Ranked</strong>
+              <span className="duel__option-note">{rankedNote}</span>
+            </span>
+          </label>
         </fieldset>
 
         <label className="duel__era">
           <span>Era</span>
-          <select value={era} onChange={(e) => setEra(e.target.value as EraKey | "any")}>
+          <select value={mode === "ranked" ? "any" : era} disabled={mode === "ranked"} onChange={(e) => setEra(e.target.value as EraKey | "any")}>
             <option value="any">Any era</option>
             {ERA_KEYS.map((k) => (
               <option key={k} value={k}>
@@ -105,6 +151,7 @@ export default function DuelHomePage() {
               </option>
             ))}
           </select>
+          {mode === "ranked" && <span className="duel__option-note">Ranked games are drawn from every era.</span>}
         </label>
 
         <button type="submit" className="btn btn--primary" disabled={busy}>
@@ -125,12 +172,13 @@ export default function DuelHomePage() {
       <p className="duel__account">
         {isSignedIn() ? (
           <>
-            You're signed in, so your sets count toward ranked eligibility. <Link to="/account">Your account</Link>
+            {rankedReady ? "You're signed in and ranked is open to you." : "You're signed in, so your sets count toward ranked eligibility."}{" "}
+            <Link to="/account">Your account</Link>
           </>
         ) : (
           <>
             Playing as a guest. <Link to="/account">Sign in</Link> (optional) to keep your history across devices and
-            qualify for ranked play later.
+            qualify for ranked play.
           </>
         )}
       </p>

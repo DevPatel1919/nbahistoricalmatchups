@@ -1,7 +1,7 @@
 # F09 continuation handoff (duel mode and ranked ladder)
 
 Written 2026-09-24 for whoever continues F09, and updated the same day after
-Session 5. This is the entry point for the next session. The authoritative detail is in
+Sessions 5 and 6. This is the entry point for the next session. The authoritative detail is in
 [`F09-daily-duel.md`](F09-daily-duel.md): the brief, plus one handoff record
 per finished session. This file summarizes it and does not replace it.
 
@@ -17,8 +17,8 @@ Read first, in order: `CONTRIBUTING.md`, `docs/product/HANDOFF.md`,
 | 3 | Worker, D1 schema, guest play loop | Done |
 | 4 | Frontend play surface (`/duel`, `/duel/:duelId`) | Done |
 | 5 | Accounts (magic link, Turnstile, names, ranked eligibility) | Done (PR #4, merge commit `e7643a9`) |
-| 6 | Ranked duels, matchmaking, friend invites, Elo application | **Blocked on owner decisions** |
-| 7 | Leaderboard and anti-abuse enforcement | **Blocked on owner decisions** |
+| 6 | Ranked duels, matchmaking, friend invites, Elo application | Done (branch `f09-ranked`, not yet merged) |
+| 7 | Leaderboard and anti-abuse enforcement | **Next**; unblocked |
 | 8 | Hardening, load/cost review, release gate | Needs a deployed environment |
 
 Sessions 1–4 were merged to `main` in PR #3 (merge commit `3ad3858`), which
@@ -30,7 +30,9 @@ stays off on the live site until the owner does the setup below and sets
 Guests can play five real games, solo or against the disclosed Sparring
 Partner. A player can optionally sign in by email magic link. Signing in
 keeps their guest history, lets them choose a display name, and tracks ranked
-eligibility (10 completed sets and a name). Ranked play itself is not built. The pre-game model appears on every result as a fixed benchmark. The
+eligibility (10 completed sets and a name). Eligible accounts play ranked
+duels: asynchronous, matchmade by rating, with Elo recorded in an audit
+ledger. Anyone can challenge a friend by invite link (unranked). The pre-game model appears on every result as a fixed benchmark. The
 static explorer and tournaments never call the Worker, and they are tested with
 it unreachable.
 
@@ -43,24 +45,27 @@ it unreachable.
 | Leakage guard | `src/models/test_pregame_leakage.py` | Now also checks `form10_win_pct`, `rest_days`, `back_to_back`. Must exit 0 |
 | Domain (pure TS) | `frontend/src/duel/` | `index.ts` is the public interface. `api.ts` holds the wire types the Worker imports |
 | Worker | `worker/` | Its own npm package (vitest 4 + `@cloudflare/vitest-pool-workers`). `src/index.ts` is the router |
-| D1 schema | `worker/migrations/0001_guest_play.sql`, `0002_accounts.sql` | Never edit an applied migration; add `0003_…` for Session 6 |
+| D1 schema | `worker/migrations/0001_guest_play.sql`, `0002_accounts.sql`, `0003_ranked.sql` | Never edit an applied migration; add `0004_…` for Session 7 |
+| Matches (Worker) | `worker/src/matches.ts` | Ranked and friend duels: matchmaking, invites, settling, Elo, the cron sweep. Timeout rules are in its header |
 | Accounts (Worker) | `worker/src/accounts.ts`, `names.ts`, `services.ts` | Magic links, sessions, guest upgrade, names, `assertRankedEligible`. Email and Turnstile are interfaces with doubles |
 | KV pool loader | `worker/scripts/build-pool-kv.mjs`, `seed-local.mjs`, `fixture-pool.mjs` | The fixture pool is synthetic, with distinctive probabilities for leak tests |
 | Frontend client | `frontend/src/lib/duelApi.ts` | The only module that calls the Worker. Plays as the session when signed in, else the guest |
 | Client storage | `frontend/src/lib/duelStorage.ts` | Guest token in `localStorage` `ct:duel:guest:v1`; session in `ct:duel:session:v1`; drafts in `sessionStorage` `ct:duel:draft:v1:<id>` |
-| Pages / components | `frontend/src/pages/Duel*.tsx`, `Account*.tsx`, `frontend/src/components/duel/`, `components/account/` | Gated on `VITE_DUEL_API`; the sign-in form also needs `VITE_TURNSTILE_SITE_KEY` |
+| Pages / components | `frontend/src/pages/Duel*.tsx` (incl. `DuelJoinPage` at `/duel/join`), `Account*.tsx`, `frontend/src/components/duel/` (incl. `DuelWaiting`), `components/account/` | Gated on `VITE_DUEL_API`; the sign-in form also needs `VITE_TURNSTILE_SITE_KEY` |
 | Analytics | `frontend/src/lib/analytics.ts` | Added `duel_started`, `duel_completed`, `account_signed_in`. Failures use `app_error` (`duel-start`, `duel-submit`, `duel-load`, `account-link`, `account-verify`, `account-name`, `account-load`) |
-| E2E | `frontend/tests/e2e/duel.spec.ts`, `account.spec.ts` | Playwright starts `wrangler dev` on 8788 with a fresh fixture pool and the localhost-only auth doubles (`frontend/playwright.config.ts`) |
+| E2E | `frontend/tests/e2e/duel.spec.ts`, `account.spec.ts`, `ranked.spec.ts` | Playwright starts `wrangler dev` on 8788 with a fresh fixture pool and the localhost-only auth doubles (`frontend/playwright.config.ts`) |
 
-### Worker API (Sessions 3–5)
+### Worker API (Sessions 3–6)
 
 | Method + path | Auth | Returns |
 |---|---|---|
 | `GET /v1/health` | none | `{ ok, poolVersion }` |
 | `POST /v1/guests` | none; 10/h per IP | `{ guestToken }` |
-| `POST /v1/sets` `{ mode, draw }` | `Bearer <guestToken>` | `IssuedSet` (no answers) |
-| `GET /v1/duels/:id` | owner only | `open` / `expired` / `revealed` |
-| `POST /v1/duels/:id/submission` `{ setToken, picks }` | owner + `Idempotency-Key` | `DuelResult` |
+| `POST /v1/sets` `{ mode, draw }` | guest or session; `ranked` needs an eligible account | `IssuedSet` (no answers) |
+| `POST /v1/invites/accept` `{ invite }` | guest or session | `{ duelId, set }` |
+| `GET /v1/duels/:id` | owner only | `open` / `waiting` / `expired` / `revealed` |
+| `POST /v1/duels/:id/submission` `{ setToken, picks }` | owner + `Idempotency-Key` | `DuelState` (`revealed` or `waiting`) |
+| `POST /v1/duels/:id/stop-waiting` | match creator | `DuelState` |
 | `POST /v1/auth/magic-link` `{ email, turnstileToken }` | Turnstile | `202 { ok }` |
 | `POST /v1/auth/verify` `{ token, guestToken? }` | the link | `{ sessionToken, account }` |
 | `POST /v1/auth/sign-out` | session | `{ ok }` |
@@ -70,8 +75,9 @@ it unreachable.
 Every play endpoint takes a guest token or a session token (`Bearer s_…`).
 Participants are the strings `g:<guestId>` and `a:<accountId>`. Every table is
 keyed by participant, and a guest upgrade re-keys `g:` rows to `a:` in one D1
-batch. `POST /v1/sets { mode: "ranked" }` already runs `assertRankedEligible`
-and then answers `ranked_unavailable`; Session 6 replaces that line.
+batch; that includes `match_seats`. `POST /v1/sets { mode: "ranked" }` runs
+`assertRankedEligible` first. A scheduled handler (cron every 15 minutes)
+settles matches whose timeout has passed.
 
 ## How to verify (all must pass before finishing any session)
 
@@ -82,8 +88,8 @@ python -m pytest tests
 python src/models/test_pregame_leakage.py        # must exit 0
 ```
 
-Baseline at `e7643a9` (after Session 5): frontend 136 unit + 44
-Playwright; worker 52; Python 40. (At `3ad3858` it was 130 + 40, 20, and 40.)
+Baseline after Session 6 (branch `f09-ranked`): frontend 140 unit + 46
+Playwright; worker 75; Python 40. (At `e7643a9` it was 136 + 44, 52, and 40.)
 
 ## Decisions already made (don't relitigate)
 
@@ -108,26 +114,18 @@ Playwright; worker 52; Python 40. (At `3ad3858` it was 130 + 40, 20, and 40.)
   by that key. Ranked eligibility is 10 completed sets
   (`RANKED_MIN_COMPLETED_DUELS`, owner-tunable) and a display name.
 
-## Open owner decisions (block Sessions 6–7)
+## Owner decisions (answered 2026-09-24)
 
-Record the answers in the F09 brief's "Owner decisions" section before
-starting ranked work.
+All four are recorded in the F09 brief's "Owner decisions" section.
 
-1. **Lookup control.** De-identified puzzles cannot stop a scripted join
-   against the public Kaggle dataset: 88.5% of games are unique on era, game
-   type, and both entering records alone, and no tested coarsening reaches
-   k ≥ 5. Proposed replacement for "reject searchable puzzles": flag
-   sustained accuracy above the honest ceiling (~68%) for review; never
-   auto-ban. `searchK` is stored per puzzle.
-2. **Ranked capacity.** "Any puzzle whose answer was ever served is ineligible
-   for ranked" makes ranked puzzles single-use: 6,662 puzzles, about 1,332
-   duels in total (about 1,660 with `RANKED_SHARE = 1.0`), plus about 250 per
-   season. Accept, or allow limited reuse under stated conditions?
-3. **Draw modes.** "Two matchup combos" is implemented as `random` versus one
-   chosen `era`. Confirm.
-4. **Model follow-up (outside F09).** `build_pregame_features.py` floors
-   elapsed hours for `rest_days`, so 4% of back-to-backs are mislabelled in
-   the model's training data. Fixing it means a retrain and re-validation.
+1. **Lookup control:** flag sustained accuracy above the honest ceiling
+   (~68%) for review, and never auto-ban. **Session 7 implements this.**
+2. **Ranked capacity:** limited reuse. A puzzle is never shown to the same
+   account twice, and it waits 30 days after its answer was last revealed
+   (built in Session 6).
+3. **Draw modes:** `random` or one chosen `era`, confirmed.
+4. **Model follow-up (outside F09):** the `rest_days` flooring retrain is still
+   open. It is owned by the model work, not F09.
 
 ## Owner setup before any deploy
 
@@ -152,6 +150,10 @@ starting ranked work.
    `npm run db:migrate:remote` again for `0002_accounts.sql`. Never set
    `AUTH_TEST_DOUBLES` in production. Extend the blocked-word list in
    `worker/src/names.ts`.
+9. For ranked (Session 6): back up D1 (`wrangler d1 export`), then run
+   `npm run db:migrate:remote` for `0003_ranked.sql`. It rebuilds `duels`,
+   `submissions`, and `scored_picks`. After `wrangler deploy`, confirm the cron
+   trigger under the Worker's Triggers.
 
 ## Gotchas found in this implementation
 
@@ -184,34 +186,52 @@ starting ranked work.
 - **Worker tests inject services.** Call `handle(request, env, services)` with
   `MemoryMailer` and `DummyTokenCheck`. `exports.default` uses the production
   wiring, which fails closed without secrets.
+## Next session: 7 (leaderboard and anti-abuse)
 
-## Next session: none is unblocked
+Session 6 is on branch `f09-ranked`; merge it first. Session 7 is unblocked.
+It covers:
 
-Session 5 is merged (PR #4).
+- daily and rolling 30-day boards of rated accounts;
+- the accuracy-ceiling flag;
+- collusion detection from `match_seats` and `rating_changes`, including
+  repeated forfeits to one opponent;
+- multi-account velocity signals and flag storage;
+- an internal review queue;
+- keeping flagged accounts off the board pending review.
 
-Session 6 (ranked duels, matchmaking, friend invites, Elo application) and
-Session 7 (leaderboard, anti-abuse) stay blocked until the owner answers the
-decisions above and records them in the F09 brief's "Owner decisions"
-section. Session 8 needs a deployed environment. Work that does not need
-those answers:
+Flags never auto-ban.
 
-- Purge expired `magic_links` and `sessions` rows (a scheduled Worker).
-- Account deletion, for Session 8's privacy review.
-- Friend duels by invite link. They are unranked, so they could start before
-  the ranked decisions if the owner wants them first.
+Gotchas found in Session 6:
 
-### Kickoff prompt (Session 6, once unblocked)
+- **D1 table rebuilds.** Dropping a parent table with children fails under
+  `defer_foreign_keys`: rebuild the children too and drop them first (see
+  `0003_ranked.sql`).
+- **Race guards.** A value taken from a subquery into a NOT NULL column is how
+  this Worker makes a batch fail when a race is lost. Follow that pattern for
+  new integrity rules.
+- **Shared queue in tests.** Worker tests share one D1, so ranked tests start
+  by closing every open match (`emptyQueue`).
+- **Test time travel.** Update `expires_at`, `open_until`, or `created_at`
+  directly; do not mock the clock.
+
+Work that could also go in, or wait for Session 8:
+
+- purge expired `magic_links` and `sessions` on the cron hook;
+- account deletion.
+
+### Kickoff prompt (Session 7)
 
 ```text
-Continue F09 for Court of All Time: implement Session 6 (ranked duels and
-matchmaking). First confirm the owner decisions in
-docs/product/features/F09-continuation-handoff.md are recorded in the F09
-brief's "Owner decisions" section; stop and ask if they are not. Read
-CONTRIBUTING.md, docs/product/HANDOFF.md,
-docs/product/features/F09-daily-duel.md, and the continuation handoff
-completely before changing anything. Branch from main. Replace the ranked_unavailable line in worker/src/index.ts, keep
-assertRankedEligible as the gate, and treat the abuse model as acceptance
-tests. Run every check in "How to verify", review screenshots of new screens
-at 360px and desktop, and update the brief and HANDOFF.md before finishing.
-Small commits; do not push without asking.
+Continue F09 for Court of All Time: implement Session 7 (leaderboard and
+anti-abuse enforcement). Read CONTRIBUTING.md, docs/product/HANDOFF.md,
+docs/product/features/F09-daily-duel.md (all of it, including the Session 6
+record), and docs/product/features/F09-continuation-handoff.md before
+changing anything. Branch from main. Treat the abuse model as acceptance
+tests: every control is implemented or explicitly deferred with a reason;
+flag, never auto-ban; the board excludes flagged accounts pending review; a
+synthetic collusion ring and a synthetic scripted-submission run are detected
+in tests. Include the owner's lookup-control rule (sustained accuracy above
+~68%). Run every check in "How to verify", review new screens at 360px and
+desktop, and update the brief and HANDOFF.md before finishing. Small commits;
+do not push without asking.
 ```
