@@ -700,7 +700,8 @@ names, ranked gate), `src/names.ts` (moderation), `src/services.ts` (email and
 Turnstile interfaces and doubles), migration `0002_accounts.sql`. Frontend:
 `/account` (`pages/AccountPage.tsx`), `/account/verify`
 (`pages/AccountVerifyPage.tsx`), `components/account/TurnstileWidget.tsx`,
-and account calls in `lib/duelApi.ts`. Branch `f09-accounts`.
+and account calls in `lib/duelApi.ts`. Merged to `main` in PR #4
+(merge commit `e7643a9`).
 
 **Endpoints added.**
 

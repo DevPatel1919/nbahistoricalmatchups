@@ -16,14 +16,14 @@ Read first, in order: `CONTRIBUTING.md`, `docs/product/HANDOFF.md`,
 | 2 | Pure domain logic (scoring, duel, Elo, bot, selection) | Done |
 | 3 | Worker, D1 schema, guest play loop | Done |
 | 4 | Frontend play surface (`/duel`, `/duel/:duelId`) | Done |
-| 5 | Accounts (magic link, Turnstile, names, ranked eligibility) | Done (PR #4, branch `f09-accounts`, not yet merged) |
+| 5 | Accounts (magic link, Turnstile, names, ranked eligibility) | Done (PR #4, merge commit `e7643a9`) |
 | 6 | Ranked duels, matchmaking, friend invites, Elo application | **Blocked on owner decisions** |
 | 7 | Leaderboard and anti-abuse enforcement | **Blocked on owner decisions** |
 | 8 | Hardening, load/cost review, release gate | Needs a deployed environment |
 
-All of Sessions 1–4 is merged to `main` (PR #3, merge commit `3ad3858`). PR #3
-also merged F01–F05, which had not been on `main` before. Session 5 is on
-branch `f09-accounts`, open as PR #4. Nothing is deployed: duel mode
+Sessions 1–4 were merged to `main` in PR #3 (merge commit `3ad3858`), which
+also merged F01–F05. Session 5 was merged in PR #4 (merge commit `e7643a9`).
+Nothing is deployed: duel mode
 stays off on the live site until the owner does the setup below and sets
 `VITE_DUEL_API`.
 
@@ -82,7 +82,7 @@ python -m pytest tests
 python src/models/test_pregame_leakage.py        # must exit 0
 ```
 
-Baseline on `f09-accounts` after Session 5: frontend 136 unit + 44
+Baseline at `e7643a9` (after Session 5): frontend 136 unit + 44
 Playwright; worker 52; Python 40. (At `3ad3858` it was 130 + 40, 20, and 40.)
 
 ## Decisions already made (don't relitigate)
@@ -187,8 +187,7 @@ starting ranked work.
 
 ## Next session: none is unblocked
 
-Session 5 is done and open as PR #4. Before anything else, the owner should
-review and merge it.
+Session 5 is merged (PR #4).
 
 Session 6 (ranked duels, matchmaking, friend invites, Elo application) and
 Session 7 (leaderboard, anti-abuse) stay blocked until the owner answers the
@@ -210,8 +209,7 @@ docs/product/features/F09-continuation-handoff.md are recorded in the F09
 brief's "Owner decisions" section; stop and ask if they are not. Read
 CONTRIBUTING.md, docs/product/HANDOFF.md,
 docs/product/features/F09-daily-duel.md, and the continuation handoff
-completely before changing anything. Branch from main after f09-accounts is
-merged. Replace the ranked_unavailable line in worker/src/index.ts, keep
+completely before changing anything. Branch from main. Replace the ranked_unavailable line in worker/src/index.ts, keep
 assertRankedEligible as the gate, and treat the abuse model as acceptance
 tests. Run every check in "How to verify", review screenshots of new screens
 at 360px and desktop, and update the brief and HANDOFF.md before finishing.
