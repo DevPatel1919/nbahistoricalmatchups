@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import DuelReveal from "../components/duel/DuelReveal";
+import DuelWaiting from "../components/duel/DuelWaiting";
 import PuzzleCard from "../components/duel/PuzzleCard";
-import type { DuelResult, IssuedSet, Pick } from "../duel";
+import type { DuelResult, DuelState, IssuedSet, MatchSummary, Pick, WaitingView } from "../duel";
 import { track } from "../lib/analytics";
 import { DUEL_API, DuelApiError, describeDuelError, fetchDuel, submitPicks } from "../lib/duelApi";
-import { CONFIDENCE_LABELS, teamLabel } from "../lib/duelFormat";
+import { CONFIDENCE_LABELS, completionOutcome, formatRatingChange, teamLabel } from "../lib/duelFormat";
 import { clearDraft, loadDraft, saveDraft, type Draft } from "../lib/duelStorage";
 import DuelUnavailable from "../components/duel/DuelUnavailable";
 import { beginDuel } from "../lib/duelStart";
@@ -13,9 +14,23 @@ import { beginDuel } from "../lib/duelStart";
 type View =
   | { kind: "loading" }
   | { kind: "open"; set: IssuedSet }
+  | { kind: "waiting"; waiting: WaitingView; set: IssuedSet | null }
   | { kind: "revealed"; result: DuelResult; set: IssuedSet | null }
-  | { kind: "expired" }
+  | { kind: "expired"; match: MatchSummary | null }
   | { kind: "error"; message: string };
+
+function viewOf(state: DuelState, set: IssuedSet | null): View {
+  switch (state.state) {
+    case "open":
+      return { kind: "open", set: state.set };
+    case "waiting":
+      return { kind: "waiting", waiting: state.waiting, set };
+    case "revealed":
+      return { kind: "revealed", result: state.result, set };
+    case "expired":
+      return { kind: "expired", match: state.match };
+  }
+}
 
 function completedPicks(set: IssuedSet, draft: Draft): Pick[] | null {
   const picks: Pick[] = [];
@@ -27,7 +42,7 @@ function completedPicks(set: IssuedSet, draft: Draft): Pick[] | null {
   return picks;
 }
 
-function OpenSet({ set, onRevealed }: { set: IssuedSet; onRevealed: (r: DuelResult) => void }) {
+function OpenSet({ set, onLocked }: { set: IssuedSet; onLocked: (state: DuelState) => void }) {
   const ids = set.puzzles.map((p) => p.puzzleId);
   const [draft, setDraft] = useState<Draft>(() => loadDraft(set.duelId, ids));
   const [step, setStep] = useState(0); // 0..4 games, 5 = review
@@ -61,22 +76,14 @@ function OpenSet({ set, onRevealed }: { set: IssuedSet; onRevealed: (r: DuelResu
     setBusy(true);
     setError(null);
     try {
-      const result = await submitPicks(set.duelId, set.setToken, picks, draft.idempotencyKey);
+      const state = await submitPicks(set.duelId, set.setToken, picks, draft.idempotencyKey);
       clearDraft(set.duelId);
-      track({
-        name: "duel_completed",
-        mode: result.mode,
-        drawKind: set.draw.kind,
-        outcome: !result.opponent
-          ? "solo"
-          : result.opponent.outcome === "you"
-            ? "win"
-            : result.opponent.outcome === "opponent"
-              ? "loss"
-              : "draw",
-        beatModel: result.you.total > result.model.total,
-      });
-      onRevealed(result);
+      if (state.state === "revealed") {
+        track({ name: "duel_completed", mode: state.result.mode, drawKind: set.draw.kind, ...completionOutcome(state.result) });
+      } else if (state.state === "waiting") {
+        track({ name: "duel_waiting", mode: state.waiting.mode });
+      }
+      onLocked(state);
     } catch (e) {
       setError(describeDuelError(e));
       track({ name: "app_error", surface: "duel-submit", code: e instanceof DuelApiError ? e.code : "unknown" });
@@ -93,7 +100,12 @@ function OpenSet({ set, onRevealed }: { set: IssuedSet; onRevealed: (r: DuelResu
         {set.opponent && (
           <p className="duel-play__opponent">
             vs <strong>{set.opponent.name}</strong>
-            <span className="duel-play__disclosure">{set.opponent.disclosure}</span>
+            {set.opponent.kind === "bot" && <span className="duel-play__disclosure">{set.opponent.disclosure}</span>}
+          </p>
+        )}
+        {!set.opponent && (set.mode === "ranked" || set.mode === "friend") && (
+          <p className="duel-play__opponent">
+            {set.mode === "ranked" ? "Ranked: an opponent gets these same five games" : "Friend duel: your friend gets these same five games"}
           </p>
         )}
       </div>
@@ -140,7 +152,12 @@ function OpenSet({ set, onRevealed }: { set: IssuedSet; onRevealed: (r: DuelResu
               );
             })}
           </ol>
-          <p className="duel__fine">Once you lock in, picks can't change and the results are revealed.</p>
+          <p className="duel__fine">
+            {set.mode === "ranked" || set.mode === "friend"
+              ? "Once you lock in, picks can't change. Results appear when both players have locked in. Lock in within 20 minutes of starting, or the set expires" +
+                (set.opponent ? " and counts as a forfeit." : ".")
+              : "Once you lock in, picks can't change and the results are revealed."}
+          </p>
           <button type="button" className="btn btn--primary" disabled={!picks || busy} onClick={() => void lockIn()}>
             {busy ? "Scoring…" : "Lock in picks"}
           </button>
@@ -171,14 +188,7 @@ export default function DuelPlayPage() {
     let live = true;
     fetchDuel(duelId)
       .then((state) => {
-        if (!live) return;
-        const next: View =
-          state.state === "open"
-            ? { kind: "open", set: state.set }
-            : state.state === "revealed"
-              ? { kind: "revealed", result: state.result, set: null }
-              : { kind: "expired" };
-        setFetched({ duelId, view: next });
+        if (live) setFetched({ duelId, view: viewOf(state, null) });
       })
       .catch((e) => {
         if (!live) return;
@@ -198,6 +208,12 @@ export default function DuelPlayPage() {
         : fetched?.duelId === duelId
           ? fetched.view
           : { kind: "loading" };
+
+  const settledSet = view.kind === "waiting" ? view.set : null;
+  const onSettled = useCallback(
+    (state: DuelState) => setRevealed({ duelId, view: viewOf(state, settledSet) }),
+    [duelId, settledSet],
+  );
 
   if (!DUEL_API) return <DuelUnavailable />;
 
@@ -224,8 +240,15 @@ export default function DuelPlayPage() {
         <section className="duel">
           <h1>Duel mode</h1>
           <p className="center-note" role="alert">
-            {view.kind === "expired" ? describeDuelError(new DuelApiError("set_expired", 403)) : view.message}
+            {view.kind === "error"
+              ? view.message
+              : view.match?.settledBy === "forfeit"
+                ? "You didn't lock in within 20 minutes, so this duel went to your opponent by forfeit."
+                : describeDuelError(new DuelApiError("set_expired", 403))}
           </p>
+          {view.kind === "expired" && view.match?.rating && (
+            <p className="center-note">Your rating: {formatRatingChange(view.match.rating)}.</p>
+          )}
           <p className="picker-actions">
             <Link className="btn btn--primary" to="/duel">
               Start a new set
@@ -238,13 +261,15 @@ export default function DuelPlayPage() {
         <OpenSet
           key={view.set.duelId}
           set={view.set}
-          onRevealed={(result) => {
-            setRevealed({ duelId, view: { kind: "revealed", result, set: view.set } });
+          onLocked={(state) => {
+            setRevealed({ duelId, view: viewOf(state, view.set) });
             // History state survives a reload; drop the pre-lock set so a reload fetches the result.
             navigate(location.pathname, { replace: true, state: null });
           }}
         />
       );
+    case "waiting":
+      return <DuelWaiting waiting={view.waiting} onSettled={onSettled} />;
     case "revealed":
       return (
         <>

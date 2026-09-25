@@ -2,7 +2,7 @@
 // else in the site depends on the Worker: without VITE_DUEL_API the duel
 // pages say so and every other route is unaffected.
 
-import type { AccountView, ApiErrorBody, DrawMode, DuelResult, DuelState, IssuedSet, Pick, PlayMode, SignInResult } from "../duel";
+import type { AccountView, ApiErrorBody, DrawMode, DuelState, IssuedSet, Pick, PlayMode, SignInResult } from "../duel";
 import {
   clearGuestToken,
   clearSessionToken,
@@ -94,23 +94,40 @@ function currentToken(): string | undefined {
   return readSessionToken() ?? readGuestToken() ?? undefined;
 }
 
+/** Deals a set. Ranked ignores the draw (the server draws from every era) and needs an eligible account. */
 export function startSet(mode: PlayMode, draw: DrawMode): Promise<IssuedSet> {
-  return asPlayer((token) => request<IssuedSet>("/v1/sets", { method: "POST", token, body: { mode, draw } }));
+  const body = mode === "ranked" ? { mode } : { mode, draw };
+  return asPlayer((token) => request<IssuedSet>("/v1/sets", { method: "POST", token, body }));
+}
+
+/** Takes the seat a friend's invite link offers. `set` is null when this browser already holds it. */
+export function acceptInvite(invite: string): Promise<{ duelId: string; set: IssuedSet | null }> {
+  return asPlayer((token) =>
+    request<{ duelId: string; set: IssuedSet | null }>("/v1/invites/accept", { method: "POST", token, body: { invite } }),
+  );
 }
 
 export function fetchDuel(duelId: string): Promise<DuelState> {
   return request<DuelState>("/v1/duels/" + encodeURIComponent(duelId), { token: currentToken() });
 }
 
-export function submitPicks(duelId: string, setToken: string, picks: Pick[], idempotencyKey: string): Promise<DuelResult> {
+/** Locks in. A solo or bot set comes back revealed; a ranked or friend seat may come back waiting. */
+export function submitPicks(duelId: string, setToken: string, picks: Pick[], idempotencyKey: string): Promise<DuelState> {
   const token = currentToken();
   if (!token) return Promise.reject(new DuelApiError("unauthorized", 401));
-  return request<DuelResult>("/v1/duels/" + encodeURIComponent(duelId) + "/submission", {
+  return request<DuelState>("/v1/duels/" + encodeURIComponent(duelId) + "/submission", {
     method: "POST",
     token,
     idempotencyKey,
     body: { setToken, picks },
   });
+}
+
+/** The creator of a waiting match settles it now: ranked against the Sparring Partner (unrated), friend solo. */
+export function stopWaiting(duelId: string): Promise<DuelState> {
+  const token = currentToken();
+  if (!token) return Promise.reject(new DuelApiError("unauthorized", 401));
+  return request<DuelState>("/v1/duels/" + encodeURIComponent(duelId) + "/stop-waiting", { method: "POST", token });
 }
 
 // ---------------------------------------------------------------------------
@@ -206,6 +223,20 @@ export function describeDuelError(error: unknown): string {
       return "That name, or one very like it, is taken.";
     case "rename_too_soon":
       return "You can change your name once every 30 days.";
+    case "account_required":
+      return "Ranked duels need an account. Sign in to play ranked.";
+    case "ranked_locked":
+      return "Ranked unlocks after 10 completed sets and a display name.";
+    case "ranked_queue_full":
+      return "You already have three ranked sets waiting for opponents. Wait for one to finish.";
+    case "ranked_exhausted":
+      return "You've seen every ranked game available right now. More open up as others finish.";
+    case "invite_unavailable":
+      return "This invite has expired or was already used. Ask your friend for a new one.";
+    case "invite_own":
+      return "That's your own invite. Send the link to a friend.";
+    case "not_waiting":
+      return "An opponent has already joined, so this duel will finish when they lock in.";
     default:
       return "Something went wrong with this duel.";
   }

@@ -9,6 +9,7 @@
 // names, email addresses, free text, or URLs carrying personal state (picks)
 // in a property.
 
+import type { MatchMode, PlayMode } from "../duel/api";
 import type { EraKey } from "../duel/types";
 
 /** Bumped when an event's meaning or required properties change. */
@@ -48,8 +49,12 @@ export type AnalyticsEvent =
   | { name: "challenge_answered"; agreedWithModel: boolean }
   | { name: "app_error"; surface: string; code: string }
   // F09 duel mode (new actions). `era` is the chosen bucket or "any"; no puzzle or pick data.
-  | { name: "duel_started"; mode: "solo" | "bot"; drawKind: "random" | "era"; era: EraKey | "any" }
-  | { name: "duel_completed"; mode: "solo" | "bot"; drawKind: "random" | "era"; outcome: "win" | "loss" | "draw" | "solo"; beatModel: boolean }
+  // duel_started also fires when a friend accepts an invite. duel_completed fires when a lock-in
+  // reveals the result; a ranked or friend seat that must wait for its opponent fires duel_waiting instead.
+  | { name: "duel_started"; mode: PlayMode; drawKind: "random" | "era"; era: EraKey | "any" }
+  | { name: "duel_completed"; mode: PlayMode; drawKind: "random" | "era"; outcome: "win" | "loss" | "draw" | "solo"; beatModel: boolean }
+  | { name: "duel_waiting"; mode: MatchMode }
+  | { name: "duel_invite_shared"; shareMethod: Exclude<ShareMethod, "image"> }
   // F09 accounts (new action). No address, name, or account id.
   | { name: "account_signed_in"; mergedGuest: boolean }
   // Feature interactions (F02).

@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { DuelResult } from "../../src/duel";
 import {
+  completionOutcome,
   formatLastTen,
+  formatRatingChange,
+  formatTimeLeft,
+  matchNote,
+  resultHeadline,
   formatMissing,
   formatPercent,
   formatPoints,
@@ -92,5 +98,60 @@ describe("duel storage", () => {
     vi.stubGlobal("sessionStorage", throwingStorage);
     expect(loadDraft("d2", ["a"]).picks).toEqual({});
     expect(() => saveDraft("d2", { idempotencyKey: "k", picks: {} })).not.toThrow();
+  });
+});
+
+describe("match results (F09 Session 6)", () => {
+  const base = (over: Partial<DuelResult>): DuelResult => ({
+    duelId: "d_1",
+    mode: "ranked",
+    puzzles: [],
+    you: { total: 120, picks: [] },
+    model: { label: "Pre-game model", total: 80, picks: [], trainedThroughSeason: 2021 },
+    opponent: null,
+    match: null,
+    ...over,
+  });
+  const player = (outcome: "you" | "opponent" | "draw", total: number, decidedBy: "total" | "forfeit" = "total") => ({
+    kind: "player" as const,
+    name: "Guard Dog",
+    total,
+    picks: null,
+    outcome,
+    decidedBy,
+  });
+
+  it("headlines wins, losses, draws, and forfeits against a named player", () => {
+    expect(resultHeadline(base({ opponent: player("you", -40) }))).toBe("You beat Guard Dog, 120 to −40.");
+    expect(resultHeadline(base({ opponent: player("opponent", 300) }))).toBe("Guard Dog won, 300 to 120.");
+    expect(resultHeadline(base({ opponent: player("draw", 120) }))).toBe("A draw with Guard Dog at 120.");
+    expect(resultHeadline(base({ opponent: player("you", 0, "forfeit") }))).toBe("Guard Dog didn't lock in in time. You win by forfeit.");
+    expect(resultHeadline(base({}))).toBe("You scored 120, ahead of the pre-game model.");
+  });
+
+  it("says how a match settled and whether it moved rating", () => {
+    const rating = { before: 1200, after: 1220, delta: 20, k: 40 };
+    expect(formatRatingChange(rating)).toBe("1,200 → 1,220 (+20)");
+    expect(formatRatingChange({ before: 1210, after: 1195, delta: -15, k: 24 })).toBe("1,210 → 1,195 (−15)");
+    expect(matchNote("bot", null)).toBeNull();
+    expect(matchNote("ranked", { settledBy: "both-locked", rated: true, rating })).toBe("Rated duel. Your rating: 1,200 → 1,220 (+20).");
+    expect(matchNote("ranked", { settledBy: "forfeit", rated: true, rating })).toContain("A forfeit counts as a loss");
+    expect(matchNote("ranked", { settledBy: "no-opponent", rated: false, rating: null })).toMatch(/Sparring Partner\. It doesn't count toward your rating/);
+    expect(matchNote("friend", { settledBy: "both-locked", rated: false, rating: null })).toBe("Friend duels are unranked.");
+    expect(matchNote("friend", { settledBy: "no-opponent", rated: false, rating: null })).toMatch(/^Nobody took your invite/);
+  });
+
+  it("reports the analytics outcome from the viewer's side", () => {
+    expect(completionOutcome(base({ opponent: player("you", 0) }))).toEqual({ outcome: "win", beatModel: true });
+    expect(completionOutcome(base({ opponent: player("opponent", 500), you: { total: 10, picks: [] } }))).toEqual({ outcome: "loss", beatModel: false });
+    expect(completionOutcome(base({}))).toEqual({ outcome: "solo", beatModel: true });
+  });
+
+  it("describes time left in round words", () => {
+    const now = 1_000_000;
+    expect(formatTimeLeft(now + 30_000, now)).toBe("less than a minute");
+    expect(formatTimeLeft(now + 60_000, now)).toBe("about 1 minute");
+    expect(formatTimeLeft(now + 40 * 60_000, now)).toBe("about 40 minutes");
+    expect(formatTimeLeft(now + 23.6 * 3600_000, now)).toBe("about 24 hours");
   });
 });

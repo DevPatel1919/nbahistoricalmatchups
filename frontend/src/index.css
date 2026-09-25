@@ -1392,6 +1392,14 @@ button {
   margin-top: 4px;
 }
 
+.duel__option.is-disabled {
+  cursor: default;
+}
+
+.duel__option.is-disabled strong {
+  color: var(--text-dim);
+}
+
 .duel__option-note {
   display: block;
   color: var(--text-dim);
@@ -1633,6 +1641,7 @@ button {
   border-style: dashed;
 }
 
+.reveal__match,
 .reveal__disclosure,
 .reveal__benchmark {
   font-size: 0.9rem;
@@ -1818,4 +1827,41 @@ button {
     flex-direction: row;
     justify-content: space-between;
   }
+}
+
+/* F09 Session 6: waiting for a ranked or friend opponent. */
+.duel-waiting {
+  display: grid;
+  gap: 14px;
+}
+
+.duel-invite {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}
+
+.duel-invite__label {
+  font-weight: 600;
+}
+
+.duel-invite__url {
+  font: inherit;
+  font-size: 0.85rem;
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+
+.duel-invite__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }

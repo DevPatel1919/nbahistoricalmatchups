@@ -195,7 +195,21 @@ function RankedStatus({ account }: { account: AccountView }) {
     <div className="account__ranked">
       <h2>Ranked play</h2>
       {ranked.eligible ? (
-        <p>You're eligible. Ranked duels aren't open yet; they'll appear on the duel page when they are.</p>
+        <>
+          <p>
+            You're eligible. <Link to="/duel">Choose Ranked on the duel page</Link> to be matched with a player near your
+            rating.
+          </p>
+          {account.rating ? (
+            <p data-testid="account-rating">
+              Rating: <strong className="scoreboard">{account.rating.rating.toLocaleString("en-US")}</strong> after{" "}
+              {account.rating.ratedDuels} rated {account.rating.ratedDuels === 1 ? "duel" : "duels"}
+              {account.rating.provisional ? " (provisional for your first 10)." : "."}
+            </p>
+          ) : (
+            <p>Your rating starts at 1,200 with your first rated duel.</p>
+          )}
+        </>
       ) : (
         <ul className="account__checklist">
           <li className={completedDuels >= ranked.minCompletedDuels ? "is-done" : undefined}>
@@ -249,7 +263,7 @@ export default function AccountPage() {
         <h1 id="account-heading">{state.kind === "signed-in" ? "Your account" : "Sign in"}</h1>
         {state.kind !== "signed-in" && (
           <p className="duel__lede">
-            An account is optional. Guests play every practice mode. Ranked play, when it opens, needs an account
+            An account is optional. Guests play every practice mode. Ranked play needs an account
             so ratings can't be farmed with throwaway identities.
           </p>
         )}
