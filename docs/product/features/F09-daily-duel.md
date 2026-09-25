@@ -1,6 +1,6 @@
 # F09: Duel mode (forecasting game and ranked ladder)
 
-Status: **Sessions 1–5 complete (guest play works end to end; optional accounts and ranked eligibility are built); Sessions 6–8 not started.** Ranked play (Sessions 6–7) is blocked on the owner decisions recorded in the Session 1 handoff and restated in `F09-continuation-handoff.md`. Owner decisions recorded 2026-09-22.
+Status: **Sessions 1–6 complete (guest play, optional accounts, ranked duels with matchmaking and Elo, and friend duels by invite link); Sessions 7–8 not started.** The owner decisions that blocked ranked play were recorded on 2026-09-24 (see "Owner decisions"). Owner decisions first recorded 2026-09-22.
 
 This brief is implemented over multiple sessions. Each session in the session
 plan is independently assignable, ends in a verifiable state, and has its own
@@ -38,14 +38,13 @@ Brier, calibrated across every band (`models/pregame/pregame_metrics.json`).
 | Scoring | Confidence tiers scored by Brier skill score |
 | Fill-in opponent | Skill-matched practice bot, disclosed as such |
 | Anti-cheat posture | Hardened. The ladder must not reward cheaters |
-
-### Open assumption to confirm with the owner
+| Draw modes (confirmed 2026-09-24) | Two: `random` (any era) and `era` (random within one chosen era bucket) |
+| Lookup control (decided 2026-09-24) | De-identification cannot stop a scripted join against the public dataset (Session 1 finding 1). Instead, flag sustained accuracy above the honest ceiling (~68%) for review. Never auto-ban. Enforcement is Session 7; `searchK` stays stored per puzzle |
+| Ranked puzzle reuse (decided 2026-09-24) | Limited reuse replaces strict single use. A ranked puzzle is never issued to an account that has already been shown it, and not again to anyone until 30 days after its answer was last revealed. Sim and ranked stay disjoint partitions |
 
 "The games are chosen random but one can pick per era so there are 2 matchup
-combos" is implemented as **two draw modes**: `random` (any era) and
-`era` (random within one selected era bucket). If the owner meant something
-else — for example one entrant drawn from each of two eras — amend this section
-before Session 1 and adjust the pool generator accordingly.
+combos" was implemented as two draw modes, and the owner confirmed that reading
+on 2026-09-24.
 
 ## Modes
 
@@ -198,7 +197,7 @@ control each session must deliver.
 
 | Threat | Control |
 |---|---|
-| Looking up the real game | De-identified puzzles: no date, final score, attendance, arena, officials, playoff round, or series game number. Reject pool candidates whose entering-record pairing is unique enough to be searchable. |
+| Looking up the real game | De-identified puzzles: no date, final score, attendance, arena, officials, playoff round, or series game number. A scripted join against the public dataset remains possible (Session 1 finding), so sustained accuracy above the honest ceiling (~68%) is flagged for review (owner decision, 2026-09-24). |
 | Reading the answer from the client | Answers and model probabilities never leave the Worker before lock. No answer in any pre-lock payload, cache, or error message. |
 | Score tampering | Client submits picks only. All scoring, comparison, and rating server-side. |
 | Replayed or scripted submission | Puzzle set issued with a signed short-TTL token bound to account/guest id and duel id. Submissions without a matching issued token are rejected. |
@@ -212,8 +211,14 @@ control each session must deliver.
 ### Pool partitioning
 
 The sim pool and the ranked pool must be **disjoint partitions of the generated
-pool**. Any puzzle whose answer has ever been served to a client is permanently
-ineligible for ranked. This is a generator-level guarantee, not a runtime check.
+pool**. That is a generator-level guarantee, not a runtime check: no sim answer
+can ever reach ranked.
+
+Within ranked, reuse is limited (owner decision, 2026-09-24, replacing strict
+single use, which capped ranked at about 1,332 duels). A ranked puzzle is never
+issued to an account that has already been shown it. It is also not issued to
+anyone until 30 days after its answer was last revealed. Both rules run at draw
+time from D1 (`ranked_exposures`, `served_answers.last_served_at`).
 
 ## Architecture
 
@@ -893,3 +898,214 @@ Players cannot delete their account yet; Session 8's privacy review should
 add that. Ranked duels, matchmaking, Elo application, and the leaderboard
 (Sessions 6–7) are not started. They remain blocked on the owner decisions
 restated in `F09-continuation-handoff.md`.
+
+### 2026-09-24 — Session 6: ranked duels, matchmaking, and friend duels
+
+**Owner decisions applied first** (recorded in "Owner decisions" above). Draw
+modes are confirmed. Lookup control is statistical: flag accuracy above the
+honest ceiling, which Session 7 enforces. Ranked puzzles are reused on a limited
+basis instead of being single-use.
+
+**Shipped.** Worker: `src/matches.ts` (matches, matchmaking, invites, settling,
+and the scheduled sweep) and migration `0003_ranked.sql`. `src/play.ts` now
+shares result building with matches. Frontend: `/duel/join`
+(`pages/DuelJoinPage.tsx`) and `components/duel/DuelWaiting.tsx`. Friend and
+Ranked options are on `/duel`, the reveal shows player opponents and ratings,
+and `/account` shows the rating.
+
+**Model.** A ranked or friend duel is a *match*: one puzzle set
+(`matches.puzzle_ids`) and two seats (`match_seats`), each seat with its own
+`duels` row carrying the same `puzzle_ids`. The creator is dealt the set and
+plays first. Once they lock in, the match waits for an opponent until
+`open_until`. The opponent receives the match's set, never a fresh draw.
+Answers, and each seat's picks, stay in D1 until the match resolves. Then both
+seats' stored results are rewritten in the same batch that records the
+resolution and the rating changes.
+
+**Timeout rules.**
+
+| Situation | Rule | Rated? |
+|---|---|---|
+| A seat's picking time | 20 minutes from issue (`SET_TTL_MS`) | |
+| Creator never locks in | The match can never be joined; nothing is revealed or settled | No |
+| Opponent joins but does not lock in within 20 minutes | **Forfeit**: the creator wins; the forfeiter sees "expired" plus their rating change | Ranked: yes |
+| Nobody joins within 24 hours (`RANKED_MATCH_WAIT_MS`, `FRIEND_INVITE_TTL_MS`), or the creator presses stop waiting | **No opponent**: ranked scores the creator against the disclosed Sparring Partner; friend reveals solo | No |
+| Both lock in | Scored by the duel rule (total, then best correct call, then draw) | Ranked: yes |
+
+Settling runs from the second lock-in, from any read of either seat, from
+`POST /v1/duels/:id/stop-waiting`, and from a cron sweep every 15 minutes
+(`triggers` in `wrangler.jsonc`, `settleDue`). Settling can safely run any
+number of times.
+
+**Matchmaking.** `POST /v1/sets { mode: "ranked" }` passes `assertRankedEligible`,
+then seats the account in the oldest waiting ranked match that meets all of
+these conditions:
+
+- The creator has locked in.
+- The match is still open and unresolved.
+- The creator is not the caller.
+- The ratings are within a window that starts at ±100 and widens by 50 per
+  hour of waiting, up to ±400 (`RATING_WINDOW`).
+- The two accounts have not been paired in the last 24 hours
+  (`REPEAT_PAIR_WINDOW_MS`).
+- The match contains no puzzle the caller has been shown.
+
+If nothing qualifies, the account is dealt a new set from the ranked partition.
+An account may have at most 3 unresolved ranked matches (`ranked_queue_full`).
+Ranked draws ignore era; the server draws from all eras.
+
+**Limited reuse.** `ranked_exposures (account_id, puzzle_id)` records every
+ranked puzzle shown to an account, at issue time, and those puzzles are never
+dealt to it again. `ranked_reveals` records when each ranked answer was last
+revealed, and a draw skips anything revealed in the last 30 days
+(`RANKED_REUSE_COOLDOWN_MS`). If fewer than five puzzles remain, the answer is
+`ranked_exhausted`. Sim and ranked stay disjoint.
+
+**Friend duels.** `POST /v1/sets { mode: "friend", draw }` is open to guests and
+uses the unranked composition with the challenger's draw, which is locked for
+both players. After lock-in, the creator's waiting view carries `invitePath`,
+`/duel/join#invite=<token>`. The token is an HMAC-signed match id, so nothing
+extra is stored. It rides in the fragment, so it never reaches a log. The friend
+presses "Start the duel", which calls `POST /v1/invites/accept { invite }` and
+begins their 20 minutes. Accepting your own invite answers `invite_own`.
+Reopening your own accepted link returns your seat. Anyone else gets
+`invite_unavailable`. Friend duels are never rated.
+
+**Elo.** `ratings` (account, rating, rated duels) and the ledger `rating_changes`
+(one row per account per match: before, after, delta, K, rated duels before).
+Deltas come from the Session 2 `applyElo`, with the mean K when K differs, so
+every match is zero-sum. `CHECK (rating_after = rating_before + delta)` holds.
+`rating_before` is inserted from a subquery that matches only the rating the
+delta was computed from, so a concurrent change makes it NULL and fails the
+batch, which is then re-read and retried. The ledger alone reproduces every
+rating: `rating = 1200 + SUM(delta)`.
+
+**How each Session 6 control is met.**
+- *Both participants receive the same set:* the joiner's `duels` row copies
+  `matches.puzzle_ids`. The seat insert and the duel row are one batch, and the
+  `(match_id, seat)` primary key allows a single opponent. Tested:
+
+  - the ids and order are identical;
+  - all three stored copies are equal;
+  - four racing joiners produce one seat;
+  - D1 rejects a raw second seat.
+- *No path reveals an opponent's picks, or any answer, before both lock in:*
+  both are returned only from the stored results written at resolution. The
+  creator's waiting view has exactly six whitelisted fields. The joiner's set is
+  built by `openSet` from `toPuzzleView`. A test scans every pre-resolution
+  response on both sides, including errors and cross-seat reads, for answer
+  fields, the fixture's model probabilities, and the keys `picks`,
+  `confidence`, `side`, `points`, and `correct`. The e2e run does the same scan
+  in two real browsers.
+- *Abandoned duels resolve by a documented timeout rule:* the table above, with
+  tests for forfeit, no opponent through the cron sweep, stop waiting (and its
+  refusal once someone has joined), and a creator who never locks in.
+- *Bot fallback is unrated and disclosed:* no rating row is written, the result
+  says `rated: false`, and the Sparring Partner appears with its disclosure. The
+  reveal says the set "doesn't count toward your rating".
+- *Elo is zero-sum and auditable:* a six-match round robin among four accounts
+  checks that every match sums to 0, that rating = start + ledger sum for every
+  account, and that each change starts where the previous one ended. Five
+  parallel settles plus the second lock-in produce one resolution and two
+  changes. D1 rejects a second resolution and a change from a stale rating.
+
+**Integrity guards (D1, not code).** Several inserts take a key from a subquery
+that is NULL when the situation has changed, so the NOT NULL constraint fails
+the whole batch:
+
+- a seat insert into a match that is resolved, closed, not yet locked by its
+  creator, or already holding this participant;
+- a lock-in into a match that has already resolved (`set_expired`; tested by
+  writing the resolution first);
+- a no-opponent resolution once someone has joined;
+- a forfeit resolution once the opponent has locked in.
+
+**Mutation checks.**
+
+| Mutation | Result |
+|---|---|
+| Let a match be joined before its creator locks in | 6 tests fail |
+| Make the Elo delta not zero-sum | 4 tests fail (the ledger `CHECK` rejects it) |
+| Put the opponent's picks in the waiting view | The leak test fails |
+| Drop the joiner exposure filter | The reuse test fails |
+| Remove the forfeit resolution's "opponent has not locked in" guard | **Still passes.** That guard only matters when a lock-in lands between settle's read and its write, which a black-box test cannot schedule. It is covered by reasoning, not a test |
+
+**Interface changes.**
+- `PlayMode` adds `ranked` and `friend`.
+- `IssuedSet.opponent` may be a `PlayerOpponent` (`{kind: "player", name}`).
+- `DuelResult` gains `match: MatchSummary | null`. `opponent.picks` may be null
+  (forfeit), and `decidedBy` may be `forfeit`.
+- `DuelState` gains `waiting`, and `expired` carries `match`.
+- **The submission endpoint now returns a `DuelState`** (`revealed` or
+  `waiting`) instead of a bare `DuelResult`.
+- `AccountView.rating`.
+- New endpoints: `POST /v1/invites/accept` and
+  `POST /v1/duels/:id/stop-waiting`.
+- New error codes: `invite_own`, `invite_unavailable`, `ranked_queue_full`,
+  `not_waiting`, and `ranked_exhausted`. `ranked_unavailable` is removed.
+- `upgradeGuest` also re-keys `match_seats`, so a guest host who signs in keeps
+  their waiting friend duel (tested).
+- The fixture pool has 40 ranked puzzles per era, up from 6.
+- Migration `0003` rebuilds `duels` to widen its `CHECK`, and rebuilds its two
+  child tables with it. Dropping a parent that still has children leaves
+  deferred foreign-key violations that the rename does not clear, and D1 rejects
+  the migration. It was checked against a local D1 holding Session 3–5 rows: the
+  rows were kept and the foreign keys still point at the rebuilt tables and are
+  enforced.
+
+**Analytics (new actions, not alternate names).**
+- `duel_started` and `duel_completed` accept the new modes. `duel_started` also
+  fires when a friend accepts.
+- `duel_waiting { mode }` fires when a lock-in has to wait. Properties cannot
+  be null, so it is not a `pending` value of `duel_completed`.
+- `duel_invite_shared { shareMethod: copy | native }`.
+- New `app_error` surfaces: `duel-join` and `duel-stop-waiting`.
+
+**Verification.**
+
+| Check | Command | Result |
+|---|---|---|
+| Types + build | `cd frontend && npm run build` | passes |
+| Lint | `npm run lint` | clean |
+| Unit | `npm test` | 140 passed (4 new in `duel-ui.test.ts`) |
+| E2E | `npx playwright test` | 46 passed (2 new in `tests/e2e/ranked.spec.ts`) |
+| Worker | `cd worker && npx tsc --noEmit && npm test` | clean; 75 passed (23 new in `test/ranked.test.ts`) |
+| Python | `python -m pytest tests` / `python src/models/test_pregame_leakage.py` | 40 passed / exit 0 |
+
+The e2e run has two eligible accounts, made through the API, in two browsers at
+360 px. It checks that:
+
+- Ranked is enabled and era is locked.
+- The creator locks in and waits, and sees the joiner's name after a reload.
+- The joiner's five games match the creator's exactly.
+- Neither browser receives an answer or a pick before the second lock-in.
+- Both reveals show "Rated duel. Your rating: 1,200 → …", five opponent pick
+  lines, the benchmark, and no bot disclosure.
+- `/account` shows the rating.
+
+A second run has two guests play a friend duel by link. It checks the join page,
+identical games, the host's "Your friend is playing your set", both reveals
+unranked, and the spent link refused. Screens were reviewed at 360 px and
+1280 px with no horizontal overflow: `/duel` with Ranked, ranked waiting, friend
+waiting with its invite, the join page, the joiner's game, the ranked reveal,
+and `/account` with a rating.
+
+**Owner configuration added by Session 6.**
+1. Run `npm run db:migrate:remote` to apply `0003_ranked.sql`. It rebuilds
+   `duels`, `submissions`, and `scored_picks`; take a D1 backup first
+   (`wrangler d1 export`).
+2. `wrangler deploy` picks up the cron trigger from `wrangler.jsonc`. Check it
+   in the dashboard under the Worker's Triggers. Locally, cron is not automatic:
+   use `curl "http://127.0.0.1:8788/cdn-cgi/local/scheduled"`.
+
+**Not done / next (Session 7).**
+- The leaderboard, and the lookup-control flag (sustained accuracy above about
+  68%, owner decision).
+- Collusion detection. `match_seats` and `rating_changes` hold the pairing
+  graph. Forfeits are recorded as `settled_by = 'forfeit'`, so repeated
+  forfeits to the same opponent (an alt feeding a main) are queryable.
+- The ranked queue is empty on a new ladder. Early ranked players will often
+  get the Sparring Partner fallback, which is unrated, after 24 hours. The
+  owner may want a shorter wait or seeded launch play.
+- Purging expired `magic_links` and `sessions` rows can now use the cron hook.
+- Account deletion is still Session 8.

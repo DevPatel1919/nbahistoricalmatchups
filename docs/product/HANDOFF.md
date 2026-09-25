@@ -171,13 +171,26 @@ D1, KV), guest-playable `/duel` routes gated on `VITE_DUEL_API`, and
 optional accounts (Session 5, PR #4): email magic links behind Turnstile, moderated display names, a guest upgrade that keeps
 unranked history, and the ranked-eligibility gate. Accounts store a keyed
 email hash, never the address. The explorer and tournaments stay static and
-are tested with the API unreachable. Ranked play (Sessions 6–7) is blocked on
-owner decisions recorded in the F09 brief and restated in
-`features/F09-continuation-handoff.md`. De-identified puzzles cannot stop a
-scripted lookup against the public dataset, and the single-use rule caps
-ranked at about 1,332 duels. Nothing is deployed; the owner configuration
-steps are in the F09 Session 3 and Session 5 handoff records. The `frontend/`
-has 136 unit and 44 Playwright tests; `worker/` has 52.
+are tested with the API unreachable.
+
+Session 6 (branch `f09-ranked`, not yet merged) adds:
+
+- asynchronous ranked duels, matchmade within a rating window, with a zero-sum
+  Elo ledger;
+- unranked friend duels by invite link;
+- documented timeout rules: a forfeit is rated, and the Sparring Partner
+  fallback is unrated.
+
+The owner answered the ranked decisions on 2026-09-24:
+
+- Lookups are controlled by flagging accuracy above the honest ceiling. Session
+  7 builds that, with the leaderboard.
+- Ranked puzzles are reused on a limited basis: never twice to one account, and
+  not until 30 days after their answer was last revealed.
+
+Nothing is deployed. The owner configuration steps are in the F09 Session 3, 5,
+and 6 handoff records. The `frontend/` has 140 unit and 46 Playwright tests;
+`worker/` has 75.
 
 ## Feature map
 
