@@ -216,11 +216,12 @@ describe("a synthetic scripted-submission run is detected", () => {
     expect(accuracy).toMatchObject({ picks: 50, correct: 50, accuracy: 1, ceiling: 0.68, lockPicks: 50, lockCorrect: 50 });
   });
 
-  it("a human-paced player looking answers up trips only the accuracy rule; an honest player trips nothing", async () => {
+  it("a human-paced player looking answers up trips only the accuracy rule; a hot honest streak trips nothing", async () => {
     const [cheat, honest] = [await account(), await account()];
     for (let i = 0; i < 10; i++) {
       await soloRanked(cheat, rightPicks, 90_000);
-      await soloRanked(honest, (ps) => mixedPicks(ps, i % 3 === 0 ? 4 : 3), 90_000); // 34 of 50
+      // 36 of 50 (72%): above the ceiling, but not significantly, as a hot honest streak can be.
+      await soloRanked(honest, (ps) => mixedPicks(ps, i < 6 ? 4 : 3), 90_000);
     }
     await sweep();
     expect(await kindsOf(cheat)).toEqual(["accuracy_ceiling"]);

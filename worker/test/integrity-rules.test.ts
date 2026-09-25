@@ -71,6 +71,8 @@ describe("lookup control: sustained accuracy above the honest ceiling", () => {
     expect(f).toMatchObject({ accountId: "a", kind: "accuracy_ceiling", related: "", evidence: { picks: 50, correct: 50, accuracy: 1, ceiling: 0.68 } });
     expect(accuracyFinding("a", sets(50, 4))).not.toBeNull(); // 80% over 250 picks
     expect(accuracyFinding("a", sets(50, 3))).toBeNull(); // 60%
+    // Above the ceiling but not significantly: a hot honest streak (72% over 50 picks) is not flagged.
+    expect(accuracyFinding("a", [...sets(6, 4), ...sets(4, 3)])).toBeNull();
   });
 
   it("uses only the most recent 50 sets", () => {
