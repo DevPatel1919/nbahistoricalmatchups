@@ -3,20 +3,26 @@
 //
 //   GET  /v1/health
 //   POST /v1/guests                      -> { guestToken }
-//   POST /v1/sets                        { mode, draw } -> IssuedSet (no answers)
-//   GET  /v1/duels/:id                   -> open set, expired, or revealed result
-//   POST /v1/duels/:id/submission        { setToken, picks } + Idempotency-Key -> DuelResult
+//   POST /v1/sets                        { mode, draw } -> IssuedSet (no answers); ranked needs an eligible account
+//   POST /v1/invites/accept              { invite } -> { duelId, set } (the friend duel's identical set)
+//   GET  /v1/duels/:id                   -> DuelState: open, waiting, expired, or revealed
+//   POST /v1/duels/:id/submission        { setToken, picks } + Idempotency-Key -> DuelState (revealed or waiting)
+//   POST /v1/duels/:id/stop-waiting      (match creator) -> DuelState: settles with no opponent
 //   POST /v1/auth/magic-link             { email, turnstileToken } -> 202 (same answer for every address)
 //   POST /v1/auth/verify                 { token, guestToken? } -> { sessionToken, account }
 //   POST /v1/auth/sign-out               (session) -> { ok }
 //   GET  /v1/account                     (session) -> AccountView
 //   POST /v1/account/display-name        (session) { displayName } -> AccountView
 //   GET  /v1/dev/outbox?to=              local test doubles only -> last magic-link email
+//
+// Scheduled (wrangler.jsonc triggers): settles ranked and friend matches whose
+// timeout has passed, so forfeits and no-opponent fallbacks resolve unattended.
 
-import { accountView, assertRankedEligible, requestMagicLink, setDisplayName, signOut, verifyMagicLink } from "./accounts";
+import { accountView, requestMagicLink, setDisplayName, signOut, verifyMagicLink } from "./accounts";
 import { clientKey, createGuest, requireAccount, requireParticipant } from "./auth";
 import type { Env } from "./env";
 import { ApiError, errorResponse, json, readJson, withCors } from "./http";
+import { acceptInvite, settleDue, startFriend, startRanked, stopWaiting } from "./matches";
 import { issueSet, readDuel, submitPicks } from "./play";
 import { ServiceUnavailable, outboxKey, servicesFor, testDoublesEnabled, type Services } from "./services";
 
@@ -32,12 +38,17 @@ async function route(request: Request, env: Env, services: Services): Promise<Re
   if (method === "POST" && path === "/v1/sets") {
     const participant = await requireParticipant(request, env);
     const body = await readJson(request);
-    if ((body as { mode?: unknown } | null)?.mode === "ranked") {
-      // Ranked duels are Session 6. The eligibility gate is already enforced.
-      await assertRankedEligible(env, participant);
-      throw new ApiError("ranked_unavailable");
-    }
-    return json(await issueSet(env, participant, await clientKey(request, env), body), 201);
+    const mode = (body as { mode?: unknown } | null)?.mode;
+    const ipKey = await clientKey(request, env);
+    // startRanked runs assertRankedEligible before anything is issued.
+    if (mode === "ranked") return json(await startRanked(env, participant, ipKey), 201);
+    if (mode === "friend") return json(await startFriend(env, participant, ipKey, body), 201);
+    return json(await issueSet(env, participant, ipKey, body), 201);
+  }
+
+  if (method === "POST" && path === "/v1/invites/accept") {
+    const participant = await requireParticipant(request, env);
+    return json(await acceptInvite(env, participant, await clientKey(request, env), await readJson(request)));
   }
 
   if (method === "POST" && path === "/v1/auth/magic-link") {
@@ -56,14 +67,17 @@ async function route(request: Request, env: Env, services: Services): Promise<Re
     return json(message);
   }
 
-  const duel = /^\/v1\/duels\/([A-Za-z0-9_-]{1,64})(\/submission)?$/.exec(path);
+  const duel = /^\/v1\/duels\/([A-Za-z0-9_-]{1,64})(\/submission|\/stop-waiting)?$/.exec(path);
   if (duel && method === "GET" && !duel[2]) {
     return json(await readDuel(env, await requireParticipant(request, env), duel[1]));
   }
-  if (duel && method === "POST" && duel[2]) {
+  if (duel && method === "POST" && duel[2] === "/submission") {
     const participant = await requireParticipant(request, env);
     const key = request.headers.get("idempotency-key");
     return json(await submitPicks(env, participant, duel[1], key, await readJson(request)));
+  }
+  if (duel && method === "POST" && duel[2] === "/stop-waiting") {
+    return json(await stopWaiting(env, await requireParticipant(request, env), duel[1]));
   }
   throw new ApiError("not_found");
 }
@@ -93,5 +107,12 @@ export async function handle(request: Request, env: Env, services: Services): Pr
 export default {
   fetch(request: Request, env: Env): Promise<Response> {
     return handle(request, env, servicesFor(env));
+  },
+  scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
+    ctx.waitUntil(
+      settleDue(env, Date.now()).catch((error: unknown) => {
+        console.error("duel-api settle sweep failed", error instanceof Error ? error.name : typeof error);
+      }),
+    );
   },
 } satisfies ExportedHandler<Env>;
