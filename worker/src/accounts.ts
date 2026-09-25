@@ -8,7 +8,7 @@
 // send the link, and is not written anywhere.
 
 import { ELO_PROVISIONAL_DUELS, type AccountView, type SignInResult } from "../../frontend/src/duel";
-import { activeGuestId, clientKey, type Participant } from "./auth";
+import { activeGuestId, clientKey, hasClientNetwork, type Participant } from "./auth";
 import { hiddenFromBoard, recordCreationNetwork } from "./integrity";
 import type { Env } from "./env";
 import { ApiError } from "./http";
@@ -167,7 +167,7 @@ export async function verifyMagicLink(request: Request, env: Env, body: unknown)
     .bind(link.email_hash)
     .first<{ id: string; created_at: number }>();
   if (!account) throw new Error("account missing after sign-in");
-  if (!existing && account.created_at === now) {
+  if (!existing && account.created_at === now && hasClientNetwork(request)) {
     // Multi-account velocity signal. It must never block a sign-in.
     await recordCreationNetwork(env, ipKey, account.id, now).catch((error: unknown) => {
       console.error("duel-api network signal failed", error instanceof Error ? error.name : typeof error);

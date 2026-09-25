@@ -291,6 +291,15 @@ describe("multi-account velocity", () => {
     expect(none?.n).toBe(0);
   });
 
+  it("local development (loopback) has no client network, so nothing is linked", async () => {
+    const local = [await account(false, "127.0.0.1"), await account(false, "127.0.0.1"), await account(false, "::1")];
+    for (const p of local) {
+      const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM account_links WHERE ? IN (account_id, linked_id)").bind(p.accountId).first<{ n: number }>();
+      expect(n?.n).toBe(0);
+      expect(await kindsOf(p)).toEqual([]);
+    }
+  });
+
   it("linked accounts that meet in rated play are flagged", async () => {
     const ip = "203.0.113.10-" + unique();
     const [x, y] = [await account(true, ip), await account(true, ip)];

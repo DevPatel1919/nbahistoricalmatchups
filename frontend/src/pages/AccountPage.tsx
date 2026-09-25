@@ -200,6 +200,12 @@ function RankedStatus({ account }: { account: AccountView }) {
             You're eligible. <Link to="/duel">Choose Ranked on the duel page</Link> to be matched with a player near your
             rating.
           </p>
+          {account.hiddenFromBoard && (
+            <p className="board__notice" data-testid="account-hidden">
+              Your account isn't shown on the leaderboard right now because of an integrity review. You can keep
+              playing ranked, and your rating still counts.
+            </p>
+          )}
           {account.rating ? (
             <p data-testid="account-rating">
               Rating: <strong className="scoreboard">{account.rating.rating.toLocaleString("en-US")}</strong> after{" "}
@@ -209,6 +215,9 @@ function RankedStatus({ account }: { account: AccountView }) {
           ) : (
             <p>Your rating starts at 1,200 with your first rated duel.</p>
           )}
+          <p>
+            <Link to="/duel/leaderboard">See the leaderboard</Link>
+          </p>
         </>
       ) : (
         <ul className="account__checklist">

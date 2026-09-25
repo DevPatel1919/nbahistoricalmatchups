@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DuelResult } from "../../src/duel";
 import {
+  boardDescription,
+  boardEmpty,
   completionOutcome,
   formatLastTen,
   formatRatingChange,
@@ -12,6 +14,7 @@ import {
   formatPoints,
   formatRecord,
   formatRest,
+  formatWinLoss,
   tierStakes,
 } from "../../src/lib/duelFormat";
 import { clearGuestToken, loadDraft, readGuestToken, saveDraft, writeGuestToken } from "../../src/lib/duelStorage";
@@ -153,5 +156,19 @@ describe("match results (F09 Session 6)", () => {
     expect(formatTimeLeft(now + 60_000, now)).toBe("about 1 minute");
     expect(formatTimeLeft(now + 40 * 60_000, now)).toBe("about 40 minutes");
     expect(formatTimeLeft(now + 23.6 * 3600_000, now)).toBe("about 24 hours");
+  });
+});
+
+describe("leaderboards (F09 Session 7)", () => {
+  it("shows draws only when there are some", () => {
+    expect(formatWinLoss(4, 1, 0)).toBe("4–1");
+    expect(formatWinLoss(4, 1, 2)).toBe("4–1–2");
+  });
+
+  it("describes each board and its empty state", () => {
+    expect(boardDescription("daily", 1)).toBe("Rated duels since midnight UTC, ranked by rating gained today.");
+    expect(boardDescription("30d", 5)).toBe("Players with at least 5 rated duels in the last 30 days, ranked by current rating.");
+    expect(boardEmpty("daily", 1)).toBe("No rated duels yet today.");
+    expect(boardEmpty("30d", 5)).toBe("Nobody has played 5 rated duels in the last 30 days yet.");
   });
 });

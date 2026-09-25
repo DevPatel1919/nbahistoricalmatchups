@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import type { DuelResult, RevealedPick } from "../../duel";
 import { CONFIDENCE_LABELS, formatPercent, formatPoints, matchNote, resultHeadline, teamLabel } from "../../lib/duelFormat";
 
@@ -47,6 +48,12 @@ export default function DuelReveal({ result }: Props) {
       {note && (
         <p className="reveal__match" data-testid="match-note">
           {note}
+          {result.match?.rated && (
+            <>
+              {" "}
+              <Link to="/duel/leaderboard">See the leaderboard</Link>
+            </>
+          )}
         </p>
       )}
 

@@ -18,6 +18,16 @@ export async function clientKey(request: Request, env: Env): Promise<string> {
   return keyedHash("ip:" + ip, env.GUEST_TOKEN_SECRET);
 }
 
+/**
+ * False when a request carries no real client address: local development,
+ * where every request is loopback. Network signals are skipped then, since one
+ * shared "network" would link every local account.
+ */
+export function hasClientNetwork(request: Request): boolean {
+  const ip = request.headers.get("cf-connecting-ip");
+  return ip !== null && !/^(127\.|::1$|::ffff:127\.)/.test(ip);
+}
+
 export async function createGuest(request: Request, env: Env): Promise<{ guestToken: string }> {
   await enforce(env.RATE_LIMITS, LIMITS.guestCreatePerIp, await clientKey(request, env), Number(env.RATE_LIMIT_SCALE));
   const guestId = randomId("g");

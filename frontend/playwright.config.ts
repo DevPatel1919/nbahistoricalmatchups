@@ -15,7 +15,10 @@ const workerCommand = [
     " --var EMAIL_HASH_SECRET:e2e-email-secret-0123456789" +
     // Local-only email outbox and Turnstile dummy token (worker/src/services.ts).
     " --var AUTH_TEST_DOUBLES:1" +
-    " --var RATE_LIMIT_SCALE:100",
+    " --var RATE_LIMIT_SCALE:100" +
+    // The review queue (F09 Session 7), and an uncached board so results show at once.
+    " --var ADMIN_TOKEN:e2e-admin-token-0123456789abcdef0123" +
+    " --var LEADERBOARD_CACHE_SECONDS:0",
 ].join(" && ");
 
 export default defineConfig({
