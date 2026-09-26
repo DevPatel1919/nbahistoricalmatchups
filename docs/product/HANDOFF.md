@@ -214,6 +214,17 @@ After Session 8 the leaderboards became snapshots stored every 15 minutes
 (branch `f09-board-snapshot`). That cut the modelled 10× bill from about $540
 to about $187 a month.
 
+**Deploying:** `DEPLOYMENT.md` is the phased plan for `courtofalltime.win`
+(agreed 2026-09-26), in this order:
+
+1. the site, from GitHub;
+2. the staging duel server;
+3. guest duel mode in production;
+4. accounts and ranked;
+5. a soft launch.
+
+Start any deployment session there.
+
 Nothing is deployed. The owner configuration steps are in the F09 Session 3,
 5, 6, 7, and 8 handoff records, including a staging run of the load test. The
 `frontend/` has 142 unit and 48 Playwright tests; `worker/` has 123. F09 has
