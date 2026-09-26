@@ -20,7 +20,8 @@ Read first, in order: `CONTRIBUTING.md`, `docs/product/HANDOFF.md`,
 | 5 | Accounts (magic link, Turnstile, names, ranked eligibility) | Done (PR #4, merge commit `e7643a9`) |
 | 6 | Ranked duels, matchmaking, friend invites, Elo application | Done (PR #5, merge commit `238e43a`) |
 | 7 | Leaderboard and anti-abuse enforcement | Done (PR #6, merge commit `2383d23`) |
-| 8 | Hardening, load/cost review, release gate | Done (branch `f09-hardening`). The owner still runs the load test against a staging deploy |
+| 8 | Hardening, load/cost review, release gate | Done (PR #7, merge commit `9476db3`). The owner still runs the load test against a staging deploy |
+| — | Stored leaderboards (after Session 8) | Done (branch `f09-board-snapshot`) |
 
 Sessions 1–4 were merged to `main` in PR #3 (merge commit `3ad3858`), which
 also merged F01–F05. Session 5 was merged in PR #4 (merge commit `e7643a9`),
@@ -83,7 +84,7 @@ it unreachable.
 | `GET /v1/account` | session | `AccountView` |
 | `POST /v1/account/display-name` `{ displayName }` | session | `AccountView` (includes `hiddenFromBoard`) |
 | `POST /v1/account/delete` `{ confirm: true }` | session | `{ ok }`; `409 match_in_progress` while a match with an opponent is unresolved |
-| `GET /v1/leaderboard?board=daily\|30d` | none; edge-cached (30d for 5× as long) | `LeaderboardView` (flagged accounts left off) |
+| `GET /v1/leaderboard?board=daily\|30d` | none; edge-cached; reads the stored board | `LeaderboardView` (flagged accounts left off) |
 | `GET /v1/admin/flags?status=` | `ADMIN_TOKEN`; else 404 | the review queue |
 | `POST /v1/admin/flags/:id` `{ decision, note? }` | `ADMIN_TOKEN` | the decided flag |
 | `POST /v1/admin/sweep` | `ADMIN_TOKEN` | runs the detectors now |
@@ -95,8 +96,9 @@ batch; that includes `match_seats`. `POST /v1/sets { mode: "ranked" }` runs
 `assertRankedEligible` first. A scheduled handler runs every 15 minutes. It
 settles matches whose timeout has passed, then runs the integrity sweep, which
 raises flags and purges expired links and sessions, expired unplayed solo and
-bot sets, and guests that never played. The settler handles at most 10 matches
-per run, because D1 allows 1,000 queries per invocation.
+bot sets, and guests that never played, and finally stores both leaderboards in
+`board_snapshots`. The settler handles at most 10 matches per run, because D1
+allows 1,000 queries per invocation.
 
 ## How to verify (all must pass before finishing any session)
 
@@ -107,9 +109,9 @@ python -m pytest tests
 python src/models/test_pregame_leakage.py        # must exit 0
 ```
 
-Baseline after Session 8 (branch `f09-hardening`): frontend 142 unit + 48
-Playwright; worker 119; Python 40. (After Session 7 it was 142 + 47, 110, and
-40.) Session 8 also added `node worker/scripts/load-test.mjs` against a local
+Baseline after the stored leaderboards (branch `f09-board-snapshot`): frontend
+142 unit + 48 Playwright; worker 123; Python 40. (After Session 8 it was 142 +
+48, 119, and 40.) Session 8 also added `node worker/scripts/load-test.mjs` against a local
 `wrangler dev` (usage in its header). It must report no server errors and no
 failed probes.
 
@@ -186,6 +188,8 @@ All four are recorded in the F09 brief's "Owner decisions" section.
     free plan's 50 D1 queries per invocation are too few. Back up D1, then run
     `npm run db:migrate:remote` for `0005_hardening.sql`, which only adds
     indexes. Run the load test against staging (Session 8 record).
+12. For stored leaderboards: back up D1, then run `npm run db:migrate:remote`
+    for `0006_board_snapshots.sql`, which adds one table.
 
 ## Gotchas found in this implementation
 
@@ -220,8 +224,8 @@ All four are recorded in the F09 brief's "Owner decisions" section.
   wiring, which fails closed without secrets.
 ## What remains after Session 8
 
-F09's build sessions are done. Session 8 is on branch `f09-hardening`; merge
-it first. What is left is owner work, plus changes to make only if the
+F09's build sessions are done, and Session 8 is merged. The stored
+leaderboards are on branch `f09-board-snapshot`; merge them first. What is left is owner work, plus changes to make only if the
 numbers call for them:
 
 - **Deploy.** Follow "Owner setup before any deploy" above, on the Workers
@@ -229,11 +233,10 @@ numbers call for them:
 - **Staging load run.** Run `worker/scripts/load-test.mjs` against a staging
   deploy. Record its latency, and the dashboard's CPU time, in the Session 8
   record (the steps are there).
-- **Cost triggers.** Past about 20B D1 rows read a month, precompute the
-  30-day board once per sweep instead of once per data centre. Past about 5M
-  KV writes a month, move short rate-limit windows to Cloudflare's
-  rate-limiting binding. Past 10M KV reads, reconsider a Cache API layer for
-  puzzle reads.
+- **Cost triggers.** The boards are already stored snapshots (the record
+  after Session 8). Past about 5M KV writes a month, move short rate-limit
+  windows to Cloudflare's rate-limiting binding. Past 10M KV reads, reconsider
+  a Cache API layer for puzzle reads.
 - **Owner policy.** What an upheld flag means beyond staying off the board.
   Nothing heavier is built.
 - **Anomaly baselines.** Set thresholds for confidence entropy and model
@@ -265,6 +268,9 @@ Gotchas found in Session 8:
   and 50 on the free plan, and it covers everything one request or one cron
   run does. Never write a query per account or per row in the scheduled
   handler. `test/cost-profile.test.ts` asserts the budgets.
+- **Boards are snapshots.** A test that expects a new result on the board at
+  once needs `LEADERBOARD_REFRESH_SECONDS` "0" (the default in the Worker tests
+  and the e2e run), or a call to `refreshBoards`.
 - **SQLite may ignore a time index.** To avoid a sort before `GROUP BY`,
   SQLite may walk an index in the wrong order, which is why the board has
   `INDEXED BY rating_changes_created`. Check new window queries with

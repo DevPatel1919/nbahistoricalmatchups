@@ -422,8 +422,9 @@ describe("stored boards (LEADERBOARD_REFRESH_SECONDS)", () => {
     const now = Date.now();
     await refreshBoards(env, now);
     const stale = now - 1_300_000;
-    await env.DB.prepare("UPDATE board_snapshots SET generated_at = ? WHERE board = '30d'").bind(stale).run();
-    expect((await board("30d")).body.generatedAt).toBeGreaterThan(stale);
+    await env.DB.prepare("UPDATE board_snapshots SET generated_at = ?, body = json_set(body, '$.generatedAt', ?) WHERE board = '30d'")
+      .bind(stale, stale).run();
+    expect((await board("30d")).body.generatedAt).toBeGreaterThanOrEqual(now);
     // Stored a minute ago, but yesterday's window: not served as today's board.
     const yesterday = await env.DB.prepare("SELECT body FROM board_snapshots WHERE board = 'daily'").first<{ body: string }>();
     const body = { ...JSON.parse(yesterday!.body), windowStart: JSON.parse(yesterday!.body).windowStart - DAY, generatedAt: now - 60_000 };
