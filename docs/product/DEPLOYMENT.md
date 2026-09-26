@@ -35,8 +35,9 @@ Written 2026-09-26 after the owner and the agent agreed every decision below.
 |---|---|
 | Finish line | Everything built: static site, guest duel mode, accounts, ranked, leaderboard. Reached in stages |
 | Product scope | Game-focused and betting-free. No odds, picks-for-money, prizes, or entry fees. Any betting product is a separate, later project that this deployment does not touch |
-| Commercial | Free, non-commercial launch. The price-interest buttons stay non-transactional; payments, ads, and sponsors wait for F00 (data rights) |
-| Site address | `courtofalltime.win`; `www.courtofalltime.win` redirects to it |
+| Commercial | Free, non-commercial launch. **No pricing page or price buttons** (removed by F10, decided 2026-09-26). Payments, ads, and sponsors wait for F00 (data rights) |
+| Site address | `courtofalltime.win` only. **No `www`** (changed 2026-09-26 in phase 1; it was going to redirect) |
+| Before launch | F10: remove the pricing page and make the whole site easier to use, keeping the matchup explorer intact. It must be merged before phase 5 (added 2026-09-26) |
 | Duel server address | `api.courtofalltime.win` |
 | Staging | A permanent copy: `staging.courtofalltime.win` (the `staging` git branch) and `api-staging.courtofalltime.win` (its own Worker, D1, and KV) |
 | Site deploys | A **new** Pages project connected to GitHub. Merges to `main` go live, and PRs get preview links. The old direct-upload project is deleted after cutover |
@@ -76,7 +77,7 @@ Written 2026-09-26 after the owner and the agent agreed every decision below.
 
 **Goal.** `https://courtofalltime.win` serves the current `main`, rebuilt on
 every merge. PRs get preview links. Web Analytics is on. The old project is
-gone.
+gone. (`www` was dropped on 2026-09-26; its steps are struck through below.)
 
 **Owner steps (dashboard):**
 
@@ -89,8 +90,8 @@ gone.
      build command `npm run build`; output directory `dist`.
    - Environment variable (production and preview): `NODE_VERSION` = `22`.
    - Set no `VITE_*` variables yet. Duel mode stays off.
-3. In the new project, go to Custom domains and add `courtofalltime.win`,
-   then `www.courtofalltime.win`. The zone is on the same account, so
+3. In the new project, go to Custom domains and add `courtofalltime.win`
+   ~~then `www.courtofalltime.win`~~. The zone is on the same account, so
    Cloudflare creates the DNS records.
 4. In the project, go to Metrics and enable **Web Analytics**.
 
@@ -103,13 +104,11 @@ gone.
      fallback);
    - a matchup page renders, using the `browser-automation` skill if
      available.
-2. Add a redirect from `www` to the apex: a Single Redirect rule in the
-   zone, `www.courtofalltime.win/*` to `https://courtofalltime.win/${1}`,
-   status 301. The owner creates it if the token cannot.
+2. ~~Add a redirect from `www` to the apex.~~ Dropped: no `www`.
 3. Once the owner confirms the domain is attached, check it:
    - `https://courtofalltime.win` loads;
-   - `https://www.courtofalltime.win/about` 301s to the apex;
-   - HTTPS works on both.
+   - ~~`https://www.courtofalltime.win/about` 301s to the apex~~ (no `www`);
+   - HTTPS works.
 4. Open a trivial docs PR to confirm a preview link is posted and builds.
 5. **Stop and ask.** Then delete the old project:
    `npx wrangler pages project delete court-of-all-time`.
@@ -118,7 +117,7 @@ gone.
 
 **Done when:**
 
-- the apex serves `main`, and `www` redirects;
+- the apex serves `main` (no `www`);
 - a merge to `main` redeploys on its own;
 - PRs get preview links;
 - Web Analytics shows visits;
@@ -127,7 +126,44 @@ gone.
 **Rollback.** Remove the custom domain from the new project. Nothing else
 depends on it yet.
 
-**Record.** _(fill in)_
+**Record.** 2026-09-26 (in progress; the open items are listed last).
+
+- **Login.** No new `wrangler login` was needed: the existing login already
+  had `pages`, `workers`, and `d1` write access. `zone` is read-only, so zone
+  rules and DNS stay owner steps.
+- **A false start.** The first "Create" in the dashboard made a Workers
+  Builds project (a Worker named `nbahistoricalmatchups`), not Pages. It
+  failed with `Could not read package.json`, because no root directory was
+  set. The agent deleted it. The Pages flow is Create, then the Pages option,
+  then Import an existing Git repository.
+- **Pages project `courtofalltime`.** Created on 2026-09-26:
+  - GitHub `DevPatel1919/nbahistoricalmatchups`, production branch `main`;
+  - root `frontend`, `npm run build`, output `dist`;
+  - `NODE_VERSION=22` in production and preview, and no `VITE_*` variables;
+  - PR previews and PR comments are on.
+- **First build.** Built from `ecd4006` (deployment `dc4e1cf1`). Checked on
+  `courtofalltime.pages.dev`:
+  - `/`, `/data/index.json`, `/data/teams/1998-bulls.json`, `/tournament`,
+    `/about`, `/duel`, and `/1998-bulls-vs-2017-warriors` all answer 200;
+  - the JS bundle `index-CTn4GtRt.js` is identical to a clean-clone local
+    build;
+  - the Bulls vs Warriors page renders (73.8%) with no console errors, and no
+    Duel link shows.
+- **Domain.** The owner attached `courtofalltime.win`, and Pages shows it
+  active. `https://courtofalltime.win/`, `/data/index.json`, and
+  `/tournament` answer 200 with a valid certificate. `http://` 301s to
+  `https://`.
+- **Differed from the plan:**
+  - no `www` (owner decision);
+  - the owner also decided to remove the pricing page and to do a whole-site
+    usability pass before launch. That is recorded as F10 and in the HANDOFF
+    decision log.
+- **Open:**
+  - Web Analytics isn't enabled yet (the project has no analytics tag);
+  - the preview-link check is the PR that carries this Record;
+  - the old `court-of-all-time` project is still up, and is deleted only on
+    the owner's OK;
+  - check that the next merge to `main` redeploys on its own.
 
 **Kickoff prompt:**
 

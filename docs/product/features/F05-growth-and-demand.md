@@ -2,6 +2,8 @@
 
 Status: **built (2026-09-23); measurement starts when the owner configures a provider.** See the handoff record.
 
+**2026-09-26:** the price-intent part is being removed. The owner decided the site shows no pricing page and no price buttons; F10 (`F10-usability-and-no-pricing.md`) removes them. Sharing and the completion and return events stay.
+
 ## Outcome
 
 Measure whether users complete, share, return, and express qualified purchase

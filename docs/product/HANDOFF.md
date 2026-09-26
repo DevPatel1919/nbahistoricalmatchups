@@ -5,7 +5,7 @@ tournaments, growth, creator tools, or monetization. Read this file first, then
 open only the feature brief assigned to you. Read `CONTRIBUTING.md` before
 changing code.
 
-Last reviewed: 2026-09-26.
+Last reviewed: 2026-09-26 (deployment phase 1).
 
 ## Product thesis
 
@@ -37,8 +37,10 @@ parallel; do not choose between them as two consecutive stages.
 
 1. Launch the matchup and one curated tournament free. Sharing is part of the
    product and stays free.
-2. Show pricing and collect purchase intent from the beginning, without taking
-   payment before commercial data rights are cleared.
+2. ~~Show pricing and collect purchase intent from the beginning.~~ Paused
+   on 2026-09-26: the site shows no prices and no pricing page (see the
+   decision log and `features/F10-usability-and-no-pricing.md`). It returns
+   only with an owner decision after F00 clears the data rights.
 3. After rights clearance, sell creator content packages manually before
    building creator SaaS.
 4. Build paid creator features after at least two paid pilots and one repeat
@@ -148,7 +150,11 @@ in `features/F07-paid-plans-and-entitlements.md` is satisfied.
 - `reports/monetization_research.md` is the sourced commercial research.
 
 The current architecture is static React + TypeScript + Vite on Cloudflare
-Pages. Keep the public matchup and local tournament MVP static. Accounts,
+Pages. The site is live at `https://courtofalltime.win` (since 2026-09-26),
+served by the Pages project `courtofalltime`. That project is connected to
+GitHub: it builds `frontend/` (`npm run build`, output `dist`,
+`NODE_VERSION=22`). Every merge to `main` goes live, and every PR gets a
+preview link. There is no `www` host. Keep the public matchup and local tournament MVP static. Accounts,
 cross-device saved state, community vote aggregation, payment webhooks, private
 groups, and customer-specific embeds require server-side state; introduce a
 Cloudflare Worker and D1/KV only when an accepted feature brief reaches that
@@ -225,7 +231,11 @@ to about $187 a month.
 
 Start any deployment session there.
 
-Nothing is deployed. The owner configuration steps are in the F09 Session 3,
+**Next build:** F10 removes the pricing page and makes the whole site easier
+to use, keeping the matchup explorer intact. It is decided but not built; its
+brief has the kickoff prompt.
+
+Only the static site is deployed; the duel Worker is not. The owner configuration steps are in the F09 Session 3,
 5, 6, 7, and 8 handoff records, including a staging run of the load test. The
 `frontend/` has 142 unit and 48 Playwright tests; `worker/` has 123. F09 has
 no further build sessions.
@@ -248,6 +258,7 @@ stable.
 | F07 | [Paid plans and entitlements](features/F07-paid-plans-and-entitlements.md) | F00 plus demand evidence from F05/F06 | F08 discovery |
 | F08 | [Publisher widget and API](features/F08-widget-and-api.md) | F00, F01, F05 | F07 after contracts are stable |
 | F09 | [Duel mode and ranked ladder](features/F09-daily-duel.md) | F01 for the pre-game bundle | F02, F03, F04 |
+| F10 | [Usability pass and pricing removal](features/F10-usability-and-no-pricing.md) | F02, F04, F05 | Deployment phases 2–4 |
 
 Recommended sequence:
 
@@ -328,6 +339,9 @@ supporting issue, experiment, or document.
 | 2026-09-26 | Duel mode is the product's server state: one Cloudflare Worker with D1 (accounts, play, ratings, flags) and KV (the puzzle pool, rate limits). The explorer and tournaments stay static and keep working without it | F09 Sessions 3–8. Answers stay on the server until lock-in; single submission and single-use links are D1 constraints; the cost profile and load test are in the F09 Session 8 record | A feature needs real-time play (Durable Objects) or the explorer needs live data |
 | 2026-09-26 | The duel Worker runs on Workers Paid ($5 a month) | Free plan: 50 D1 queries per invocation (a rated settle uses 44) and 10 ms of CPU. Metered cost is the base price up to about 1,000 rated matches a day | KV writes pass about 5M a month (move rate limits to the rate-limiting binding). The boards were already made snapshots on 2026-09-26 |
 | 2026-09-26 | Players can delete their account and its data; nothing identifies a person but a keyed email hash | F09 Session 8 privacy review: no IP, email, user agent, or device id stored; IPs only as keyed hashes in KV for up to two days | A legal review (F00) requires more, such as a data export |
+| 2026-09-26 | Remove the pricing page and every price or purchase-intent surface (`/plans`, the Plans nav link, the tournament-summary offers). This pauses monetization step 2 and F05's price-intent tests | Owner decision on 2026-09-26: the launch is free, non-commercial, and game-focused, and F00 has not cleared the data rights | The owner decides to test paid demand after F00 clears |
+| 2026-09-26 | Before launch, a usability pass covers the whole site (F10). The matchup explorer stays the core and keeps every URL working | Owner decision on 2026-09-26, after seeing the site live on `courtofalltime.win` | Launch feedback shows new friction |
+| 2026-09-26 | The site lives at `courtofalltime.win` only, with no `www` host or redirect | Owner decision during deployment phase 1: the shared links all use the bare domain | Visitors report that `www.courtofalltime.win` doesn't load |
 
 ## Success and review gates
 
