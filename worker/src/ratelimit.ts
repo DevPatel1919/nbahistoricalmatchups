@@ -32,6 +32,13 @@ export async function enforce(kv: KVNamespace, limit: Limit, subject: string, sc
     const retryAfter = (window + 1) * limit.windowSeconds - Math.floor(now / 1000);
     throw new ApiError("rate_limited", Math.max(1, retryAfter));
   }
-  // KV requires a TTL of at least 60 seconds.
-  await kv.put(key, String(count + 1), { expirationTtl: Math.max(60, limit.windowSeconds * 2) });
+  // KV requires a TTL of at least 60 seconds. KV refuses more than one write a
+  // second to a key, and a daily write quota applies; a refused count must not
+  // fail the request (players behind one NAT share an IP key), so it is logged
+  // and the request goes on. The limit still holds from the counts that landed.
+  try {
+    await kv.put(key, String(count + 1), { expirationTtl: Math.max(60, limit.windowSeconds * 2) });
+  } catch (error) {
+    console.error("duel-api rate-limit write failed", limit.name, error instanceof Error ? error.name : typeof error);
+  }
 }

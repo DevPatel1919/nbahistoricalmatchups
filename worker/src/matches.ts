@@ -530,21 +530,35 @@ export async function settleMatch(env: Env, matchId: string, now: number, stopWa
   console.error("duel-api settle contention");
 }
 
+/**
+ * Matches whose joining window closed longer ago than this are not scanned by
+ * the scheduled settler. A due match settles within one or two sweeps, so this
+ * only bounds the scan: without it every sweep read all match history.
+ */
+export const SETTLE_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
+/**
+ * Matches the scheduled settler resolves per run. A settle takes up to about 40
+ * D1 queries and D1 allows 1,000 per invocation, which the integrity sweep
+ * shares; anything left over settles on the next run or when a seat is read.
+ */
+export const SETTLE_PER_SWEEP = 10;
+
 /** Scheduled sweep: settles matches whose timeout has passed even if nobody looks at them. */
-export async function settleDue(env: Env, now: number, limit = 50): Promise<number> {
+export async function settleDue(env: Env, now: number, limit = SETTLE_PER_SWEEP): Promise<number> {
   const due = await env.DB.prepare(
     `SELECT m.id FROM matches m
      JOIN match_seats c ON c.match_id = m.id AND c.seat = 'creator'
      JOIN submissions cs ON cs.duel_id = c.duel_id AND cs.participant = c.participant
      LEFT JOIN match_seats o ON o.match_id = m.id AND o.seat = 'opponent'
      LEFT JOIN duels od ON od.id = o.duel_id
-     WHERE NOT EXISTS (SELECT 1 FROM match_resolutions r WHERE r.match_id = m.id)
+     WHERE m.kind IN ('ranked', 'friend') AND m.open_until > ?
+       AND NOT EXISTS (SELECT 1 FROM match_resolutions r WHERE r.match_id = m.id)
        AND ((o.match_id IS NULL AND m.open_until <= ?)
          OR (o.match_id IS NOT NULL AND od.expires_at < ?)
          OR EXISTS (SELECT 1 FROM submissions os WHERE os.duel_id = o.duel_id AND os.participant = o.participant))
      ORDER BY m.created_at LIMIT ?`,
   )
-    .bind(now, now, limit)
+    .bind(now - SETTLE_LOOKBACK_MS, now, now, limit)
     .all<{ id: string }>();
   for (const row of due.results) await settleMatch(env, row.id, now);
   return due.results.length;

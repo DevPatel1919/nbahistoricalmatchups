@@ -274,6 +274,89 @@ export async function setDisplayName(env: Env, accountId: string, body: unknown)
   return accountView(env, accountId);
 }
 
+// ---------------------------------------------------------------------------
+// Account deletion
+// ---------------------------------------------------------------------------
+
+/** Replaces a deleted account's name in its opponents' stored results. */
+export const DELETED_PLAYER_NAME = "A deleted player";
+
+/**
+ * POST /v1/account/delete { confirm: true }. Deletes the account and
+ * everything keyed to it in one D1 batch: sessions, sign-in links, merged
+ * guest ids, every set it played (with picks, results, and anomaly metrics),
+ * its match seats, rating and rating ledger, puzzle exposures, integrity flags
+ * against it, and network links. Opponents keep their own results and rating
+ * changes, which stay valid; the deleted name is replaced in their stored
+ * results. A match left with no seat is removed with its resolution.
+ *
+ * Refused while a match with an opponent seated is unresolved, since settling
+ * it needs both accounts. That lasts at most one set's time limit plus one
+ * sweep. The refusal is a guard inside the batch, so a join racing the
+ * deletion cannot slip past it.
+ *
+ * Not deleted: a flag on another account that names this one as the related
+ * account keeps the bare id (it no longer resolves to anything), and the
+ * two-day KV network entry expires on its own (integrity.ts skips deleted ids).
+ */
+export async function deleteAccount(env: Env, accountId: string, body: unknown): Promise<{ ok: true }> {
+  if (asRecord(body).confirm !== true) throw new ApiError("bad_request");
+  const p = "a:" + accountId;
+  const emailHashSql = "(SELECT email_hash FROM accounts WHERE id = ?)";
+  const ownMatches = "SELECT d.match_id FROM duels d WHERE d.issued_to = ? AND d.match_id IS NOT NULL";
+  const statements = [
+    env.DB.prepare("PRAGMA defer_foreign_keys = on"),
+    // The guard: email_hash is NOT NULL, so this fails the whole batch while a match is in progress.
+    env.DB.prepare(
+      `UPDATE accounts SET email_hash = NULL WHERE id = ? AND EXISTS (
+         SELECT 1 FROM match_seats mine JOIN match_seats other ON other.match_id = mine.match_id AND other.seat != mine.seat
+         WHERE mine.participant = ? AND NOT EXISTS (SELECT 1 FROM match_resolutions r WHERE r.match_id = mine.match_id))`,
+    ).bind(accountId, p),
+    env.DB.prepare(
+      `UPDATE submissions SET result = json_set(result, '$.opponent.name', ?)
+       WHERE json_extract(result, '$.opponent.kind') = 'player' AND (duel_id, participant) IN (
+         SELECT other.duel_id, other.participant FROM match_seats mine
+         JOIN match_seats other ON other.match_id = mine.match_id AND other.seat != mine.seat
+         WHERE mine.participant = ?)`,
+    ).bind(DELETED_PLAYER_NAME, p),
+    env.DB.prepare("DELETE FROM play_metrics WHERE account_id = ?").bind(accountId),
+    env.DB.prepare("DELETE FROM scored_picks WHERE participant = ?").bind(p),
+    env.DB.prepare("DELETE FROM submissions WHERE participant = ?").bind(p),
+    // Matches nobody else sat in (waiting, stopped, or solo fallbacks) go entirely.
+    env.DB.prepare(
+      `DELETE FROM match_resolutions WHERE match_id IN (${ownMatches})
+         AND NOT EXISTS (SELECT 1 FROM match_seats s WHERE s.match_id = match_resolutions.match_id AND s.participant != ?)`,
+    ).bind(p, p),
+    env.DB.prepare("DELETE FROM match_seats WHERE participant = ?").bind(p),
+    env.DB.prepare(
+      `DELETE FROM matches WHERE id IN (${ownMatches})
+         AND NOT EXISTS (SELECT 1 FROM match_seats s WHERE s.match_id = matches.id)`,
+    ).bind(p),
+    env.DB.prepare("DELETE FROM duels WHERE issued_to = ?").bind(p),
+    env.DB.prepare("DELETE FROM ranked_exposures WHERE account_id = ?").bind(accountId),
+    env.DB.prepare("DELETE FROM rating_changes WHERE account_id = ?").bind(accountId),
+    env.DB.prepare("DELETE FROM ratings WHERE account_id = ?").bind(accountId),
+    env.DB.prepare("DELETE FROM integrity_flags WHERE account_id = ?").bind(accountId),
+    env.DB.prepare("DELETE FROM account_links WHERE account_id = ? OR linked_id = ?").bind(accountId, accountId),
+    env.DB.prepare("DELETE FROM sessions WHERE account_id = ?").bind(accountId),
+    env.DB.prepare(
+      `DELETE FROM magic_link_redemptions WHERE token_hash IN (SELECT token_hash FROM magic_links WHERE email_hash = ${emailHashSql})`,
+    ).bind(accountId),
+    env.DB.prepare(`DELETE FROM magic_links WHERE email_hash = ${emailHashSql}`).bind(accountId),
+    env.DB.prepare("DELETE FROM guests WHERE account_id = ?").bind(accountId),
+    env.DB.prepare("DELETE FROM accounts WHERE id = ?").bind(accountId),
+  ];
+  try {
+    await env.DB.batch(statements);
+  } catch (error) {
+    if (error instanceof Error && /NOT NULL constraint failed: accounts\.email_hash/i.test(error.message)) {
+      throw new ApiError("match_in_progress");
+    }
+    throw error;
+  }
+  return { ok: true };
+}
+
 /**
  * The gate every ranked entry point must pass. Guests never rank; an account
  * ranks only after RANKED_MIN_COMPLETED_DUELS completed sets and with a name.

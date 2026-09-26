@@ -15,7 +15,7 @@ import { ELO_START } from "../../frontend/src/duel";
 import worker from "../src/index";
 import { purgeExpired, raiseFlags, runIntegritySweep } from "../src/integrity";
 import { MULTI_ACCOUNT_FLAG_AT } from "../src/integrity-rules";
-import { BOARD_MIN_DUELS } from "../src/leaderboard";
+import { BOARD_MIN_DUELS, THIRTY_DAY_CACHE_FACTOR } from "../src/leaderboard";
 import { REPEAT_PAIR_WINDOW_MS, settleMatch } from "../src/matches";
 import { sha256Hex } from "../src/tokens";
 import {
@@ -366,10 +366,11 @@ describe("leaderboards", () => {
     expect((await call("/v1/account", { headers: auth(q.token) })).body.hiddenFromBoard).toBe(true);
   });
 
-  it("is edge-cached when LEADERBOARD_CACHE_SECONDS is set", async () => {
+  it("is edge-cached when LEADERBOARD_CACHE_SECONDS is set; the 30-day board for longer", async () => {
     const cached = { ...env, LEADERBOARD_CACHE_SECONDS: "60" };
+    expect((await call("/v1/leaderboard?board=daily", { env: cached })).headers.get("cache-control")).toBe("public, max-age=60");
     const first = await call("/v1/leaderboard?board=30d", { env: cached });
-    expect(first.headers.get("cache-control")).toBe("public, max-age=60");
+    expect(first.headers.get("cache-control")).toBe("public, max-age=" + 60 * THIRTY_DAY_CACHE_FACTOR);
     const [p, q] = [await account(), await account()];
     for (let i = 0; i < 5; i++) await insertRated(p, q, Date.now() - 1000);
     const second = await call("/v1/leaderboard?board=30d", { env: cached });
