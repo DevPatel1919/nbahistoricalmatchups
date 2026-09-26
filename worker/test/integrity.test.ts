@@ -15,7 +15,7 @@ import { ELO_START } from "../../frontend/src/duel";
 import worker from "../src/index";
 import { purgeExpired, raiseFlags, runIntegritySweep } from "../src/integrity";
 import { MULTI_ACCOUNT_FLAG_AT } from "../src/integrity-rules";
-import { BOARD_MIN_DUELS, THIRTY_DAY_CACHE_FACTOR } from "../src/leaderboard";
+import { BOARD_MIN_DUELS, refreshBoards } from "../src/leaderboard";
 import { REPEAT_PAIR_WINDOW_MS, settleMatch } from "../src/matches";
 import { sha256Hex } from "../src/tokens";
 import {
@@ -366,17 +366,79 @@ describe("leaderboards", () => {
     expect((await call("/v1/account", { headers: auth(q.token) })).body.hiddenFromBoard).toBe(true);
   });
 
-  it("is edge-cached when LEADERBOARD_CACHE_SECONDS is set; the 30-day board for longer", async () => {
+  it("is edge-cached when LEADERBOARD_CACHE_SECONDS is set", async () => {
     const cached = { ...env, LEADERBOARD_CACHE_SECONDS: "60" };
     expect((await call("/v1/leaderboard?board=daily", { env: cached })).headers.get("cache-control")).toBe("public, max-age=60");
     const first = await call("/v1/leaderboard?board=30d", { env: cached });
-    expect(first.headers.get("cache-control")).toBe("public, max-age=" + 60 * THIRTY_DAY_CACHE_FACTOR);
+    expect(first.headers.get("cache-control")).toBe("public, max-age=60");
     const [p, q] = [await account(), await account()];
     for (let i = 0; i < 5; i++) await insertRated(p, q, Date.now() - 1000);
     const second = await call("/v1/leaderboard?board=30d", { env: cached });
     expect(second.body.generatedAt).toBe(first.body.generatedAt);
     expect(second.text).not.toContain(p.name);
     expect((await call("/v1/leaderboard?board=30d")).text).toContain(p.name);
+  });
+});
+
+describe("stored boards (LEADERBOARD_REFRESH_SECONDS)", () => {
+  const stored = { ...env, LEADERBOARD_REFRESH_SECONDS: "1200" };
+  const board = (kind: "daily" | "30d") => call("/v1/leaderboard?board=" + kind, { env: stored });
+  const names = (r: { body: { entries: { name: string }[] } }) => r.body.entries.map((e) => e.name);
+  beforeEach(async () => {
+    await env.DB.prepare("DELETE FROM board_snapshots").run();
+  });
+
+  it("a request reads the stored board; the scheduled handler stores a fresh one", async () => {
+    const first = await board("30d");
+    expect(first.status).toBe(200);
+    // Five different opponents: five wins over one would (rightly) be flagged as win-trading by the sweep.
+    const p = await account();
+    for (let i = 0; i < 5; i++) await insertRated(p, await account(), Date.now() - 1000);
+    const second = await board("30d");
+    expect(second.body.generatedAt).toBe(first.body.generatedAt);
+    expect(names(second)).not.toContain(p.name);
+
+    const ctx = createExecutionContext();
+    worker.scheduled(createScheduledController({ scheduledTime: Date.now(), cron: "*/15 * * * *" }), stored, ctx);
+    await waitOnExecutionContext(ctx);
+    const third = await board("30d");
+    expect(third.body.generatedAt).toBeGreaterThan(first.body.generatedAt);
+    expect(names(third)).toContain(p.name);
+    expect(names(await board("daily"))).toContain(p.name);
+  });
+
+  it("a review decision stores fresh boards at once", async () => {
+    const [p, q] = [await account(), await account()];
+    await insertRated(p, q, Date.now() - 1000);
+    await raiseFlags(env, [{ accountId: p.accountId, kind: "scripted_timing", related: "", evidence: {} }], Date.now());
+    await refreshBoards(env, Date.now());
+    expect(names(await board("daily"))).not.toContain(p.name);
+    const flag = (await flagsOf(p))[0];
+    expect((await call("/v1/admin/flags/" + flag.id, { method: "POST", headers: ADMIN, body: JSON.stringify({ decision: "clear" }), env: stored })).status).toBe(200);
+    expect(names(await board("daily"))).toContain(p.name);
+  });
+
+  it("a request recomputes when the schedule has stalled or a new UTC day began", async () => {
+    const now = Date.now();
+    await refreshBoards(env, now);
+    const stale = now - 1_300_000;
+    await env.DB.prepare("UPDATE board_snapshots SET generated_at = ? WHERE board = '30d'").bind(stale).run();
+    expect((await board("30d")).body.generatedAt).toBeGreaterThan(stale);
+    // Stored a minute ago, but yesterday's window: not served as today's board.
+    const yesterday = await env.DB.prepare("SELECT body FROM board_snapshots WHERE board = 'daily'").first<{ body: string }>();
+    const body = { ...JSON.parse(yesterday!.body), windowStart: JSON.parse(yesterday!.body).windowStart - DAY, generatedAt: now - 60_000 };
+    await env.DB.prepare("UPDATE board_snapshots SET generated_at = ?, body = ? WHERE board = 'daily'").bind(now - 60_000, JSON.stringify(body)).run();
+    const daily = await board("daily");
+    expect(daily.body.windowStart).toBe(body.windowStart + DAY);
+    expect(daily.body.generatedAt).toBeGreaterThanOrEqual(now);
+  });
+
+  it("an older computation never overwrites a newer stored board", async () => {
+    const now = Date.now();
+    await refreshBoards(env, now);
+    await refreshBoards(env, now - 60_000);
+    const row = await env.DB.prepare("SELECT generated_at FROM board_snapshots WHERE board = '30d'").first<{ generated_at: number }>();
+    expect(row!.generated_at).toBe(now);
   });
 });
 

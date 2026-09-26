@@ -17,6 +17,8 @@ export default defineConfig(async () => {
             ADMIN_TOKEN: "test-admin-token-0123456789abcdef0123",
             // Tests read boards straight after writing results; one test turns caching back on.
             LEADERBOARD_CACHE_SECONDS: "0",
+            // ...and computed per request; the snapshot tests turn stored boards on.
+            LEADERBOARD_REFRESH_SECONDS: "0",
           },
         },
       }),

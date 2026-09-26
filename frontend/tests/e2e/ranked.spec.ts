@@ -205,6 +205,7 @@ test("the leaderboard: rated players today, you marked, a flagged account left o
   await expect(page.getByRole("button", { name: "Today" })).toHaveAttribute("aria-pressed", "true");
   const rows = page.locator(".board__table tbody tr");
   await expect(rows.filter({ hasText: nameA })).toContainText("(you)");
+  await expect(page.getByTestId("board-updated")).toContainText("refreshes about every 15 minutes");
   await expect(rows.filter({ hasText: nameB })).toHaveCount(1);
   await expect(rows.filter({ hasText: nameB })).not.toContainText("(you)");
   await expectNoHorizontalOverflow(page);

@@ -18,12 +18,13 @@
 //   GET  /v1/dev/outbox?to=              local test doubles only -> last magic-link email
 //   GET  /v1/admin/flags?status=         ADMIN_TOKEN -> the review queue (admin.ts); 404 without the token
 //   POST /v1/admin/flags/:id             ADMIN_TOKEN { decision: "clear" | "uphold", note? } -> the decided flag
-//   POST /v1/admin/sweep                 ADMIN_TOKEN -> runs the integrity detectors now
+//   POST /v1/admin/sweep                 ADMIN_TOKEN -> runs the integrity detectors now, then stores fresh boards
 //
 // Scheduled (wrangler.jsonc triggers): settles ranked and friend matches whose
 // timeout has passed, so forfeits and no-opponent fallbacks resolve unattended,
 // then runs the integrity sweep (integrity.ts), which raises flags for review
-// and purges expired sign-in links and sessions.
+// and purges expired data, then stores fresh leaderboards (leaderboard.ts),
+// which requests read.
 
 import { decideFlag, listFlags, requireAdmin, sweepNow } from "./admin";
 import { accountView, deleteAccount, requestMagicLink, setDisplayName, signOut, verifyMagicLink } from "./accounts";
@@ -31,7 +32,7 @@ import { clientKey, createGuest, requireAccount, requireParticipant } from "./au
 import type { Env } from "./env";
 import { ApiError, errorResponse, json, readJson, withCors } from "./http";
 import { runIntegritySweep } from "./integrity";
-import { leaderboardResponse, parseBoard } from "./leaderboard";
+import { leaderboardResponse, parseBoard, refreshBoards } from "./leaderboard";
 import { acceptInvite, settleDue, startFriend, startRanked, stopWaiting } from "./matches";
 import { issueSet, readDuel, submitPicks } from "./play";
 import { ServiceUnavailable, outboxKey, servicesFor, testDoublesEnabled, type Services } from "./services";
@@ -142,6 +143,10 @@ export default {
         });
         await runIntegritySweep(env, Date.now()).catch((error: unknown) => {
           console.error("duel-api integrity sweep failed", error instanceof Error ? error.name : typeof error);
+        });
+        // Last, so the boards include every settled result and leave off every new flag.
+        await refreshBoards(env, Date.now()).catch((error: unknown) => {
+          console.error("duel-api board refresh failed", error instanceof Error ? error.name : typeof error);
         });
       })(),
     );
