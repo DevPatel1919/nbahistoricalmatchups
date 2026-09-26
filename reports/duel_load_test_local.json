@@ -1,0 +1,274 @@
+{
+  "api": "http://localhost:8790",
+  "players": 20,
+  "seconds": 60,
+  "requests": 3868,
+  "requestsPerSecond": 64,
+  "serverErrors": 0,
+  "rankedOutcomes": {
+    "queued": 62,
+    "joined": 10,
+    "ranked_queue_full": 17,
+    "ranked_exhausted": 68
+  },
+  "cron": {
+    "status": 200,
+    "ms": 17
+  },
+  "routes": {
+    "GET /v1/dev/outbox": {
+      "n": 5,
+      "p50": 92,
+      "p95": 94,
+      "p99": 94,
+      "max": 94,
+      "status": {
+        "200": 5
+      }
+    },
+    "GET /v1/duels/:id ranked": {
+      "n": 163,
+      "p50": 352,
+      "p95": 583,
+      "p99": 721,
+      "max": 751,
+      "status": {
+        "200": 163
+      }
+    },
+    "GET /v1/duels/:id": {
+      "n": 1018,
+      "p50": 180,
+      "p95": 309,
+      "p99": 392,
+      "max": 686,
+      "status": {
+        "200": 1018
+      }
+    },
+    "GET /v1/health": {
+      "n": 1,
+      "p50": 47,
+      "p95": 47,
+      "p99": 47,
+      "max": 47,
+      "status": {
+        "200": 1
+      }
+    },
+    "GET /v1/leaderboard": {
+      "n": 219,
+      "p50": 227,
+      "p95": 372,
+      "p99": 477,
+      "max": 517,
+      "status": {
+        "200": 219
+      }
+    },
+    "POST /v1/account/display-name": {
+      "n": 5,
+      "p50": 336,
+      "p95": 339,
+      "p99": 339,
+      "max": 339,
+      "status": {
+        "200": 5
+      }
+    },
+    "POST /v1/auth/magic-link": {
+      "n": 5,
+      "p50": 320,
+      "p95": 340,
+      "p99": 340,
+      "max": 340,
+      "status": {
+        "202": 5
+      }
+    },
+    "POST /v1/auth/verify": {
+      "n": 5,
+      "p50": 593,
+      "p95": 597,
+      "p99": 597,
+      "max": 597,
+      "status": {
+        "200": 5
+      }
+    },
+    "POST /v1/guests": {
+      "n": 20,
+      "p50": 271,
+      "p95": 274,
+      "p99": 274,
+      "max": 274,
+      "status": {
+        "201": 20
+      }
+    },
+    "POST /v1/sets bot": {
+      "n": 499,
+      "p50": 551,
+      "p95": 729,
+      "p99": 815,
+      "max": 817,
+      "status": {
+        "201": 499
+      }
+    },
+    "POST /v1/sets ranked": {
+      "n": 157,
+      "p50": 527,
+      "p95": 746,
+      "p99": 1042,
+      "max": 1042,
+      "status": {
+        "201": 72,
+        "409 ranked_queue_full": 17,
+        "503 ranked_exhausted": 68
+      }
+    },
+    "POST /v1/sets solo": {
+      "n": 569,
+      "p50": 529,
+      "p95": 726,
+      "p99": 756,
+      "max": 857,
+      "status": {
+        "201": 569
+      }
+    },
+    "POST stop-waiting": {
+      "n": 62,
+      "p50": 457,
+      "p95": 898,
+      "p99": 930,
+      "max": 930,
+      "status": {
+        "200": 62
+      }
+    },
+    "POST submission bot": {
+      "n": 499,
+      "p50": 403,
+      "p95": 593,
+      "p99": 662,
+      "max": 819,
+      "status": {
+        "200": 499
+      }
+    },
+    "POST submission ranked": {
+      "n": 72,
+      "p50": 539,
+      "p95": 1013,
+      "p99": 1058,
+      "max": 1058,
+      "status": {
+        "200": 72
+      }
+    },
+    "POST submission solo": {
+      "n": 569,
+      "p50": 369,
+      "p95": 519,
+      "p99": 705,
+      "max": 706,
+      "status": {
+        "200": 569
+      }
+    }
+  },
+  "probes": [
+    {
+      "name": "a set is issued",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no answer, model probability, or partition in a pre-lock payload",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "another participant cannot read the set",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a forged set token is refused",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "another participant's submission is refused",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a submission without an idempotency key is refused",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "an oversized body is refused",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "picks for other puzzles are refused",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ten racing submissions: exactly one is accepted",
+      "ok": true,
+      "detail": "200,409,409,409,409,409,409,409,409,409"
+    },
+    {
+      "name": "the losers are told it was already submitted",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "the Sparring Partner is disclosed on the result",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "the model benchmark is on the result",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a bad bearer token is 401",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "the review queue is invisible without the admin token",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ranked needs an account",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "account deletion needs a session",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a guest-creation burst from one address is limited with 429",
+      "ok": true,
+      "detail": "1001 requests before 429"
+    },
+    {
+      "name": "the burst produced no server errors",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

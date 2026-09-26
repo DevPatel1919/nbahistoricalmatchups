@@ -20,7 +20,8 @@
     "EMAIL_FROM": "",
     // Multiplies every rate limit. Keep "1" in production.
     "RATE_LIMIT_SCALE": "1",
-    // Seconds the public leaderboard is cached at the edge. "0" turns caching off.
+    // Seconds the daily leaderboard is cached at the edge; the 30-day board is
+    // cached five times as long (src/leaderboard.ts). "0" turns caching off.
     "LEADERBOARD_CACHE_SECONDS": "60"
   },
   "d1_databases": [
