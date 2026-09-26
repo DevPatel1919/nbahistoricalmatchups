@@ -13,6 +13,7 @@
 //   POST /v1/auth/sign-out               (session) -> { ok }
 //   GET  /v1/account                     (session) -> AccountView
 //   POST /v1/account/display-name        (session) { displayName } -> AccountView
+//   POST /v1/account/delete              (session) { confirm: true } -> { ok }; deletes the account and its data
 //   GET  /v1/leaderboard?board=daily|30d public, edge-cached -> LeaderboardView (flagged accounts left off)
 //   GET  /v1/dev/outbox?to=              local test doubles only -> last magic-link email
 //   GET  /v1/admin/flags?status=         ADMIN_TOKEN -> the review queue (admin.ts); 404 without the token
@@ -25,7 +26,7 @@
 // and purges expired sign-in links and sessions.
 
 import { decideFlag, listFlags, requireAdmin, sweepNow } from "./admin";
-import { accountView, requestMagicLink, setDisplayName, signOut, verifyMagicLink } from "./accounts";
+import { accountView, deleteAccount, requestMagicLink, setDisplayName, signOut, verifyMagicLink } from "./accounts";
 import { clientKey, createGuest, requireAccount, requireParticipant } from "./auth";
 import type { Env } from "./env";
 import { ApiError, errorResponse, json, readJson, withCors } from "./http";
@@ -69,6 +70,10 @@ async function route(request: Request, env: Env, services: Services): Promise<Re
   if (method === "POST" && path === "/v1/account/display-name") {
     const { accountId } = await requireAccount(request, env);
     return json(await setDisplayName(env, accountId, await readJson(request)));
+  }
+  if (method === "POST" && path === "/v1/account/delete") {
+    const { accountId } = await requireAccount(request, env);
+    return json(await deleteAccount(env, accountId, await readJson(request)));
   }
   if (method === "GET" && path === "/v1/leaderboard") return leaderboardResponse(env, parseBoard(url.searchParams.get("board")));
 

@@ -1,6 +1,6 @@
 # F09: Duel mode (forecasting game and ranked ladder)
 
-Status: **Sessions 1–7 complete (guest play, optional accounts, ranked duels with matchmaking and Elo, friend duels by invite link, and the leaderboard with anti-abuse flagging and a review queue); Session 8 not started.** The owner decisions that blocked ranked play were recorded on 2026-09-24 (see "Owner decisions"). Owner decisions first recorded 2026-09-22.
+Status: **Sessions 1–8 complete (guest play, optional accounts, ranked duels with matchmaking and Elo, friend duels by invite link, the leaderboard with anti-abuse flagging and a review queue, and the Session 8 hardening and release gate).** Nothing is deployed; what remains is owner setup and a staging run of the load test (Session 8 record). The owner decisions that blocked ranked play were recorded on 2026-09-24 (see "Owner decisions"). Owner decisions first recorded 2026-09-22.
 
 This brief is implemented over multiple sessions. Each session in the session
 plan is independently assignable, ends in a verifiable state, and has its own
@@ -195,9 +195,9 @@ single correct call; if still level, the duel is a draw.
 The ladder is the asset being attacked. Threats, in priority order, with the
 control each session must deliver.
 
-Where each control stands after Session 7, including the two parts that are
-deferred and why, is in the Session 7 handoff record ("Abuse model: control
-status").
+Where each control stands after Session 7 is in the Session 7 handoff record
+("Abuse model: control status"). Session 8 settled the two parts deferred
+there (its record, "Deferred controls, decided").
 
 | Threat | Control |
 |---|---|
@@ -1373,3 +1373,347 @@ against it.
 - Review the leaderboard and review-notice copy against the brand and
   integrity gates.
 - Owner policy: what, beyond staying off the board, an upheld flag means.
+
+### 2026-09-26 — Session 8: hardening and release gate
+
+**Shipped.** Worker: migration `0005_hardening.sql` (indexes only), a
+rewritten integrity sweep, a bounded settler and leaderboard, account
+deletion (`POST /v1/account/delete`), a wider purge, and a rate limiter that
+survives a refused KV write. Tests: `test/cost-profile.test.ts` with the
+metering wrappers in `test/meter.ts`, and `test/privacy.test.ts`. Script:
+`scripts/load-test.mjs`, with the local run's report in
+`reports/duel_load_test_local.json`. Frontend: a "Delete account" section on
+`/account`, and a duel-mode paragraph in the About page's privacy section.
+Branch `f09-hardening`.
+
+**Acceptance.**
+
+| Check | Status |
+|---|---|
+| Load test results and costs are recorded | Done for a local run and for metered per-request cost (below). **Owner:** repeat the load test against a staging deploy for real edge latency and CPU time |
+| Stored identifiers are justified and minimized | Done (privacy review below); account deletion added |
+| All product copy passes the integrity and brand gates | Done (copy review below); two fixes |
+| The handoff decision log records the move into server state | Done (`docs/product/HANDOFF.md`) |
+
+#### Cost profile
+
+Each API flow runs through the real router with D1 and KV wrapped to count
+what Cloudflare bills: D1 queries and the `rows_read` and `rows_written` from
+each result's `meta`, and KV reads and writes. A month of rated play (30,000
+human-vs-human matches among 2,000 accounts, about 1,000 a day) is then
+seeded into D1 for the scheduled jobs and the boards. The test asserts
+budgets, so a query loop or a scan of all history fails it. To refresh these
+figures, set `PRINT` in the test to true.
+
+Per request (fixture pool, small database):
+
+| Flow | D1 queries | Rows read | Rows written | KV reads | KV writes |
+|---|---|---|---|---|---|
+| `POST /v1/guests` | 1 | 0 | 3 | 1 | 1 |
+| Issue a solo set | 2 | 2 | 5 | 10 | 2 |
+| Submit a solo set | 14 | 7 | 29 | 6 | 1 |
+| Issue a bot set | 2 | 2 | 5 | 10 | 2 |
+| Submit a bot set | 15 | 22 | 29 | 6 | 1 |
+| Read a revealed duel | 3 | 3 | 0 | 0 | 0 |
+| Request a sign-in link | 1 | 0 | 3 | 2 | 2 |
+| Verify (new account, guest merge) | 17 | 67 | 52 | 3 | 3 |
+| `GET /v1/account` | 5 | 5 | 0 | 0 | 0 |
+| Issue a ranked set (queues) | 19 | 20 | 21 | 13 | 2 |
+| Lock in, then wait | 20 | 20 | 23 | 6 | 1 |
+| Issue a ranked set (joins) | 18 | 31 | 18 | 7 | 2 |
+| Lock in, then settle (rated) | 44 | 59 | 67 | 11 | 1 |
+| Poll a waiting seat | 9 | 13 | 0 | 0 | 0 |
+| Accept a friend invite | 7 | 17 | 8 | 7 | 2 |
+| Cron: settle one rated forfeit | 26 | 37 | 43 | 5 | 0 |
+
+At a month's scale, before and after this session's fixes:
+
+| Job | Before | After |
+|---|---|---|
+| Integrity sweep | **1,010 queries**, 211,053 rows | 9 queries, 212,180 rows |
+| Settler, nothing due | 18 queries, 120,065 rows (all history) | 1 query, 14,004 rows (7 days) |
+| 30-day board, uncached | 482,014 rows (all history) | 370,022 rows (the window) |
+| Daily board, uncached | 70,324 rows | 11,813 rows |
+
+**Three findings, fixed.**
+
+1. **The sweep would have failed in production.** It ran one query per
+   account with rated play in the last day. D1 allows 1,000 queries per
+   Worker invocation on the paid plan and 50 on the free plan (Cloudflare's
+   D1 limits page, read 2026-09-26). At about 1,000 active accounts a day,
+   every sweep would have errored, so nothing would be flagged. It now reads
+   every active account's last 50 sets in one query. Reading the last 50 and
+   dropping those at or before a review equals the old "last 50 after the
+   review", because the sets after a review are always the newest.
+2. **The cron's settle loop could exceed the same limit.** It settled up to
+   50 matches per run at about 26 to 44 queries each. It now settles at most
+   `SETTLE_PER_SWEEP` (10) per run, about 260 queries, leaving room for the
+   sweep. Anything left over settles on the next run, or when a seat is read.
+3. **Three queries grew with all history, not their window.**
+   - The settler scanned every match ever made. It now reads matches whose
+     joining window closed in the last 7 days (`SETTLE_LOOKBACK_MS`), through
+     the `matches_open` index.
+   - The boards walked the whole rating ledger by account to avoid a sort.
+     They now use the ledger's time index (an `INDEXED BY` hint), total per
+     account first, and look up name, rating, and flags once per account
+     rather than once per result.
+   - The sweep's detectors had no index on `play_metrics.submitted_at` or
+     `match_resolutions.resolved_at`. Migration 0005 adds both.
+
+The 30-day board still reads about six rows per rated result in its window,
+which is the floor without denormalising. The edge cache pays for it: the
+30-day board is now cached for `THIRTY_DAY_CACHE_FACTOR` (5) times
+`LEADERBOARD_CACHE_SECONDS`, so 5 minutes by default, and the daily board for
+60 s. The Cache API is per data centre, so each busy location recomputes on
+its own schedule.
+
+**Other hardening.** KV refuses more than one write per second to one key,
+and on the free plan more than 1,000 writes a day. Players behind one NAT
+share an IP counter, so a refused counter write used to fail the request with
+a 500. It is now logged and the request goes on. The counts that did land
+still enforce the limit, and the D1 constraints are unaffected.
+
+#### Monthly cost
+
+Prices are from Cloudflare's Workers, D1, and KV pricing pages, read
+2026-09-26:
+
+- Workers Paid: $5 a month, including 10M requests.
+- D1: 25B rows read and 50M rows written included; then $0.001 per million
+  rows read and $1.00 per million written.
+- KV: 10M reads and 1M writes included; then $0.50 per million reads and
+  $5.00 per million writes.
+
+The model multiplies the measured figures above by daily volumes. It assumes
+every data centre that serves the board keeps it warm all day, which is the
+worst case.
+
+| Scenario (per day) | Requests / month | D1 rows read / month | D1 rows written | KV reads / writes | Cost / month |
+|---|---|---|---|---|---|
+| Launch: 2,000 unranked sets, 500 guests, 50 sign-ins, 100 rated matches, 3 locations | 0.29M | 1.2B | 2.6M | 1.1M / 0.22M | **$5.00** |
+| 1,000 rated a day: 10,000 unranked sets, 3,000 guests, 300 sign-ins, 1,000 rated matches, 5 locations | 1.9M | 19.2B | 14.8M | 6.0M / 1.2M | **$6.08** (KV writes $1.07) |
+| 10× that, 10 locations | 18.6M | 377B | 148M | 60M / 12M | **about $540** (D1 reads $451, KV $81) |
+
+Conclusions:
+
+- **Duel mode needs Workers Paid.** The free plan's 50 D1 queries per
+  invocation fall below a rated settle (44) plus its reads. Its 10 ms of CPU
+  per request, 5M rows read a day, and 1,000 KV writes a day are also too
+  small for launch traffic.
+- Up to about 1,000 rated matches a day, the product costs the $5 base
+  price.
+- **Beyond that, the first cost to fix is the 30-day board**, which is 85% of
+  the 10× bill. Compute it once per sweep into a KV snapshot, or keep running
+  totals per account, instead of once per location every 5 minutes. The
+  trigger is D1 rows read passing about 20B a month in the dashboard. The
+  second cost is KV writes for rate-limit counters. Move short windows to
+  Cloudflare's rate-limiting binding if KV writes pass about 5M a month.
+- CPU time was not measured locally. The staging run should read it from the
+  Worker's metrics. At 30M CPU-ms included, the average request can use about
+  15 ms at the 1,000-a-day volume before CPU is billed.
+
+#### Load and abuse test
+
+`scripts/load-test.mjs` runs against any Worker URL:
+
+- **Load.** `players` guests play solo and bot sets back to back and read the
+  boards. A quarter as many accounts sign in through the local email outbox,
+  become eligible, and play ranked against each other through the real queue.
+- **Probes.** 18 abuse probes follow, each stating what must hold.
+- **Exit status.** The script exits 1 on any 5xx or any failed probe.
+
+Local run (`wrangler dev` on Windows, fixture pool, `RATE_LIMIT_SCALE` 100,
+20 guests plus 5 ranked accounts, 60 s):
+
+| Measure | Result |
+|---|---|
+| Requests | 3,868 at 64/s |
+| Server errors | **0** |
+| Ranked outcomes | 72 sets dealt (62 queued, 10 joined), 17 `ranked_queue_full`, 68 `ranked_exhausted` |
+| Scheduled handler (settle, then sweep) | 200 in 17 ms |
+| p50 / p95 latency | issue a set about 530 / 730 ms; submit about 370 / 590 ms; read a duel 180 / 310 ms; board 227 / 372 ms |
+
+`ranked_exhausted` is the designed answer, not a fault. The fixture pool has
+200 ranked puzzles, and every account runs through its unseen ones or hits
+the 30-day cooldown within seconds. The real pool has thousands.
+
+**These latencies measure local emulation, not Cloudflare.** One workerd
+process writes SQLite files on Windows, and latency rose with concurrency
+(40 players pushed the median past a second on the same machine). Real edge
+latency and CPU time come only from staging.
+
+All 18 probes held:
+
+- Pre-lock payloads carry no answer, model probability, or partition.
+- Another participant can neither read nor submit to someone else's set.
+- A forged set token, a missing idempotency key, an oversized body, and picks
+  for other puzzles are all refused.
+- **Ten racing submissions produce exactly one 200 and nine 409
+  `already_submitted`.**
+- The result shows the Sparring Partner disclosure and the model benchmark.
+- A bad bearer token gets 401. The review queue answers 404 without the
+  admin token. Ranked needs an account, and deletion needs a session.
+- A guest-creation burst from one address was limited at exactly 1,001
+  requests (10 an hour × the scale of 100), with 429 and no 5xx.
+
+To run it against staging, the owner deploys a separate staging Worker, with
+its own D1 database and KV namespaces and the real pool. Then:
+
+1. Set `RATE_LIMIT_SCALE` high for the run. On a deployed Worker, Cloudflare
+   replaces `cf-connecting-ip`, so every virtual player shares the test
+   machine's address.
+2. Run `node scripts/load-test.mjs --api https://<staging>`.
+3. Record latency from the report, and CPU time from the dashboard's Worker
+   metrics.
+4. Restore `RATE_LIMIT_SCALE` to "1".
+
+The ranked part needs the auth doubles, so it runs only locally; staging
+measures the guest and board paths.
+
+#### Deferred controls, decided
+
+- **Edge-caching puzzle reads: not adding a separate cache.** Every set is
+  drawn for one player, so there is no shared response to cache. The pieces
+  are already cached at the edge, because every pool read (the 3 band indexes
+  and the 5 puzzles) uses KV's `cacheTtl` of 300 s. KV bills a read whether or
+  not it is cached, so a Cache API layer in front would only cut the KV read
+  bill: 16 reads per unranked set, and 6.0M a month at 1,000 rated a day,
+  inside the 10M included. Revisit when KV reads pass 10M a month.
+- **Device fingerprinting: not adopted.** It would need a stable device
+  identifier. That is more data than the minimisation in Session 5 allows,
+  and the defences it would add are already covered: the per-IP and per-ASN
+  creation limits, Turnstile, the ranked gate, the network signal, and the
+  collusion detectors.
+
+#### Privacy review
+
+Every stored identifier, why it exists, and how long it lives:
+
+| Where | What | Why | Lifetime |
+|---|---|---|---|
+| `guests` | random guest id, creation time, the account it merged into | Guest play without an account | Until the account is deleted; a guest that never played is purged after 30 days (**new**) |
+| `accounts` | random id, `email_hash` (HMAC of the canonical address), display name and its folded key, rename time | Sign-in, uniqueness, the board | Until deleted (**new**) |
+| `magic_links`, `magic_link_redemptions` | SHA-256 of the link, `email_hash`, times | Single-use sign-in | Purged a day after expiry |
+| `sessions` | SHA-256 of the token, account id, times | Staying signed in | Purged a day after expiry or revocation |
+| `duels`, `submissions`, `scored_picks` | participant, set, picks, points, time to lock in | Play, reveal, calibration, bot matching | Kept for play history. An expired set that was never locked in is purged after a day (**new**). Deleted with the account |
+| `play_metrics` | per rated set: timing, accuracy, tier mix, model agreement | Detectors, review context | Deleted with the account |
+| `matches`, `match_seats`, `match_resolutions` | the pairing and result | Ranked and friend duels, the board | Own seat deleted with the account; a match with no seats left is removed |
+| `ratings`, `rating_changes` | rating and ledger | Elo, audit, the board | Deleted with the account |
+| `ranked_exposures` | puzzles shown to an account | The reuse rule | Deleted with the account |
+| `integrity_flags` | account, related account, evidence counts, reviewer note | Review queue | Deleted with the account. A flag on someone else that names a deleted account keeps a bare id that no longer resolves |
+| `account_links` | two account ids | Same-network detection without storing the network | Deleted with either account |
+| KV `rl:*` | keyed hash of IP or subject, a count | Rate limits | TTL of two windows, at most two days |
+| KV `sig:net:*` | keyed IP hash, up to 20 account ids | Same-day network signal | Two days. A deleted account in it is skipped (**new**) |
+| `served_answers`, `ranked_reveals` | puzzle ids and times only | Answer and reuse bookkeeping | No personal data |
+
+No IP address, user agent, email address, or device identifier is stored
+anywhere. IPs appear only as keyed hashes in expiring KV keys. Reviewer notes
+must not contain personal data, and there is no email address to put in one.
+
+**Account deletion.** `POST /v1/account/delete { confirm: true }` (session
+required) runs one D1 batch that deletes:
+
+- sessions and sign-in links;
+- merged guest ids;
+- every set, pick, submission, and metrics row;
+- the account's seats, and any match left with no seat;
+- the rating and ledger, exposures, flags against it, and network links;
+- the account row itself.
+
+Opponents keep their own results and rating changes, which stay
+self-consistent (tested against the ledger). The deleted player's name in
+their stored results becomes "A deleted player".
+
+Deletion is refused with `409 match_in_progress` while a match with an
+opponent seated is unresolved. Settling that match needs both accounts, and
+it resolves within one set's time limit plus one sweep, about 35 minutes. The
+refusal is a guard statement inside the batch, so a join racing the deletion
+cannot slip past it. The same address can sign up again later and starts
+fresh. On `/account` the deletion is two steps, with no browser dialog.
+
+The purge (in the sweep) now also removes solo and bot sets that expired
+without a lock-in, and guests that never played, 2,000 rows per table per
+pass. A browser holding a purged guest token gets a new one on its next call
+(`duelApi.ts` already does this).
+
+#### Copy review
+
+Every duel screen, the account page, and the About page were read against
+the integrity and brand gates:
+
+- **Integrity.**
+  - The model is always "Pre-game model", labelled a fixed benchmark, with
+    the trained-through-2021 caveat on every result.
+  - The bot is always the disclosed Sparring Partner.
+  - The reveal says one set is a small sample.
+  - No accuracy figure is quoted on a duel screen.
+  - "For fun only: no entry fees, prizes, or betting" appears on `/duel`,
+    `/duel/join`, and the board.
+- **Brand.** No logos, and the league appears only as plain text ("real NBA
+  games"). The footer's "unofficial fan project, not affiliated" line is on
+  every page. Plain-text league and team names remain subject to the F00
+  rights review, as before.
+- **Two fixes.**
+  - The About page said "there's no live server or database behind this
+    site". That is false once duel mode is on. It now says the matchups and
+    tournaments have none, and that duel mode is the one part on a server.
+  - Its privacy section did not mention duel mode at all. It now describes
+    what duel mode stores and for how long, and points to account deletion.
+    Both appear only when `VITE_DUEL_API` is set.
+
+**Interface changes.**
+
+- New endpoint: `POST /v1/account/delete`.
+- New error code: `match_in_progress` (409).
+- New constants:
+  - `DELETED_PLAYER_NAME` (`accounts.ts`);
+  - `SETTLE_LOOKBACK_MS` and `SETTLE_PER_SWEEP` (`matches.ts`);
+  - `THIRTY_DAY_CACHE_FACTOR` (`leaderboard.ts`);
+  - `GUEST_IDLE_PURGE_MS` and `PURGE_BATCH` (`integrity.ts`).
+- `settleDue` now defaults to 10 per run instead of 50.
+- The 30-day board's `cache-control` max-age is 5× the setting.
+- Frontend: `deleteAccount()` in `duelApi.ts`, and a `btn--danger` style.
+
+**Mutation checks.** Each was applied alone, with the privacy and cost suites
+run against it:
+
+| Mutation | Result |
+|---|---|
+| Deletion does not replace the name in opponents' results | 2 tests fail |
+| No in-progress guard on deletion | 1 test fails |
+| Settler scans all history | 1 test fails |
+| Board without the index hint | 1 test fails |
+| Settler per-run cap raised to 50 | 1 test fails |
+| Purge skips abandoned sets | 1 test fails |
+| Network signal keeps deleted ids | 1 test fails |
+
+**Verification.**
+
+| Check | Command | Result |
+|---|---|---|
+| Types + build | `cd frontend && npm run build` | passes |
+| Lint | `npm run lint` | clean |
+| Unit | `npm test` | 142 passed |
+| E2E | `npx playwright test` | 48 passed (1 new in `account.spec.ts`) |
+| Worker | `cd worker && npx tsc --noEmit && npm test` | clean; 119 passed (3 in `cost-profile.test.ts`, 6 in `privacy.test.ts`) |
+| Python | `python -m pytest tests` / `python src/models/test_pregame_leakage.py` | 40 passed / exit 0 |
+| Load and abuse | `node scripts/load-test.mjs` (local) | 0 server errors, 18 of 18 probes |
+
+**Owner configuration added by Session 8.**
+
+1. Use the **Workers Paid** plan ($5 a month) for the duel Worker. The free
+   plan's per-invocation D1 query limit is below what a rated settle needs.
+2. Back up D1, then run `npm run db:migrate:remote` to apply
+   `0005_hardening.sql`. It only adds indexes.
+3. Run the load test against a staging deploy, then record its latency and
+   the dashboard's CPU time here (steps above).
+4. Watch D1 rows read and KV writes in the dashboard against the triggers in
+   "Monthly cost".
+
+**Not done / owner decisions.**
+
+- The staging load run. It needs a Cloudflare account and a deploy.
+- What an upheld flag means beyond staying off the board. It is still an
+  owner decision, and nothing heavier is built.
+- The `rest_days` flooring retrain, which belongs to the model work (see
+  "Owner decisions").

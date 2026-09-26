@@ -1824,6 +1824,23 @@ button {
   gap: 12px;
 }
 
+.account__delete {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  max-width: 560px;
+}
+
+.account__delete .account__actions {
+  margin-top: 12px;
+}
+
+/* Outlined, so the red text keeps its contrast on both themes' backgrounds. */
+.btn--danger {
+  border-color: var(--loss);
+  color: var(--loss);
+}
+
 /* --- Duel leaderboard (F09 Session 7) -----------------------------------*/
 
 .board__tabs {

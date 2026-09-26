@@ -8,6 +8,7 @@ import {
   DUEL_API,
   DuelApiError,
   TURNSTILE_SITE_KEY,
+  deleteAccount,
   describeDuelError,
   fetchAccount,
   requestSignInLink,
@@ -15,7 +16,7 @@ import {
   updateDisplayName,
 } from "../lib/duelApi";
 
-type State = { kind: "loading" } | { kind: "signed-out" } | { kind: "signed-in"; account: AccountView } | { kind: "error"; message: string };
+type State = { kind: "loading" } | { kind: "signed-out"; deleted?: boolean } | { kind: "signed-in"; account: AccountView } | { kind: "error"; message: string };
 
 function errorCode(e: unknown): string {
   return e instanceof DuelApiError ? e.code : "unknown";
@@ -234,6 +235,61 @@ function RankedStatus({ account }: { account: AccountView }) {
   );
 }
 
+/** Two steps, no browser dialog: the first button only reveals what will be deleted. */
+function DeleteAccount({ onDeleted }: { onDeleted: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const remove = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteAccount();
+      onDeleted();
+    } catch (e) {
+      setError(describeDuelError(e));
+      track({ name: "app_error", surface: "account-delete", code: errorCode(e) });
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="account__delete">
+      <h2>Delete account</h2>
+      {confirming ? (
+        <>
+          <p>
+            This deletes your account, your display name, your rating and rating history, and every set you've
+            played, including guest sets that moved to this account. It can't be undone. Players you've faced keep
+            their own results, with your name replaced by "A deleted player".
+          </p>
+          <div className="account__actions">
+            <button type="button" className="btn btn--danger" disabled={busy} onClick={() => void remove()}>
+              {busy ? "Deleting…" : "Yes, delete everything"}
+            </button>
+            <button type="button" className="btn" disabled={busy} onClick={() => setConfirming(false)}>
+              Keep my account
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="duel__fine">You can delete your account and its history at any time.</p>
+          <button type="button" className="btn" onClick={() => setConfirming(true)}>
+            Delete account…
+          </button>
+        </>
+      )}
+      {error && (
+        <p className="duel__error" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function AccountPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -288,6 +344,11 @@ export default function AccountPage() {
           {state.message}
         </p>
       )}
+      {state.kind === "signed-out" && state.deleted && (
+        <p className="account__ok" role="status">
+          Your account and its history were deleted. You can keep playing as a guest.
+        </p>
+      )}
       {state.kind === "signed-out" && <SignInForm />}
       {state.kind === "signed-in" && (
         <>
@@ -315,6 +376,7 @@ export default function AccountPage() {
               Sign out
             </button>
           </div>
+          <DeleteAccount onDeleted={() => setState({ kind: "signed-out", deleted: true })} />
         </>
       )}
       <p className="duel__fine">

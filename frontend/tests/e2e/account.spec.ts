@@ -137,6 +137,43 @@ test.describe("360px account flow", () => {
     // Guest play still works after signing out.
     await playQuickSet(page);
   });
+
+  test("a player deletes their account; its history goes with it and guest play carries on", async ({ page, request }) => {
+    await stubTurnstile(page);
+    const duelPath = await playQuickSet(page);
+    await page.goto("/account");
+    const email = freshEmail();
+    await requestLink(page, email);
+    await page.goto(await linkFor(request, email));
+    await expect(page.getByRole("heading", { name: "Your account" })).toBeVisible();
+    await expect(page.locator(".account__checklist")).toContainText("1 of 10");
+
+    // The first button only explains; nothing is deleted until the second.
+    await page.getByRole("button", { name: "Delete account…" }).click();
+    await expect(page.locator(".account__delete")).toContainText("can't be undone");
+    await expectNoHorizontalOverflow(page);
+    await page.getByRole("button", { name: "Keep my account" }).click();
+    await expect(page.getByRole("button", { name: "Delete account…" })).toBeVisible();
+    await page.getByRole("button", { name: "Delete account…" }).click();
+    await page.getByRole("button", { name: "Yes, delete everything" }).click();
+
+    await expect(page.getByText("Your account and its history were deleted")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    // The set played before signing in went with the account.
+    await page.goto(duelPath);
+    await expect(page.getByTestId("model-benchmark")).toHaveCount(0);
+    await expect(page.getByRole("alert")).toBeVisible();
+    // Signing in again with the same address starts a fresh account.
+    await page.goto("/account");
+    await requestLink(page, email);
+    await page.goto(await linkFor(request, email));
+    await expect(page.locator(".account__checklist")).toContainText("0 of 10");
+    await expect(page.locator(".account__checklist")).toContainText("Choose a display name");
+    // And guest play still works.
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await playQuickSet(page);
+  });
 });
 
 test("a failed human check is reported and the widget is reset", async ({ page }) => {

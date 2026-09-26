@@ -1,7 +1,8 @@
 # F09 continuation handoff (duel mode and ranked ladder)
 
 Written 2026-09-24 for whoever continues F09, updated the same day after
-Sessions 5 and 6, and updated on 2026-09-25 after Session 7. This is the entry point for the next session. The authoritative detail is in
+Sessions 5 and 6, on 2026-09-25 after Session 7, and on 2026-09-26 after
+Session 8, the last build session. This is the entry point for whoever picks F09 up next. The authoritative detail is in
 [`F09-daily-duel.md`](F09-daily-duel.md): the brief, plus one handoff record
 per finished session. This file summarizes it and does not replace it.
 
@@ -18,12 +19,13 @@ Read first, in order: `CONTRIBUTING.md`, `docs/product/HANDOFF.md`,
 | 4 | Frontend play surface (`/duel`, `/duel/:duelId`) | Done |
 | 5 | Accounts (magic link, Turnstile, names, ranked eligibility) | Done (PR #4, merge commit `e7643a9`) |
 | 6 | Ranked duels, matchmaking, friend invites, Elo application | Done (PR #5, merge commit `238e43a`) |
-| 7 | Leaderboard and anti-abuse enforcement | Done (branch `f09-leaderboard`) |
-| 8 | Hardening, load/cost review, release gate | **Next**. The load test and cost figures need a deployed (staging) environment |
+| 7 | Leaderboard and anti-abuse enforcement | Done (PR #6, merge commit `2383d23`) |
+| 8 | Hardening, load/cost review, release gate | Done (branch `f09-hardening`). The owner still runs the load test against a staging deploy |
 
 Sessions 1–4 were merged to `main` in PR #3 (merge commit `3ad3858`), which
 also merged F01–F05. Session 5 was merged in PR #4 (merge commit `e7643a9`),
-and Session 6 in PR #5 (merge commit `238e43a`).
+Session 6 in PR #5 (merge commit `238e43a`), and Session 7 in PR #6 (merge
+commit `2383d23`).
 Nothing is deployed: duel mode
 stays off on the live site until the owner does the setup below and sets
 `VITE_DUEL_API`.
@@ -36,7 +38,8 @@ duels: asynchronous, matchmade by rating, with Elo recorded in an audit
 ledger. Anyone can challenge a friend by invite link (unranked). Rated players
 appear on a daily and a 30-day leaderboard. Detectors flag suspicious
 accounts, and a flag only keeps an account off the board until a reviewer
-decides; nothing auto-bans. The pre-game model appears on every result as a fixed benchmark. The
+decides; nothing auto-bans. A player can delete their account and its data
+from `/account`. The pre-game model appears on every result as a fixed benchmark. The
 static explorer and tournaments never call the Worker, and they are tested with
 it unreachable.
 
@@ -59,9 +62,11 @@ it unreachable.
 | Pages / components | `frontend/src/pages/Duel*.tsx` (incl. `DuelJoinPage` at `/duel/join`, `DuelLeaderboardPage` at `/duel/leaderboard`), `Account*.tsx`, `frontend/src/components/duel/` (incl. `DuelWaiting`), `components/account/` | Gated on `VITE_DUEL_API`; the sign-in form also needs `VITE_TURNSTILE_SITE_KEY` |
 | Analytics | `frontend/src/lib/analytics.ts` | Added `duel_started`, `duel_completed`, `account_signed_in`. Failures use `app_error` (`duel-start`, `duel-submit`, `duel-load`, `account-link`, `account-verify`, `account-name`, `account-load`) |
 | E2E | `frontend/tests/e2e/duel.spec.ts`, `account.spec.ts`, `ranked.spec.ts` (includes the leaderboard) | Playwright starts `wrangler dev` on 8788 with a fresh fixture pool, the localhost-only auth doubles, an e2e `ADMIN_TOKEN`, and an uncached board (`frontend/playwright.config.ts`) |
-| Worker tests | `worker/test/*.test.ts`, shared `helpers.ts` | `integrity.test.ts` holds the Session 7 acceptance scenarios |
+| Worker tests | `worker/test/*.test.ts`, shared `helpers.ts` | `integrity.test.ts` holds the Session 7 acceptance scenarios; `privacy.test.ts` holds deletion and the purge |
+| Cost profile | `worker/test/cost-profile.test.ts`, `meter.ts` | Metered D1 and KV per flow plus a seeded month of rated play; asserts query and row budgets |
+| Load and abuse test | `worker/scripts/load-test.mjs` | Local or staging; latency and statuses per route plus 18 probes. Local results in `reports/duel_load_test_local.json` |
 
-### Worker API (Sessions 3–7)
+### Worker API (Sessions 3–8)
 
 | Method + path | Auth | Returns |
 |---|---|---|
@@ -77,7 +82,8 @@ it unreachable.
 | `POST /v1/auth/sign-out` | session | `{ ok }` |
 | `GET /v1/account` | session | `AccountView` |
 | `POST /v1/account/display-name` `{ displayName }` | session | `AccountView` (includes `hiddenFromBoard`) |
-| `GET /v1/leaderboard?board=daily\|30d` | none; edge-cached | `LeaderboardView` (flagged accounts left off) |
+| `POST /v1/account/delete` `{ confirm: true }` | session | `{ ok }`; `409 match_in_progress` while a match with an opponent is unresolved |
+| `GET /v1/leaderboard?board=daily\|30d` | none; edge-cached (30d for 5× as long) | `LeaderboardView` (flagged accounts left off) |
 | `GET /v1/admin/flags?status=` | `ADMIN_TOKEN`; else 404 | the review queue |
 | `POST /v1/admin/flags/:id` `{ decision, note? }` | `ADMIN_TOKEN` | the decided flag |
 | `POST /v1/admin/sweep` | `ADMIN_TOKEN` | runs the detectors now |
@@ -88,7 +94,9 @@ keyed by participant, and a guest upgrade re-keys `g:` rows to `a:` in one D1
 batch; that includes `match_seats`. `POST /v1/sets { mode: "ranked" }` runs
 `assertRankedEligible` first. A scheduled handler runs every 15 minutes. It
 settles matches whose timeout has passed, then runs the integrity sweep, which
-raises flags and purges expired links and sessions.
+raises flags and purges expired links and sessions, expired unplayed solo and
+bot sets, and guests that never played. The settler handles at most 10 matches
+per run, because D1 allows 1,000 queries per invocation.
 
 ## How to verify (all must pass before finishing any session)
 
@@ -99,8 +107,11 @@ python -m pytest tests
 python src/models/test_pregame_leakage.py        # must exit 0
 ```
 
-Baseline after Session 7 (branch `f09-leaderboard`): frontend 142 unit + 47
-Playwright; worker 110; Python 40. (At `238e43a` it was 140 + 46, 75, and 40.)
+Baseline after Session 8 (branch `f09-hardening`): frontend 142 unit + 48
+Playwright; worker 119; Python 40. (After Session 7 it was 142 + 47, 110, and
+40.) Session 8 also added `node worker/scripts/load-test.mjs` against a local
+`wrangler dev` (usage in its header). It must report no server errors and no
+failed probes.
 
 ## Decisions already made (don't relitigate)
 
@@ -171,6 +182,10 @@ All four are recorded in the F09 brief's "Owner decisions" section.
     tables. Then `wrangler secret put ADMIN_TOKEN` (at least 32 random
     characters), and review flags regularly with `scripts/review-queue.mjs`.
     An unreviewed false positive keeps an honest player off the board.
+11. For hardening (Session 8): put the duel Worker on **Workers Paid**. The
+    free plan's 50 D1 queries per invocation are too few. Back up D1, then run
+    `npm run db:migrate:remote` for `0005_hardening.sql`, which only adds
+    indexes. Run the load test against staging (Session 8 record).
 
 ## Gotchas found in this implementation
 
@@ -203,25 +218,26 @@ All four are recorded in the F09 brief's "Owner decisions" section.
 - **Worker tests inject services.** Call `handle(request, env, services)` with
   `MemoryMailer` and `DummyTokenCheck`. `exports.default` uses the production
   wiring, which fails closed without secrets.
-## Next session: 8 (hardening and release gate)
+## What remains after Session 8
 
-Session 7 is on branch `f09-leaderboard`; merge it first. Session 8 covers:
+F09's build sessions are done. Session 8 is on branch `f09-hardening`; merge
+it first. What is left is owner work, plus changes to make only if the
+numbers call for them:
 
-- A load and abuse test with results and costs recorded. Include the
-  integrity sweep, which scans 30 days of rated matches every 15 minutes, and
-  make it incremental if the numbers call for it.
-- The deferred decision on edge-caching puzzle reads (see the Session 7 control
-  status table).
-- A privacy review of stored identifiers. Session 7 added `play_metrics`,
-  `integrity_flags`, `account_links`, and the short-lived KV network entry.
-- Account deletion. Its cascade must cover `play_metrics`,
-  `integrity_flags`, `account_links`, and the rating ledger.
-- A copy review of every duel screen against the integrity and brand gates.
-- The decision-log entry in `docs/product/HANDOFF.md` for the move into server
-  state.
-
-The owner decides what an upheld flag means beyond staying off the board.
-Nothing heavier is built.
+- **Deploy.** Follow "Owner setup before any deploy" above, on the Workers
+  Paid plan.
+- **Staging load run.** Run `worker/scripts/load-test.mjs` against a staging
+  deploy. Record its latency, and the dashboard's CPU time, in the Session 8
+  record (the steps are there).
+- **Cost triggers.** Past about 20B D1 rows read a month, precompute the
+  30-day board once per sweep instead of once per data centre. Past about 5M
+  KV writes a month, move short rate-limit windows to Cloudflare's
+  rate-limiting binding. Past 10M KV reads, reconsider a Cache API layer for
+  puzzle reads.
+- **Owner policy.** What an upheld flag means beyond staying off the board.
+  Nothing heavier is built.
+- **Anomaly baselines.** Set thresholds for confidence entropy and model
+  agreement once launch data exists (Session 7 recorded them without a rule).
 
 Gotchas found in Session 7:
 
@@ -243,18 +259,26 @@ Gotchas found in Session 7:
   `integrity_flags_one_open`. Upserts must name its `WHERE status = 'open'`
   in `ON CONFLICT`.
 
-### Kickoff prompt (Session 8)
+Gotchas found in Session 8:
 
-```text
-Continue F09 for Court of All Time: implement Session 8 (hardening and release
-gate). Read CONTRIBUTING.md, docs/product/HANDOFF.md,
-docs/product/features/F09-daily-duel.md (all of it, including the Session 7
-record), and docs/product/features/F09-continuation-handoff.md before
-changing anything. Branch from main. Run a load and abuse test against a
-deployed staging Worker and record results and costs, including the
-integrity sweep; decide the deferred puzzle-read caching; review every stored
-identifier for need and minimisation and add account deletion; review all duel
-copy against the integrity and brand gates; and record the move into server
-state in the HANDOFF.md decision log. Run every check in "How to verify" and
-update the brief and HANDOFF.md before finishing. Small commits.
-```
+- **D1 counts queries per invocation.** The limit is 1,000 on the paid plan
+  and 50 on the free plan, and it covers everything one request or one cron
+  run does. Never write a query per account or per row in the scheduled
+  handler. `test/cost-profile.test.ts` asserts the budgets.
+- **SQLite may ignore a time index.** To avoid a sort before `GROUP BY`,
+  SQLite may walk an index in the wrong order, which is why the board has
+  `INDEXED BY rating_changes_created`. Check new window queries with
+  `EXPLAIN QUERY PLAN`, and measure them against the seeded month in the
+  cost profile.
+- **Console output from workerd tests never reaches the terminal.** To see
+  the cost figures, flip `PRINT` in `cost-profile.test.ts`; they arrive as an
+  assertion diff.
+- **Stopping `wrangler dev` from a background shell can leave workerd
+  running.** It keeps serving old state on its port, which makes a "fresh"
+  run look wrong. Check the port before a load run: `netstat -ano`, or
+  PowerShell `Get-NetTCPConnection -LocalPort <port>`. Kill leftover
+  `wrangler dev` processes by command line, and use a new
+  `--persist-to` directory.
+- **Deletion is a single batch with a guard.** A new table keyed to an
+  account needs a `DELETE` in `deleteAccount` (`accounts.ts`). The privacy
+  test's "no row anywhere mentions the account" check fails until it has one.
