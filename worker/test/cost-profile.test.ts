@@ -9,7 +9,7 @@
 import { env } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
 import { runIntegritySweep } from "../src/integrity";
-import { leaderboard } from "../src/leaderboard";
+import { boardSnapshot, leaderboard, refreshBoards } from "../src/leaderboard";
 import { SETTLE_PER_SWEEP, settleDue } from "../src/matches";
 import { TURNSTILE_DUMMY_TOKEN } from "../src/services";
 import { account, auth, call, emptyQueue, guest, lock, mailer, picksFor, post, ranked, unique } from "./helpers";
@@ -109,10 +109,11 @@ describe("per-request cost", () => {
     await lock(creator.token, again.body, picksFor(again.body.puzzles));
     report["GET /v1/duels/:id waiting poll"] = await measure((m) => call("/v1/duels/" + again.body.duelId, { headers: auth(creator.token), env: m }));
 
-    report["GET /v1/leaderboard 30d (uncached)"] = await measure((m) => call("/v1/leaderboard?board=30d", { env: m }));
-    report["GET /v1/leaderboard daily (cached hit)"] = await measure(async (m) => {
-      await call("/v1/leaderboard?board=daily", { env: { ...m, LEADERBOARD_CACHE_SECONDS: "60" } });
-    });
+    // Production reads the stored board (LEADERBOARD_REFRESH_SECONDS above 0).
+    await refreshBoards(env, Date.now());
+    report["GET /v1/leaderboard (stored board)"] = await measure((m) =>
+      call("/v1/leaderboard?board=30d", { env: { ...m, LEADERBOARD_REFRESH_SECONDS: "1200" } }),
+    );
 
     const host = await guest();
     const friendSet = (await call("/v1/sets", post({ mode: "friend", draw: { kind: "random" } }, host))).body;
@@ -148,7 +149,7 @@ describe("per-request cost", () => {
     });
     expect(settled).toBe(1);
     report["cron: settle one rated forfeit"] = usage;
-    // Each run settles at most SETTLE_PER_SWEEP matches and then sweeps.
+    // Each run settles at most SETTLE_PER_SWEEP matches, then sweeps (9 queries) and stores the boards (4).
     expect(SETTLE_PER_SWEEP * usage.d1Queries + 100).toBeLessThan(D1_QUERIES_PER_INVOCATION);
   });
 });
@@ -211,8 +212,10 @@ describe("a month of rated play (30,000 matches, 2,000 accounts)", () => {
     const scale: Record<string, Usage> = {};
     scale["scheduled sweep"] = await measure((m) => runIntegritySweep(m, now));
     scale["scheduled settler (nothing due)"] = await measure((m) => settleDue(m, now));
-    scale["board 30d (uncached)"] = await measure((m) => leaderboard(m, "30d", now));
-    scale["board daily (uncached)"] = await measure((m) => leaderboard(m, "daily", now));
+    scale["board 30d (computed)"] = await measure((m) => leaderboard(m, "30d", now));
+    scale["board daily (computed)"] = await measure((m) => leaderboard(m, "daily", now));
+    scale["scheduled board refresh (both)"] = await measure((m) => refreshBoards(m, now));
+    scale["GET a stored board"] = await measure((m) => boardSnapshot({ ...m, LEADERBOARD_REFRESH_SECONDS: "1200" }, "30d", now));
     Object.assign(report, scale);
     show();
 
@@ -222,7 +225,10 @@ describe("a month of rated play (30,000 matches, 2,000 accounts)", () => {
     expect(scale["scheduled sweep"].rowsRead).toBeLessThan(300_000);
     // Bounded windows: none of these reads all of history.
     expect(scale["scheduled settler (nothing due)"].rowsRead).toBeLessThan(30_000);
-    expect(scale["board daily (uncached)"].rowsRead).toBeLessThan(30_000);
-    expect(scale["board 30d (uncached)"].rowsRead).toBeLessThan(450_000);
+    expect(scale["board daily (computed)"].rowsRead).toBeLessThan(30_000);
+    expect(scale["board 30d (computed)"].rowsRead).toBeLessThan(450_000);
+    // A view reads one stored row, whatever the month's volume.
+    expect(scale["GET a stored board"].d1Queries).toBe(1);
+    expect(scale["GET a stored board"].rowsRead).toBeLessThanOrEqual(2);
   }, 120_000);
 });

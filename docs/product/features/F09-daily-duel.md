@@ -1,6 +1,6 @@
 # F09: Duel mode (forecasting game and ranked ladder)
 
-Status: **Sessions 1–8 complete (guest play, optional accounts, ranked duels with matchmaking and Elo, friend duels by invite link, the leaderboard with anti-abuse flagging and a review queue, and the Session 8 hardening and release gate).** Nothing is deployed; what remains is owner setup and a staging run of the load test (Session 8 record). The owner decisions that blocked ranked play were recorded on 2026-09-24 (see "Owner decisions"). Owner decisions first recorded 2026-09-22.
+Status: **Sessions 1–8 complete (guest play, optional accounts, ranked duels with matchmaking and Elo, friend duels by invite link, the leaderboard with anti-abuse flagging and a review queue, and the Session 8 hardening and release gate).** Leaderboards are stored snapshots since the record after Session 8. Nothing is deployed; what remains is owner setup and a staging run of the load test (Session 8 record). The owner decisions that blocked ranked play were recorded on 2026-09-24 (see "Owner decisions"). Owner decisions first recorded 2026-09-22.
 
 This brief is implemented over multiple sessions. Each session in the session
 plan is independently assignable, ends in a verifiable state, and has its own
@@ -1717,3 +1717,93 @@ run against it:
   owner decision, and nothing heavier is built.
 - The `rest_days` flooring retrain, which belongs to the model work (see
   "Owner decisions").
+
+### 2026-09-26 — After Session 8: stored leaderboards
+
+**Why.** The Session 8 cost model found that the boards were most of the cost
+at high volume. Each busy edge location recomputed them on its own cache
+schedule, at about six row reads per rated result in the window. At 10× the
+1,000-a-day volume that was about 372B rows read and $451 of a ~$540 month.
+The owner asked for the fix before launch, because duel mode is expected to be
+a main way people use the site.
+
+**Shipped.** Branch `f09-board-snapshot`.
+
+- Migration `0006_board_snapshots.sql` adds one table: a row per board with
+  the finished `LeaderboardView` JSON.
+- `refreshBoards` computes and stores both boards. It runs:
+  - in the scheduled handler, after the settler and the sweep, so the boards
+    include every settled result and leave off every new flag;
+  - after a review decision (`decideFlag`), so a cleared player returns at
+    once;
+  - after `POST /v1/admin/sweep`.
+- `boardSnapshot` serves `GET /v1/leaderboard`. It reads the stored row, and
+  computes and stores a fresh board only when:
+  - the row is missing;
+  - it is older than `LEADERBOARD_REFRESH_SECONDS` (1200 in `wrangler.jsonc`,
+    so only when the 15-minute schedule has stalled);
+  - it is a daily board from before 00:00 UTC.
+  An older computation never overwrites a newer stored board. `"0"` computes
+  every request, which the Worker tests and the e2e run use.
+- The edge cache stays in front at `LEADERBOARD_CACHE_SECONDS` (60) for both
+  boards. The 30-day board's longer cache (`THIRTY_DAY_CACHE_FACTOR`) is gone,
+  because it no longer matters what a recompute costs.
+- `/duel/leaderboard` shows "Updated at {time}. The board refreshes about
+  every 15 minutes, so a duel you just finished can take that long to
+  appear." The player's own rating on `/account` and on the reveal is always
+  live.
+
+**Trade-off.** A new rated result, or a newly raised flag, reaches the board
+within one scheduled run plus the 60 s edge cache, about 16 minutes. It used
+to be 1 to 5 minutes. Review decisions still show within a minute.
+
+**Measured** (cost profile, month of 30,000 rated matches):
+
+| | Before | After |
+|---|---|---|
+| A board view (edge-cache miss) | 370,022 rows (30-day) / 11,813 (daily) | **1 query, 1 row** |
+| Scheduled refresh of both boards | none | 4 queries, 382,534 rows, 96 times a day |
+
+**Monthly cost, re-run** (same scenarios and prices as the Session 8 record):
+
+| Scenario | D1 rows read / month | Cost / month |
+|---|---|---|
+| Launch | 0.18B (was 1.2B) | $5.00 |
+| 1,000 rated a day | 1.8B (was 19.2B) | $6.08 |
+| 10× that | 17.6B (was 377B), inside the 25B included | **about $187** (was about $540) |
+
+At 10×, what remains is D1 rows written by play itself (about $98: roughly 34
+rows per set), and KV writes for rate-limit counters (about $81). The next
+cost to fix is the KV writes: move short windows to Cloudflare's rate-limiting
+binding when KV writes pass about 5M a month.
+
+**Tests.**
+
+- Worker: four new tests in `integrity.test.ts` ("stored boards"):
+  - a request reads the stored board, and the real scheduled handler stores a
+    fresh one;
+  - a review decision stores fresh boards at once;
+  - a stalled schedule and a new UTC day each make a request recompute;
+  - an older computation never overwrites a newer board.
+- The cost profile asserts a stored-board view is 1 query reading at most 2
+  rows.
+- E2E: the leaderboard test checks the "refreshes about every 15 minutes"
+  line.
+
+Each of these mutations, applied alone, fails at least one test:
+
+- the cron skips the refresh;
+- a review decision skips it;
+- no daily-window check;
+- no maximum age (it first survived, because the stall test aged only the
+  row's timestamp and not the stored board's `generatedAt`; the test now ages
+  both);
+- an older computation overwrites a newer one;
+- requests always compute.
+
+**Verification.** Frontend build, lint, 142 unit and 48 Playwright tests;
+Worker tsc and 123 tests; Python 40; leakage guard exit 0.
+
+**Owner configuration.** Back up D1, then run `npm run db:migrate:remote` to
+apply `0006_board_snapshots.sql`. It adds one table. Deploy with the new
+`LEADERBOARD_REFRESH_SECONDS` var already in `wrangler.jsonc`.

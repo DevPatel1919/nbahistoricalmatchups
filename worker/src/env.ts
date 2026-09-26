@@ -20,6 +20,8 @@ export interface Env {
   AUTH_TEST_DOUBLES?: string;
   /** Seconds the public leaderboard is cached at the edge; "0" turns caching off. */
   LEADERBOARD_CACHE_SECONDS: string;
+  /** Oldest stored board a request may serve, in seconds; "0" computes every request. */
+  LEADERBOARD_REFRESH_SECONDS: string;
   /** Bearer secret for the internal review queue (admin.ts). Unset: every admin path is 404. */
   ADMIN_TOKEN?: string;
 }

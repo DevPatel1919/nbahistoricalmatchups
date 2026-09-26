@@ -11,6 +11,7 @@
 import type { Env } from "./env";
 import { ApiError } from "./http";
 import { runIntegritySweep, type SweepReport } from "./integrity";
+import { refreshBoards } from "./leaderboard";
 import { LIMITS, enforce } from "./ratelimit";
 import { sha256Hex } from "./tokens";
 
@@ -115,10 +116,17 @@ export async function decideFlag(env: Env, flagId: string, body: unknown, now: n
   const row = await env.DB.prepare(FLAG_SELECT + " WHERE f.id = ?").bind(flagId).first<FlagRow>();
   if (!row) throw new ApiError("not_found");
   if (result.meta.changes === 0) throw new ApiError("flag_decided");
+  // The decision is recorded; the boards catch up now rather than at the next
+  // scheduled run. A failure here only delays that, so it is logged, not raised.
+  await refreshBoards(env, now).catch((error: unknown) => {
+    console.error("duel-api board refresh failed", error instanceof Error ? error.name : typeof error);
+  });
   return toView(row);
 }
 
-/** POST /v1/admin/sweep: runs the detectors now instead of waiting for the schedule. */
-export function sweepNow(env: Env): Promise<SweepReport> {
-  return runIntegritySweep(env, Date.now());
+/** POST /v1/admin/sweep: runs the detectors now instead of waiting for the schedule, then stores fresh boards. */
+export async function sweepNow(env: Env): Promise<SweepReport> {
+  const report = await runIntegritySweep(env, Date.now());
+  await refreshBoards(env, Date.now());
+  return report;
 }

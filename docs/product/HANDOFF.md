@@ -210,10 +210,13 @@ Session 8 (branch `f09-hardening`) completed the release gate:
 
 Duel mode costs the $5 Workers Paid base price up to about 1,000 rated
 matches a day, and needs that plan: the free plan's limits are too small.
+After Session 8 the leaderboards became snapshots stored every 15 minutes
+(branch `f09-board-snapshot`). That cut the modelled 10× bill from about $540
+to about $187 a month.
 
 Nothing is deployed. The owner configuration steps are in the F09 Session 3,
 5, 6, 7, and 8 handoff records, including a staging run of the load test. The
-`frontend/` has 142 unit and 48 Playwright tests; `worker/` has 119. F09 has
+`frontend/` has 142 unit and 48 Playwright tests; `worker/` has 123. F09 has
 no further build sessions.
 
 ## Feature map
@@ -312,7 +315,7 @@ supporting issue, experiment, or document.
 | 2026-09-22 | Fill-in opponent is a disclosed practice bot, never "the model" | A rubber-banded bot told the answer is not a prediction; labelling it as one breaks the model-integrity gate | None; this is a gate, not a preference |
 | 2026-09-22 | Unranked sets use a fixed confidence composition; ranked sets use signal divergence | Uniform draws converge scores at both extremes; a rated duel decided by coin flips measures luck, not skill | Archetype gates in F09 Session 1 show the naive-versus-model gap is too thin |
 | 2026-09-26 | Duel mode is the product's server state: one Cloudflare Worker with D1 (accounts, play, ratings, flags) and KV (the puzzle pool, rate limits). The explorer and tournaments stay static and keep working without it | F09 Sessions 3–8. Answers stay on the server until lock-in; single submission and single-use links are D1 constraints; the cost profile and load test are in the F09 Session 8 record | A feature needs real-time play (Durable Objects) or the explorer needs live data |
-| 2026-09-26 | The duel Worker runs on Workers Paid ($5 a month) | Free plan: 50 D1 queries per invocation (a rated settle uses 44) and 10 ms of CPU. Metered cost is the base price up to about 1,000 rated matches a day | D1 rows read pass about 20B a month (precompute the 30-day board) or KV writes pass about 5M (move rate limits to the rate-limiting binding) |
+| 2026-09-26 | The duel Worker runs on Workers Paid ($5 a month) | Free plan: 50 D1 queries per invocation (a rated settle uses 44) and 10 ms of CPU. Metered cost is the base price up to about 1,000 rated matches a day | KV writes pass about 5M a month (move rate limits to the rate-limiting binding). The boards were already made snapshots on 2026-09-26 |
 | 2026-09-26 | Players can delete their account and its data; nothing identifies a person but a keyed email hash | F09 Session 8 privacy review: no IP, email, user agent, or device id stored; IPs only as keyed hashes in KV for up to two days | A legal review (F00) requires more, such as a data export |
 
 ## Success and review gates

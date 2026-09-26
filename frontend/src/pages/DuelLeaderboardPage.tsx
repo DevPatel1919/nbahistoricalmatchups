@@ -14,6 +14,10 @@ const BOARDS: { key: LeaderboardKind; label: string }[] = [
   { key: "30d", label: "Last 30 days" },
 ];
 
+function formatTime(ms: number): string {
+  return new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
 export default function DuelLeaderboardPage() {
   const [params, setParams] = useSearchParams();
   const board: LeaderboardKind = params.get("board") === "30d" ? "30d" : "daily";
@@ -99,6 +103,10 @@ export default function DuelLeaderboardPage() {
       {state.kind === "loaded" && (
         <>
           <p className="duel__fine">{boardDescription(state.view.board, state.view.minDuels)}</p>
+          <p className="duel__fine" data-testid="board-updated">
+            Updated at {formatTime(state.view.generatedAt)}. The board refreshes about every 15 minutes, so a duel you
+            just finished can take that long to appear.
+          </p>
           {state.view.entries.length === 0 ? (
             <p className="center-note" data-testid="board-empty">
               {boardEmpty(state.view.board, state.view.minDuels)}
