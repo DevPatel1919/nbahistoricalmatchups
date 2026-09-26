@@ -169,6 +169,10 @@ export default function DuelHomePage() {
         account. For fun only: no entry fees, prizes, or betting.
       </p>
 
+      <p className="duel__board">
+        <Link to="/duel/leaderboard">Leaderboard</Link>: today's and the last 30 days' top ranked players.
+      </p>
+
       <p className="duel__account">
         {isSignedIn() ? (
           <>

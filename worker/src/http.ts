@@ -21,6 +21,7 @@ export const ERRORS = {
   ranked_queue_full: [409, "You already have the most ranked sets waiting for opponents. Wait for one to finish."],
   not_waiting: [409, "This duel isn't waiting for an opponent."],
   name_taken: [409, "That name, or one too like it, is taken."],
+  flag_decided: [409, "This flag has already been decided."],
   rename_too_soon: [429, "Display names can be changed once every 30 days."],
   rate_limited: [429, "Too many requests. Try again shortly."],
   pool_unavailable: [503, "Duel puzzles are not available right now."],

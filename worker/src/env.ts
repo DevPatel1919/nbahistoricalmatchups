@@ -18,4 +18,8 @@ export interface Env {
   TURNSTILE_SECRET_KEY?: string;
   /** "1" swaps in local test doubles for email and Turnstile; ignored unless every origin is localhost. */
   AUTH_TEST_DOUBLES?: string;
+  /** Seconds the public leaderboard is cached at the edge; "0" turns caching off. */
+  LEADERBOARD_CACHE_SECONDS: string;
+  /** Bearer secret for the internal review queue (admin.ts). Unset: every admin path is 404. */
+  ADMIN_TOKEN?: string;
 }

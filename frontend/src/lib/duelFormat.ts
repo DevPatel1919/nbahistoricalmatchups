@@ -6,6 +6,7 @@ import {
   type Confidence,
   type DuelResult,
   type EraKey,
+  type LeaderboardKind,
   type MatchSummary,
   type PlayMode,
   type RatingChange,
@@ -134,4 +135,26 @@ export function completionOutcome(result: DuelResult): { outcome: "win" | "loss"
   const { opponent, you, model } = result;
   const outcome = !opponent ? "solo" : opponent.outcome === "you" ? "win" : opponent.outcome === "opponent" ? "loss" : "draw";
   return { outcome, beatModel: you.total > model.total };
+}
+
+// ---------------------------------------------------------------------------
+// Leaderboards (F09 Session 7)
+// ---------------------------------------------------------------------------
+
+/** "4–1", or "4–1–2" when there are draws. */
+export function formatWinLoss(wins: number, losses: number, draws: number): string {
+  return formatRecord(wins, losses) + (draws > 0 ? "–" + draws : "");
+}
+
+/** What a board ranks, in a sentence. */
+export function boardDescription(board: LeaderboardKind, minDuels: number): string {
+  return board === "daily"
+    ? "Rated duels since midnight UTC, ranked by rating gained today."
+    : "Players with at least " + minDuels + " rated duels in the last 30 days, ranked by current rating.";
+}
+
+export function boardEmpty(board: LeaderboardKind, minDuels: number): string {
+  return board === "daily"
+    ? "No rated duels yet today."
+    : "Nobody has played " + minDuels + " rated duels in the last 30 days yet.";
 }

@@ -2,7 +2,18 @@
 // else in the site depends on the Worker: without VITE_DUEL_API the duel
 // pages say so and every other route is unaffected.
 
-import type { AccountView, ApiErrorBody, DrawMode, DuelState, IssuedSet, Pick, PlayMode, SignInResult } from "../duel";
+import type {
+  AccountView,
+  ApiErrorBody,
+  DrawMode,
+  DuelState,
+  IssuedSet,
+  LeaderboardKind,
+  LeaderboardView,
+  Pick,
+  PlayMode,
+  SignInResult,
+} from "../duel";
 import {
   clearGuestToken,
   clearSessionToken,
@@ -128,6 +139,11 @@ export function stopWaiting(duelId: string): Promise<DuelState> {
   const token = currentToken();
   if (!token) return Promise.reject(new DuelApiError("unauthorized", 401));
   return request<DuelState>("/v1/duels/" + encodeURIComponent(duelId) + "/stop-waiting", { method: "POST", token });
+}
+
+/** A public leaderboard. Needs no token: it carries display names and rated results only. */
+export function fetchLeaderboard(board: LeaderboardKind): Promise<LeaderboardView> {
+  return request<LeaderboardView>("/v1/leaderboard?board=" + board);
 }
 
 // ---------------------------------------------------------------------------

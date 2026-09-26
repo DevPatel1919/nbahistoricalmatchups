@@ -18,6 +18,7 @@ export const LIMITS = {
   accountCreatePerIp: { name: "acct-ip", max: 3, windowSeconds: 86400 },
   accountCreatePerAsn: { name: "acct-asn", max: 50, windowSeconds: 3600 },
   renamePerAccount: { name: "rename-acct", max: 10, windowSeconds: 3600 },
+  adminPerIp: { name: "admin-ip", max: 120, windowSeconds: 3600 },
 } as const satisfies Record<string, Limit>;
 
 /** `scale` multiplies every limit; production uses 1 (wrangler.jsonc), local e2e runs raise it. */

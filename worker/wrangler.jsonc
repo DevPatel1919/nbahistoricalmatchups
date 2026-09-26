@@ -7,7 +7,8 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-08-15",
   "observability": { "enabled": true },
-  // Settles ranked and friend matches whose timeout has passed (src/matches.ts settleDue).
+  // Settles ranked and friend matches whose timeout has passed (src/matches.ts settleDue),
+  // then runs the integrity sweep (src/integrity.ts runIntegritySweep).
   "triggers": { "crons": ["*/15 * * * *"] },
   "vars": {
     // Comma-separated origins allowed to call the API from a browser.
@@ -18,7 +19,9 @@
     // Verified sender for magic-link email, e.g. "Court of All Time <signin@example.com>".
     "EMAIL_FROM": "",
     // Multiplies every rate limit. Keep "1" in production.
-    "RATE_LIMIT_SCALE": "1"
+    "RATE_LIMIT_SCALE": "1",
+    // Seconds the public leaderboard is cached at the edge. "0" turns caching off.
+    "LEADERBOARD_CACHE_SECONDS": "60"
   },
   "d1_databases": [
     // Owner: `wrangler d1 create court-of-all-time-duel` and paste the id.
@@ -34,6 +37,7 @@
   //   EMAIL_HASH_SECRET                     long random string; never rotate it (accounts are keyed by it)
   //   EMAIL_API_KEY                         Resend API key for magic-link email
   //   TURNSTILE_SECRET_KEY                  Turnstile widget secret
+  //   ADMIN_TOKEN                           at least 32 random characters; unlocks the review queue (src/admin.ts)
   // Local dev reads them from .dev.vars. AUTH_TEST_DOUBLES="1" (local only)
   // replaces email and Turnstile with doubles; it is ignored unless every
   // allowed origin is localhost.

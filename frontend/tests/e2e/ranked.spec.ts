@@ -8,6 +8,8 @@ import { DUEL_API_PORT } from "../../playwright.config";
 // only) the rating change.
 
 const API = `http://localhost:${DUEL_API_PORT}`;
+/** Matches the --var in playwright.config.ts; local e2e only. */
+const ADMIN_TOKEN = "e2e-admin-token-0123456789abcdef0123";
 const HIDDEN = ["actualWinner", "modelHomeWinProbability", "0.691234", "0.308766", '"picks"', '"confidence"'];
 
 const unique = () => Date.now() + "-" + Math.random().toString(36).slice(2, 8);
@@ -172,4 +174,85 @@ test("a friend duel by invite link between two guests", async ({ browser }) => {
   await third.goto(link);
   await third.getByRole("button", { name: "Start the duel" }).click();
   await expect(third.getByRole("alert")).toContainText("expired or was already used");
+});
+
+// F09 Session 7. In this serial file so no other spec's ranked player can take a waiting set.
+test("the leaderboard: rated players today, you marked, a flagged account left off until a reviewer clears it", async ({ browser, request }) => {
+  const nameA = "Board A " + unique().slice(-4);
+  const nameB = "Board B " + unique().slice(-4);
+  const [tokenA, tokenB] = [await eligibleAccount(request, nameA), await eligibleAccount(request, nameB)];
+  const asA = { authorization: "Bearer " + tokenA };
+  const asB = { authorization: "Bearer " + tokenB };
+  const lockIn = async (headers: Record<string, string>, set: { duelId: string; setToken: string; puzzles: { puzzleId: string }[] }, side: string) => {
+    const picks = set.puzzles.map((p) => ({ puzzleId: p.puzzleId, side, confidence: "confident" }));
+    const r = await request.post(`${API}/v1/duels/${set.duelId}/submission`, { headers: { ...headers, "idempotency-key": unique() }, data: { setToken: set.setToken, picks } });
+    expect(r.ok()).toBe(true);
+    return r.json();
+  };
+
+  // One rated duel, played through the API.
+  const setA = await (await request.post(`${API}/v1/sets`, { headers: asA, data: { mode: "ranked" } })).json();
+  expect((await lockIn(asA, setA, "home")).state).toBe("waiting");
+  const setB = await (await request.post(`${API}/v1/sets`, { headers: asB, data: { mode: "ranked" } })).json();
+  expect(setB.opponent).toEqual({ kind: "player", name: nameA });
+  expect((await lockIn(asB, setB, "away")).state).toBe("revealed");
+
+  const page = await signedInPage(browser, tokenA);
+  await page.goto("/duel/" + setA.duelId);
+  await expect(page.getByTestId("match-note")).toContainText("Rated duel.");
+  await page.getByRole("link", { name: "See the leaderboard" }).click();
+  await expect(page.getByRole("heading", { name: "Leaderboard" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Today" })).toHaveAttribute("aria-pressed", "true");
+  const rows = page.locator(".board__table tbody tr");
+  await expect(rows.filter({ hasText: nameA })).toContainText("(you)");
+  await expect(rows.filter({ hasText: nameB })).toHaveCount(1);
+  await expect(rows.filter({ hasText: nameB })).not.toContainText("(you)");
+  await expectNoHorizontalOverflow(page);
+  if (process.env.BOARD_SHOTS) await page.screenshot({ path: process.env.BOARD_SHOTS + "/board-360.png", fullPage: true });
+
+  await page.getByRole("button", { name: "Last 30 days" }).click();
+  await expect(page).toHaveURL(/board=30d/);
+  await expect(page.getByText("Players with at least 5 rated duels in the last 30 days")).toBeVisible();
+  await expect(rows.filter({ hasText: nameA })).toHaveCount(0);
+  await page.getByRole("button", { name: "Today" }).click();
+
+  // Five instant ranked lock-ins trip the scripted-timing rule; the sweep flags A.
+  for (let i = 0; i < 5; i++) {
+    const set = await (await request.post(`${API}/v1/sets`, { headers: asA, data: { mode: "ranked" } })).json();
+    expect(set.opponent).toBeNull();
+    await lockIn(asA, set, "home");
+    expect((await request.post(`${API}/v1/duels/${set.duelId}/stop-waiting`, { headers: asA })).ok()).toBe(true);
+  }
+  const admin = { authorization: "Bearer " + ADMIN_TOKEN };
+  expect((await request.post(`${API}/v1/admin/sweep`, { headers: admin })).ok()).toBe(true);
+  const { flags } = (await (await request.get(`${API}/v1/admin/flags?status=open`, { headers: admin })).json()) as {
+    flags: { id: string; kind: string; displayName: string }[];
+  };
+  const flag = flags.find((f) => f.displayName === nameA);
+  expect(flag?.kind).toBe("scripted_timing");
+
+  await page.reload();
+  await expect(rows.filter({ hasText: nameB })).toHaveCount(1);
+  await expect(rows.filter({ hasText: nameA })).toHaveCount(0);
+  await expect(page.getByTestId("board-hidden")).toContainText("because of an integrity review");
+  await expectNoHorizontalOverflow(page);
+  if (process.env.BOARD_SHOTS) await page.screenshot({ path: process.env.BOARD_SHOTS + "/board-hidden-360.png", fullPage: true });
+  await page.goto("/account");
+  await expect(page.getByTestId("account-hidden")).toBeVisible();
+  // Flagged, not banned: ranked is still open to A.
+  await expect(page.getByTestId("account-rating")).toContainText("after 1 rated duel");
+
+  expect((await request.post(`${API}/v1/admin/flags/${flag!.id}`, { headers: admin, data: { decision: "clear", note: "e2e" } })).ok()).toBe(true);
+  await page.goto("/duel/leaderboard");
+  await expect(rows.filter({ hasText: nameA })).toContainText("(you)");
+  await expect(page.getByTestId("board-hidden")).toHaveCount(0);
+
+  const wide = await signedInPage(browser, tokenB);
+  await wide.setViewportSize({ width: 1280, height: 800 });
+  await wide.goto("/duel");
+  await wide.getByRole("link", { name: "Leaderboard" }).click();
+  await expect(wide.locator(".board__table tbody tr").filter({ hasText: nameB })).toContainText("(you)");
+  if (process.env.BOARD_SHOTS) await wide.screenshot({ path: process.env.BOARD_SHOTS + "/board-1280.png", fullPage: true });
+  await page.context().close();
+  await wide.context().close();
 });

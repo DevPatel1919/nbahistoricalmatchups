@@ -5,7 +5,7 @@ tournaments, growth, creator tools, or monetization. Read this file first, then
 open only the feature brief assigned to you. Read `CONTRIBUTING.md` before
 changing code.
 
-Last reviewed: 2026-09-24.
+Last reviewed: 2026-09-25.
 
 ## Product thesis
 
@@ -173,7 +173,7 @@ unranked history, and the ranked-eligibility gate. Accounts store a keyed
 email hash, never the address. The explorer and tournaments stay static and
 are tested with the API unreachable.
 
-Session 6 (branch `f09-ranked`, not yet merged) adds:
+Session 6 (PR #5) added:
 
 - asynchronous ranked duels, matchmade within a rating window, with a zero-sum
   Elo ledger;
@@ -181,16 +181,27 @@ Session 6 (branch `f09-ranked`, not yet merged) adds:
 - documented timeout rules: a forfeit is rated, and the Sparring Partner
   fallback is unrated.
 
+Session 7 (branch `f09-leaderboard`, not yet merged) adds:
+
+- daily and 30-day leaderboards of rated players;
+- anomaly metrics for every rated set, and detectors for lookups, scripted
+  submission, collusion rings, win-trading, forfeit feeding, and multi-account
+  bursts;
+- a review queue behind an admin secret. A flag only keeps an account off the
+  board until a reviewer clears it. Nothing auto-bans, and play and rating are
+  never touched.
+
 The owner answered the ranked decisions on 2026-09-24:
 
 - Lookups are controlled by flagging accuracy above the honest ceiling. Session
-  7 builds that, with the leaderboard.
+  7 built it as a confidence bound, so a model-level player is flagged well
+  under 1% of the time.
 - Ranked puzzles are reused on a limited basis: never twice to one account, and
   not until 30 days after their answer was last revealed.
 
 Nothing is deployed. The owner configuration steps are in the F09 Session 3, 5,
-and 6 handoff records. The `frontend/` has 140 unit and 46 Playwright tests;
-`worker/` has 75.
+6, and 7 handoff records. The `frontend/` has 142 unit and 47 Playwright tests;
+`worker/` has 110. Session 8 (hardening and the release gate) is next.
 
 ## Feature map
 

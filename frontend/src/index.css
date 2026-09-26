@@ -1712,7 +1712,8 @@ button {
   margin-top: 20px;
 }
 
-.duel__account {
+.duel__account,
+.duel__board {
   margin-top: 12px;
   font-size: 0.9rem;
 }
@@ -1766,6 +1767,11 @@ button {
   max-width: 480px;
 }
 
+/* A long email address must wrap rather than widen the page at 360px. */
+.account__sent strong {
+  overflow-wrap: anywhere;
+}
+
 .account__ok {
   color: var(--win);
   margin: 0;
@@ -1816,6 +1822,69 @@ button {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+/* --- Duel leaderboard (F09 Session 7) -----------------------------------*/
+
+.board__tabs {
+  display: flex;
+  gap: 8px;
+  margin: 16px 0 4px;
+}
+
+.board__tabs .btn[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.board__notice {
+  border-left: 3px solid var(--accent);
+  padding: 8px 12px;
+  margin: 12px 0;
+  background: var(--bg-elevated);
+  border-radius: 0 8px 8px 0;
+}
+
+.board__table {
+  margin: 8px 0 16px;
+  max-width: 640px;
+}
+
+.board__table th,
+.board__table td {
+  padding: 7px 6px;
+}
+
+.board__name {
+  overflow-wrap: anywhere;
+}
+
+.board__table tr.is-you th,
+.board__table tr.is-you td {
+  background: var(--bg-elevated);
+  font-weight: 600;
+}
+
+.board__you {
+  color: var(--text-dim);
+  font-weight: 400;
+}
+
+.board__prov {
+  margin-left: 3px;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  text-decoration: none;
+  vertical-align: super;
+}
+
+.board__up {
+  color: var(--win);
+}
+
+.board__down {
+  color: var(--loss);
 }
 
 @media (max-width: 480px) {

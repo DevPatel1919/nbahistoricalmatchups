@@ -14,6 +14,9 @@ export default defineConfig(async () => {
             GUEST_TOKEN_SECRET: "test-guest-secret-0123456789",
             SET_TOKEN_SECRET: "test-set-secret-0123456789ab",
             EMAIL_HASH_SECRET: "test-email-secret-0123456789",
+            ADMIN_TOKEN: "test-admin-token-0123456789abcdef0123",
+            // Tests read boards straight after writing results; one test turns caching back on.
+            LEADERBOARD_CACHE_SECONDS: "0",
           },
         },
       }),

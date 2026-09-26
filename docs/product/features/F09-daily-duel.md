@@ -1,6 +1,6 @@
 # F09: Duel mode (forecasting game and ranked ladder)
 
-Status: **Sessions 1–6 complete (guest play, optional accounts, ranked duels with matchmaking and Elo, and friend duels by invite link); Sessions 7–8 not started.** The owner decisions that blocked ranked play were recorded on 2026-09-24 (see "Owner decisions"). Owner decisions first recorded 2026-09-22.
+Status: **Sessions 1–7 complete (guest play, optional accounts, ranked duels with matchmaking and Elo, friend duels by invite link, and the leaderboard with anti-abuse flagging and a review queue); Session 8 not started.** The owner decisions that blocked ranked play were recorded on 2026-09-24 (see "Owner decisions"). Owner decisions first recorded 2026-09-22.
 
 This brief is implemented over multiple sessions. Each session in the session
 plan is independently assignable, ends in a verifiable state, and has its own
@@ -194,6 +194,10 @@ single correct call; if still level, the duel is a draw.
 
 The ladder is the asset being attacked. Threats, in priority order, with the
 control each session must deliver.
+
+Where each control stands after Session 7, including the two parts that are
+deferred and why, is in the Session 7 handoff record ("Abuse model: control
+status").
 
 | Threat | Control |
 |---|---|
@@ -1109,3 +1113,263 @@ and `/account` with a rating.
   owner may want a shorter wait or seeded launch play.
 - Purging expired `magic_links` and `sessions` rows can now use the cron hook.
 - Account deletion is still Session 8.
+
+### 2026-09-25 — Session 7: leaderboard and anti-abuse enforcement
+
+**Shipped.** Worker: migration `0004_integrity.sql`, `src/integrity-rules.ts`
+(the detection rules as pure functions), `src/integrity.ts` (metrics, the
+sweep, flag storage, and network signals), `src/leaderboard.ts`, `src/admin.ts`
+(the review queue), and `scripts/review-queue.mjs` (a command-line client for
+it). Frontend: `/duel/leaderboard` (`pages/DuelLeaderboardPage.tsx`), linked
+from `/duel`, `/account`, and every rated reveal. Branch `f09-leaderboard`.
+
+**Principle: flag, never ban.** A detector's finding becomes an open row in
+`integrity_flags`. An open or upheld flag does one thing: it keeps the
+account off the leaderboard. The account still plays ranked, is still
+matchmade, and its rating still moves (tested). A reviewer clears the flag,
+which puts the account back on the board, or upholds it, which keeps it off.
+An upheld flag can be cleared later on appeal. Any heavier sanction, such as a
+rating reset or blocking ranked, is a separate owner decision and is not
+built.
+
+**Anomaly metrics for all rated play.** Every ranked submission writes a
+`play_metrics` row in the same D1 batch as the submission:
+
+- time to lock in;
+- picks, correct picks, and lock picks correct;
+- the tier mix and confidence entropy (in bits);
+- how many picks were on the model's side;
+- points, and the model's points.
+
+A `CHECK` keeps each row internally consistent. The per-pick rows from
+Session 3 are unchanged. Unranked play gets no metrics row.
+
+**Detectors.** A sweep runs every 15 minutes, after the match settler, in the
+same cron trigger. It also runs on demand from `POST /v1/admin/sweep`. Every
+threshold is a named constant in `integrity-rules.ts`.
+
+| Flag | Rule | Evidence stored |
+|---|---|---|
+| `accuracy_ceiling` (owner's lookup control) | The lower bound of the 99.9% one-sided Wilson interval on the account's last 50 rated sets (up to 250 picks) is above **0.68**. Needs at least 50 picks | sets, picks, correct, accuracy, bound, lock record |
+| `scripted_timing` | Median time from issue to lock-in over the last 10 rated sets is below **20 s** for five games. Needs at least 5 sets | sets, median, fastest |
+| `repeat_pair` | Two accounts meet in **6** rated matches within 30 days. The matchmaker already refuses a pair twice in 24 hours | matches |
+| `win_trading` | A pair with at least **4** rated matches in 30 days, with at least 75% going one way | wins, losses, draws |
+| `forfeit_feeding` | One account forfeits to the same opponent **twice** in 30 days. Both accounts are flagged | forfeits given and received |
+| `feeder_ring` | At least **2** "feeders" around one account. A feeder has at least 2 rated matches, at least 60% of them against that account, and lost at least 75% of those. The centre and every feeder are flagged | feeder count and ids, wins from feeders |
+| `linked_accounts` | Two accounts created from the same network on the same UTC day meet in rated play | matches |
+| `multi_account` | The per-network daily maximum of 3 new accounts is reached. Raised when the third account is created | accounts from the network that day |
+
+Why a confidence bound and not raw accuracy: the model itself calls 69.5% of
+the ranked pool, so a fixed 68% cut-off would flag honest model-level players
+all the time. Exact binomial figures for the rule:
+
+| Picks judged | Correct needed | P(flag) at 65% | at 69.5% (model level) | at 75% | at 80% | at 90% (lookup) |
+|---|---|---|---|---|---|---|
+| 50 | 45 (90%) | 0.0001 | 0.0006 | 0.007 | 0.048 | 0.62 |
+| 100 | 83 (83%) | 0.0001 | 0.0016 | 0.038 | 0.27 | 0.99 |
+| 150 | 120 (80%) | <0.0001 | 0.0026 | 0.091 | 0.55 | >0.999 |
+| 250 | 193 (77.2%) | <0.0001 | 0.0042 | 0.23 | 0.88 | >0.999 |
+
+A player who looks up nine answers in ten is caught within 20 rated sets, and
+a model-level player is flagged well under 1% of the time. Someone who looks up
+only some answers and stays near 72% is not caught. That is the honest limit
+of a statistical control: it bounds the damage rather than removing it. The
+owner can lower `ACCURACY_Z` to catch more at the cost of more reviews.
+
+**Re-flagging.** At most one flag per (account, kind, related account) is
+open at a time; the partial unique index `integrity_flags_one_open` enforces
+this, and a repeat sweep refreshes that flag's evidence. After a review,
+the same key is judged **only on activity after the review time**, so a
+cleared false positive is not raised again on the same evidence (tested: nine
+new perfect sets after a clear raise nothing; the tenth re-flags). An upheld
+key is not judged again. Open flags stay open when the evidence fades. Only a
+reviewer closes them.
+
+**Leaderboards.** `GET /v1/leaderboard?board=daily|30d`, public:
+
+| Board | Window | Appears with | Ordered by |
+|---|---|---|---|
+| `daily` | since 00:00 UTC | 1 rated duel | rating change in the window, then rating |
+| `30d` | the last 30 days | 5 rated duels (`BOARD_MIN_DUELS`) | current rating, then duels |
+
+Only human-vs-human rated duels count. Sparring Partner fallbacks are unrated
+and never appear. The board excludes an account with an open or upheld flag,
+or without a display name, and returns at most 100 rows. Each row carries
+display name, rating, a provisional marker, W/L/D in the window, and the
+rating change. No account id, email hash, or flag detail is included
+(tested). The board is served from the Workers Cache API for
+`LEADERBOARD_CACHE_SECONDS` (60 in `wrangler.jsonc`, 0 in tests and e2e), so
+a newly flagged account can linger for up to a minute. `AccountView` gains
+`hiddenFromBoard`. A hidden player sees on `/duel/leaderboard` and `/account`
+that an integrity review keeps them off the board and that ranked play and
+rating are unaffected. Evidence is never shown to the player.
+
+**Review queue.** The queue answers under `/v1/admin/*` and needs the
+`ADMIN_TOKEN` secret (at least 32 characters). Without the secret, or with a
+wrong token, every admin path answers 404, the same as a missing endpoint.
+Requests are rate-limited per IP before the token check.
+
+- `GET /v1/admin/flags?status=open|cleared|upheld` lists flags with their
+  evidence, both display names, and the account's rating and age.
+- `POST /v1/admin/flags/:id { decision: "clear" | "uphold", note? }`: the
+  allowed transition is part of the `UPDATE`, so two reviewers cannot both
+  decide (`409 flag_decided`).
+- `node scripts/review-queue.mjs list|clear|uphold|sweep` wraps these calls.
+
+There is no web UI for reviewers. That is deliberate: a review UI would be a
+second authenticated surface to secure, and the queue is expected to be small.
+
+**Multi-account signal without storing IPs.** When an account is created, its
+id is appended to a KV entry keyed by the keyed IP hash and the UTC day. The
+entry expires after two days. Earlier accounts in that entry are linked to the
+new one in `account_links`, a pair of account ids with no network. The third
+account of the day flags all three. KV is eventually consistent, so this is a
+signal, not a guarantee; the hard limit is still the Session 5 rate limit.
+Loopback addresses are skipped, because in local development every request
+comes from one address and would link every account. The signal never blocks
+a sign-in.
+
+**Housekeeping.** The sweep deletes sign-in links, their redemption rows, and
+sessions one day after they stop working. A redemption row is safe to drop
+once its link has expired, because an expired link is refused on its expiry
+alone.
+
+**Abuse model: control status** (Session 7's first acceptance check).
+
+| Threat | Status | Where |
+|---|---|---|
+| Looking up the real game | Implemented: de-identified puzzles, plus the `accuracy_ceiling` flag (owner decision) | Session 1; `integrity-rules.ts` |
+| Reading the answer from the client | Implemented | Sessions 3 and 6 |
+| Score tampering | Implemented | Session 3 |
+| Replayed or scripted submission | Implemented: signed set tokens, plus the `scripted_timing` flag | Session 3; `integrity-rules.ts` |
+| Double submission | Implemented: D1 constraint plus idempotency key | Session 3 |
+| Multi-accounting and smurfing | Implemented: Turnstile, IP and ASN limits, the ranked gate, `account_links`, `multi_account`, and `linked_accounts`. **Not done:** device fingerprinting. It would need a stored device identifier, which conflicts with the data minimisation in Session 5; Session 8's privacy review can revisit it | Sessions 5 and 7 |
+| Collusion and win-trading | Implemented: `repeat_pair`, `win_trading`, `forfeit_feeding`, and `feeder_ring` over the rated pairing graph | `integrity-rules.ts` |
+| Automated spam and load | Implemented: KV token buckets, an edge-cached leaderboard, and a WAF rule (owner setup). **Deferred to Session 8:** edge-cached puzzle payloads. Every set is a random draw for one player, so there is no shared payload to cache; whether caching individual puzzle reads from KV pays off is a load-test question | Session 3; `leaderboard.ts` |
+| Impersonation on the board | Implemented: moderated, unique, rate-limited display names; the board shows only those names | Session 5 |
+| Undetectable cheating | Implemented: per-pick rows (Session 3) plus `play_metrics` per rated set. Entropy and model agreement are recorded but trip no rule yet, because there is no baseline to set a threshold from. Set one after launch data exists | `integrity.ts` |
+
+**Interface changes.**
+
+- `AccountView.hiddenFromBoard`.
+- New wire types: `LeaderboardKind`, `LeaderboardEntry`, `LeaderboardView`.
+- New error code: `flag_decided`.
+- New env: `LEADERBOARD_CACHE_SECONDS` (a var) and `ADMIN_TOKEN` (a secret).
+- New rate limit: `adminPerIp` (120/hour).
+- `play.ts` adds the metrics row to every ranked submission batch.
+- The scheduled handler now settles and then sweeps. Each step logs its own
+  failure and does not stop the other.
+- Worker tests share helpers in `test/helpers.ts`.
+- `call()` there takes an `env` override, for cache and admin tests.
+
+**Fixes found along the way.**
+
+- Two Session 6 queue tests failed about one run in eight. The joiner had been
+  dealt its own fresh set, which recorded exposures that a later random set
+  could overlap, so the matchmaker correctly refused to seat it. The tests now
+  clear that exposure.
+- "Check your email" at 360 px overflowed by 2–8 px when a generated address
+  was long enough. It reproduced on the Session 6 code. The address now wraps.
+
+**Verification.**
+
+| Check | Command | Result |
+|---|---|---|
+| Types + build | `cd frontend && npm run build` | passes |
+| Lint | `npm run lint` | clean |
+| Unit | `npm test` | 142 passed (2 new in `duel-ui.test.ts`) |
+| E2E | `npx playwright test` | 47 passed (1 new in `ranked.spec.ts`) |
+| Worker | `cd worker && npx tsc --noEmit && npm test` | clean; 110 passed (15 in `integrity-rules.test.ts`, 20 in `integrity.test.ts`) |
+| Python | `python -m pytest tests` / `python src/models/test_pregame_leakage.py` | 40 passed / exit 0 |
+
+The Worker suite ran three times in a row without a failure.
+
+The acceptance scenarios run end to end through the API:
+
+- **Synthetic scripted-submission run:** ten instant, perfect ranked lock-ins
+  raise `scripted_timing` and `accuracy_ceiling`.
+- **Human-paced lookup cheat:** the same run at 90 seconds a set raises only
+  `accuracy_ceiling`.
+- **Hot honest streak:** 36 of 50 correct (72%) raises nothing.
+- **Synthetic collusion ring:** a main and three alts, fed through losses and
+  forfeits via the real matchmaker and settler, raise `feeder_ring` on all four
+  and `forfeit_feeding` on the forfeiting pair. An honest three-way round
+  robin raises nothing.
+- **The board:**
+  - It excludes open and upheld flags and restores cleared ones.
+  - Its windows, the minimum-duels rule, ordering, and caching behave as
+    specified.
+  - It carries no identifiers.
+- **Linked accounts:** created from one network, they are linked; the third
+  is flagged. Loopback is skipped, and linked accounts that meet in rated play
+  are flagged.
+- **Cron:** the real scheduled handler settles a forfeit and flags it with
+  nobody looking.
+- **Purge:** it keeps live rows.
+
+The pure-rule suite computes the accuracy rule's false-positive rate and power
+from the exact binomial distribution. The e2e test plays a rated duel in the
+browser at 360 px. It then:
+
+- follows "See the leaderboard" from the reveal;
+- checks the player's row is marked "(you)", and switches boards;
+- has a real `scripted_timing` flag raised by the sweep hide the player, with
+  the notice shown on the board and on `/account`, and ranked still open;
+- has an admin clear restore the player to the board.
+
+Screens were reviewed at 360 px and 1280 px (board, hidden notice, desktop
+table) with no horizontal overflow.
+
+**Mutation checks.** Each was applied alone, with the full Worker suite run
+against it.
+
+| Mutation | Result |
+|---|---|
+| Board ignores flags | 1 test fails |
+| Board hides open but not upheld flags | 1 test fails |
+| No metrics row on rated play | 4 tests fail |
+| Review time ignored (a cleared flag returns on old evidence) | 1 test fails |
+| No ring detection | 2 tests fail |
+| No forfeit-feeding rule | 4 tests fail |
+| Timing rule off | 3 tests fail |
+| Accuracy rule uses raw accuracy instead of the bound | 2 tests fail. It first **survived**; the 72% hot-streak control was added because of it |
+| Admin accepts any token | 1 test fails |
+| A decision allowed from any status | 1 test fails |
+| Scheduled handler skips the sweep | 1 test fails |
+| Multi-account never flags | 1 test fails |
+
+**Stored identifiers added (for Session 8's privacy review).**
+
+| Where | What | Why |
+|---|---|---|
+| `play_metrics` | per rated set: timing, accuracy, tier mix, model agreement, points | The detectors, and a reviewer's context |
+| `integrity_flags` | account id, related account id, rule evidence (counts and rates), status, reviewer note | The review queue. **Reviewer notes must not contain personal data**; there is no email to put there anyway |
+| `account_links` | two account ids, a reason, a time | Linking same-network accounts without keeping the network |
+| KV `sig:net:<keyed IP hash>:<day>` | up to 20 account ids, 2-day TTL | Same-day, same-network detection |
+
+**Owner configuration added by Session 7.**
+
+1. Back up D1, then run `npm run db:migrate:remote` to apply
+   `0004_integrity.sql`. It adds tables and indexes and does not rebuild
+   anything.
+2. Run `wrangler secret put ADMIN_TOKEN` with at least 32 random characters.
+   Keep it in a password manager. Without it the review queue does not exist,
+   but flags are still raised and still hide accounts.
+3. Review flags regularly, using
+   `DUEL_API=… ADMIN_TOKEN=… node scripts/review-queue.mjs list`. An
+   unreviewed false positive keeps an honest player off the board.
+4. Optionally tune `LEADERBOARD_CACHE_SECONDS`, which is 60 by default, and
+   the thresholds in `src/integrity-rules.ts`.
+
+**Not done / next (Session 8).**
+
+- Run the load and cost review, including the sweep's full 30-day scan of rated
+  matches every 15 minutes. That is about 30,000 rows per run at 1,000 rated
+  matches a day. Make the scan incremental if the numbers call for it.
+- Decide on edge-caching puzzle reads (deferred above).
+- Do the privacy review of the new identifiers, and add account deletion. Its
+  cascade must now cover `play_metrics`, `integrity_flags`, `account_links`,
+  and the rating ledger.
+- Review the leaderboard and review-notice copy against the brand and
+  integrity gates.
+- Owner policy: what, beyond staying off the board, an upheld flag means.
