@@ -192,6 +192,19 @@ export function updateDisplayName(displayName: string): Promise<AccountView> {
   return request<AccountView>("/v1/account/display-name", { method: "POST", token, body: { displayName } });
 }
 
+/**
+ * Deletes the signed-in account and everything stored for it. This browser's
+ * session is cleared only once the server confirms; the next play mints a new
+ * guest.
+ */
+export async function deleteAccount(): Promise<void> {
+  const token = readSessionToken();
+  if (!token) throw new DuelApiError("unauthorized", 401);
+  await request<{ ok: true }>("/v1/account/delete", { method: "POST", token, body: { confirm: true } });
+  clearSessionToken();
+  clearGuestToken();
+}
+
 /** Ends this browser's session. Local state is cleared even if the server can't be reached. */
 export async function signOut(): Promise<void> {
   const token = readSessionToken();
@@ -251,6 +264,8 @@ export function describeDuelError(error: unknown): string {
       return "This invite has expired or was already used. Ask your friend for a new one.";
     case "invite_own":
       return "That's your own invite. Send the link to a friend.";
+    case "match_in_progress":
+      return "A duel you're in is still being played. Try again once it finishes, within about 35 minutes.";
     case "not_waiting":
       return "An opponent has already joined, so this duel will finish when they lock in.";
     default:

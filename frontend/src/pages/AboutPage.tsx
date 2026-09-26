@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { IndexData } from "../types";
 import { loadIndex } from "../lib/dataLoader";
 import AnalyticsOptOut from "../components/AnalyticsOptOut";
+import { DUEL_API } from "../lib/duelApi";
 
 // The model description and limitations below restate the active release's
 // manifest (models/releases/<version>/manifest.json). When a new release is
@@ -72,7 +73,8 @@ export default function AboutPage() {
       <p>
         All {index ? `${index.teams.length} ` : ""}team-seasons and every matchup between them are precomputed ahead of
         time from public box-score data and served as static files &mdash; there's no live server or database behind
-        this site. The data is refreshed manually, once a year, after the NBA Finals.
+        the matchups or tournaments.{DUEL_API ? " Duel mode is the one part that runs on a server (see below)." : ""} The
+        data is refreshed manually, once a year, after the NBA Finals.
       </p>
       {index && (
         <p className="about-release">
@@ -88,6 +90,24 @@ export default function AboutPage() {
         date of its first visit locally; only the week of that date is reported, never an identifier.
       </p>
       <AnalyticsOptOut />
+      {DUEL_API && (
+        <>
+          <h3>Duel mode</h3>
+          <p>
+            Duel mode keeps what it needs on its server. As a guest, that is a random id held in this browser and the
+            sets you play: your picks, their scores, and how long you took. If you sign in, it also keeps a one-way hash
+            of your email address (never the address), your display name, and your rating and its history. For ranked
+            sets it keeps timing and accuracy summaries, which are how cheating is detected. Rate limits and the check
+            for many accounts from one network use a scrambled form of your network address that is deleted within two
+            days. Sign-in links and sessions are deleted a day after they stop working, and a guest id that never played
+            is deleted after 30 days.
+          </p>
+          <p>
+            You can delete your account from the account page at any time. That removes the account and everything
+            above that belongs to it. Players you&apos;ve faced keep their own results, with your name replaced.
+          </p>
+        </>
+      )}
 
       <h2>Unofficial</h2>
       <p>
