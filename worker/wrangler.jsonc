@@ -1,6 +1,16 @@
 // Court of All Time duel API (F09). The static site does not depend on it.
 // Owner setup before the first deploy is listed in
-// docs/product/features/F09-daily-duel.md ("Owner configuration").
+// docs/product/features/F09-daily-duel.md ("Owner configuration"), and the
+// deployment order in docs/product/DEPLOYMENT.md.
+//
+// The top level is production (api.courtofalltime.win); `--env staging` is the
+// permanent staging copy (api-staging.courtofalltime.win). Wrangler does not
+// inherit vars, bindings, routes, or triggers into an environment, so every one
+// is repeated in env.staging. Keep the two var lists in step.
+//
+// Local runs (`npm run dev`, the Worker tests, Playwright, the local load test)
+// use the top level with the origins overridden to localhost: in .dev.vars,
+// vitest.config.ts, and frontend/playwright.config.ts.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "court-of-all-time-duel",
@@ -10,14 +20,15 @@
   // Settles ranked and friend matches whose timeout has passed (src/matches.ts settleDue),
   // then runs the integrity sweep (src/integrity.ts runIntegritySweep).
   "triggers": { "crons": ["*/15 * * * *"] },
+  // Phase 3 adds the production route: { "pattern": "api.courtofalltime.win", "custom_domain": true }.
   "vars": {
     // Comma-separated origins allowed to call the API from a browser.
-    "ALLOWED_ORIGINS": "http://localhost:4317,http://localhost:5173",
+    "ALLOWED_ORIGINS": "https://courtofalltime.win",
     "POOL_VERSION": "duel-pool-v1",
     // Site origin that magic-link emails point at. Must be one of ALLOWED_ORIGINS.
-    "APP_ORIGIN": "http://localhost:4317",
-    // Verified sender for magic-link email, e.g. "Court of All Time <signin@example.com>".
-    "EMAIL_FROM": "",
+    "APP_ORIGIN": "https://courtofalltime.win",
+    // Verified sender for magic-link email (Resend, phase 4).
+    "EMAIL_FROM": "Court of All Time <signin@courtofalltime.win>",
     // Multiplies every rate limit. Keep "1" in production.
     "RATE_LIMIT_SCALE": "1",
     // Seconds a leaderboard response is cached at the edge. "0" turns caching off.
@@ -28,15 +39,39 @@
     "LEADERBOARD_REFRESH_SECONDS": "1200"
   },
   "d1_databases": [
-    // Owner: `wrangler d1 create court-of-all-time-duel` and paste the id.
+    // Phase 3: `wrangler d1 create court-of-all-time-duel` and paste the id.
     { "binding": "DB", "database_name": "court-of-all-time-duel", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
   ],
   "kv_namespaces": [
-    // Owner: `wrangler kv namespace create POOL` / `... RATE_LIMITS` and paste the ids.
+    // Phase 3: `wrangler kv namespace create court-of-all-time-duel-POOL` / `...-RATE_LIMITS` and paste the ids.
     { "binding": "POOL", "id": "00000000000000000000000000000000" },
     { "binding": "RATE_LIMITS", "id": "00000000000000000000000000000001" }
-  ]
-  // Secrets (never in this file), each set with `wrangler secret put <NAME>`:
+  ],
+  "env": {
+    "staging": {
+      "name": "court-of-all-time-duel-staging",
+      "triggers": { "crons": ["*/15 * * * *"] },
+      "routes": [{ "pattern": "api-staging.courtofalltime.win", "custom_domain": true }],
+      "vars": {
+        "ALLOWED_ORIGINS": "https://staging.courtofalltime.win",
+        "POOL_VERSION": "duel-pool-v1",
+        "APP_ORIGIN": "https://staging.courtofalltime.win",
+        "EMAIL_FROM": "Court of All Time <signin@courtofalltime.win>",
+        // Raised to "100" only for a load run (DEPLOYMENT.md phase 2), then restored.
+        "RATE_LIMIT_SCALE": "1",
+        "LEADERBOARD_CACHE_SECONDS": "60",
+        "LEADERBOARD_REFRESH_SECONDS": "1200"
+      },
+      "d1_databases": [
+        { "binding": "DB", "database_name": "court-of-all-time-duel-staging", "database_id": "5e7c6705-01e9-4679-82ae-ded466c52deb", "migrations_dir": "migrations" }
+      ],
+      "kv_namespaces": [
+        { "binding": "POOL", "id": "459faa0bc11d4797a92485c1e421e37d" },
+        { "binding": "RATE_LIMITS", "id": "93571ede4ee54dfa93f4e5f03313aec8" }
+      ]
+    }
+  }
+  // Secrets (never in this file), each set with `wrangler secret put <NAME> [--env staging]`:
   //   GUEST_TOKEN_SECRET, SET_TOKEN_SECRET  long random strings
   //   EMAIL_HASH_SECRET                     long random string; never rotate it (accounts are keyed by it)
   //   EMAIL_API_KEY                         Resend API key for magic-link email

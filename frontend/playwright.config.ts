@@ -12,6 +12,8 @@ const workerCommand = [
   `npx wrangler dev --local --port ${DUEL_API_PORT} --persist-to .wrangler/e2e` +
     " --var GUEST_TOKEN_SECRET:e2e-guest-secret-0123456789" +
     " --var SET_TOKEN_SECRET:e2e-set-secret-0123456789ab" +
+    // wrangler.jsonc's top level is production; this run serves the local site.
+    ` --var ALLOWED_ORIGINS:http://localhost:${PORT} --var APP_ORIGIN:http://localhost:${PORT}` +
     " --var EMAIL_HASH_SECRET:e2e-email-secret-0123456789" +
     // Local-only email outbox and Turnstile dummy token (worker/src/services.ts).
     " --var AUTH_TEST_DOUBLES:1" +

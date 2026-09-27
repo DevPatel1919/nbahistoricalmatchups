@@ -5,3 +5,6 @@ SET_TOKEN_SECRET=local-set-secret-change-me-too
 EMAIL_HASH_SECRET=local-email-secret-change-me
 # Local only: email goes to GET /v1/dev/outbox and Turnstile accepts its dummy token.
 AUTH_TEST_DOUBLES=1
+# wrangler.jsonc's top level is production; local dev serves the local site.
+ALLOWED_ORIGINS=http://localhost:4317,http://localhost:5173
+APP_ORIGIN=http://localhost:4317
