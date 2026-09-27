@@ -11,6 +11,9 @@ export default defineConfig(async () => {
         miniflare: {
           bindings: {
             TEST_MIGRATIONS: migrations,
+            // wrangler.jsonc's top level is production; tests run as a local site.
+            ALLOWED_ORIGINS: "http://localhost:4317,http://localhost:5173",
+            APP_ORIGIN: "http://localhost:4317",
             GUEST_TOKEN_SECRET: "test-guest-secret-0123456789",
             SET_TOKEN_SECRET: "test-set-secret-0123456789ab",
             EMAIL_HASH_SECRET: "test-email-secret-0123456789",

@@ -20,7 +20,7 @@
 //   node scripts/seed-local.mjs --fixture --fresh --persist-to .wrangler/load
 //   npx wrangler dev --local --port 8789 --persist-to .wrangler/load --var GUEST_TOKEN_SECRET:load-guest-secret-0123456789 \
 //     --var SET_TOKEN_SECRET:load-set-secret-0123456789ab --var EMAIL_HASH_SECRET:load-email-secret-0123456789 \
-//     --var AUTH_TEST_DOUBLES:1 --var RATE_LIMIT_SCALE:100 --var LEADERBOARD_CACHE_SECONDS:60
+//     --var AUTH_TEST_DOUBLES:1 --var RATE_LIMIT_SCALE:100 --var LEADERBOARD_CACHE_SECONDS:60 //     --var ALLOWED_ORIGINS:http://localhost:4317 --var APP_ORIGIN:http://localhost:4317
 //   node scripts/load-test.mjs --api http://localhost:8789
 
 import { writeFileSync } from "node:fs";
