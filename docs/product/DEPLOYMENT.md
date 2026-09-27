@@ -126,7 +126,7 @@ gone. (`www` was dropped on 2026-09-26; its steps are struck through below.)
 **Rollback.** Remove the custom domain from the new project. Nothing else
 depends on it yet.
 
-**Record.** 2026-09-26 (in progress; the open items are listed last).
+**Record.** 2026-09-26. Phase 1 is done.
 
 - **Login.** No new `wrangler login` was needed: the existing login already
   had `pages`, `workers`, and `d1` write access. `zone` is read-only, so zone
@@ -158,12 +158,17 @@ depends on it yet.
   - the owner also decided to remove the pricing page and to do a whole-site
     usability pass before launch. That is recorded as F10 and in the HANDOFF
     decision log.
-- **Open:**
-  - Web Analytics isn't enabled yet (the project has no analytics tag);
-  - the preview-link check is the PR that carries this Record;
-  - the old `court-of-all-time` project is still up, and is deleted only on
-    the owner's OK;
-  - check that the next merge to `main` redeploys on its own.
+- **Finished:**
+  - Web Analytics is on, and its beacon is served on `courtofalltime.win`;
+  - PR #10 got a Pages preview (`6ab338a8`) and a preview comment;
+  - merging PR #10 (`503b23f`) redeployed production on its own
+    (deployment `0fa4d553`);
+  - the old `court-of-all-time` project was deleted with the owner's OK, and
+    `court-of-all-time.pages.dev` no longer resolves.
+- **Left for the owner:** the deleted Worker's Workers Builds trigger still
+  posts a failing "Workers Builds: nbahistoricalmatchups" check on PRs. It is
+  not required and does not block merges. Disconnect it in the dashboard; the
+  agent's token cannot reach build settings.
 
 **Kickoff prompt:**
 
