@@ -276,7 +276,125 @@ has run there, and its figures are recorded.
 **Rollback.** `npx wrangler delete --env staging` removes the Worker. Its
 data stays in D1 and KV until deleted.
 
-**Record.** _(fill in)_
+**Record.** In progress. Last updated 2026-09-28. Agent steps 1–5 are done;
+steps 6 and 7 and the checks in "Done when" remain. To continue, use the
+**resume prompt** below this Record, not the kickoff prompt.
+
+- **Repo changes.** PR #12 (`deploy-p2-staging`), merged as `f1a9d6b`
+  together with the phase 1 Record (#11, `40e2c12`).
+  - `worker/wrangler.jsonc`:
+    - the top level is production, with `https://courtofalltime.win`
+      origins, and its ids are still placeholders;
+    - `env.staging` is filled in;
+    - `EMAIL_FROM` is set to the phase 4 sender in both, which is inert
+      until `EMAIL_API_KEY` exists.
+  - Because the top level now names the production origins, every local
+    run overrides `ALLOWED_ORIGINS` and `APP_ORIGIN` to localhost:
+    - the Worker tests, in `worker/vitest.config.ts`;
+    - Playwright's `wrangler dev`, in `frontend/playwright.config.ts`;
+    - `npm run dev`, in `worker/.dev.vars.example` (copy it to `.dev.vars`);
+    - the local load test, in the header of `worker/scripts/load-test.mjs`.
+  - `frontend/buildEnv.ts`, used by `vite.config.ts`, blanks
+    `VITE_DUEL_API` and `VITE_TURNSTILE_SITE_KEY` when `CF_PAGES_BRANCH`
+    is set to anything but `main` or `staging`. Its tests are in
+    `tests/unit/build-env.test.ts`. Real builds confirmed it: a feature
+    branch's bundle contained neither value, while `staging` and local
+    builds kept both.
+  - Verified: frontend build, lint, 146 unit, and 48 Playwright tests; the
+    Worker's tsc and 123 tests; 40 Python tests; the leakage guard exits 0.
+- **Resources.** Ids, not secrets:
+  - D1 `court-of-all-time-duel-staging`, id
+    `5e7c6705-01e9-4679-82ae-ded466c52deb`. Migrations `0001`–`0006` are
+    applied remotely.
+  - KV `court-of-all-time-duel-staging-POOL`, id
+    `459faa0bc11d4797a92485c1e421e37d`.
+  - KV `court-of-all-time-duel-staging-RATE_LIMITS`, id
+    `93571ede4ee54dfa93f4e5f03313aec8`.
+  - Worker `court-of-all-time-duel-staging`, first version `4df977a9`:
+    - custom domain `api-staging.courtofalltime.win`;
+    - cron `*/15 * * * *`;
+    - `workers.dev` off.
+  - Secrets: `GUEST_TOKEN_SECRET`, `SET_TOKEN_SECRET`, and `ADMIN_TOKEN`,
+    set with `wrangler secret bulk --env staging`. Their values were written
+    only to the agent's session scratchpad (`staging-secrets.json`) for the
+    owner to save. That file is temporary: the owner saves the values in a
+    password manager, then the file is deleted. **If they were not saved
+    before the file was lost, generate new ones and `wrangler secret put`
+    them again.** Staging secrets can be replaced; the salt below cannot.
+- **Pool.**
+  - A new `DUEL_POOL_SALT` is in the repo-root `.env`. That file did not
+    exist before; it is gitignored and holds only this line.
+  - **The owner must save the salt in a password manager.** Phase 3 uploads
+    this same pool to production, and puzzle ids depend on it.
+  - The generator reported `duel-pool-v1` (23,705 unranked and 6,684 ranked
+    puzzles), so `POOL_VERSION` is unchanged.
+  - `build-pool-kv.mjs` wrote 30,413 KV entries in 4 files. All four were
+    uploaded with `kv bulk put --binding POOL --remote --env staging`.
+  - `reports/duel_pool_report.json` changed only because the salt decides
+    which games fall in each partition.
+  - The old local pool, whose salt was never recorded, was copied to the
+    agent's scratchpad before it was overwritten. It is not needed.
+- **Checks so far.**
+  - `https://api-staging.courtofalltime.win/v1/health` answers
+    `{"ok":true,"poolVersion":"duel-pool-v1"}`.
+  - `POST /v1/guests` from origin `https://staging.courtofalltime.win`
+    answers 201 with `Access-Control-Allow-Origin` set to that origin.
+- **Pages.**
+  - The `staging` branch was pushed from `main` at `f1a9d6b`.
+  - The owner added the custom domain `staging.courtofalltime.win` and
+    pointed its CNAME at `staging.courtofalltime.pages.dev`. It resolves and
+    answers 200.
+  - The preview variable is `VITE_DUEL_API` =
+    `https://api-staging.courtofalltime.win` (Text).
+  - As of 2026-09-28 the Production variables are only `NODE_VERSION`
+    (checked through the API).
+  - The owner retried the `staging` build: deployment `1e2882b8`.
+    **Not yet checked** that its bundle contains `api-staging`, or that
+    `staging.courtofalltime.win` serves that bundle rather than
+    production's.
+- **Differed from the plan.**
+  - Claude Code's auto-mode classifier refused to let the agent change the
+    Pages project through the API ("Modify Shared Resources"). Pages
+    variables and domains are therefore owner dashboard steps.
+  - Reading the project through the API is allowed. Use
+    `GET /accounts/<id>/pages/projects/courtofalltime` with the wrangler
+    OAuth token from `%APPDATA%/xdg.config/.wrangler/config/default.toml`.
+    In Git Bash, set `MSYS_NO_PATHCONV=1` so the path is not rewritten.
+  - The token cannot read DNS (zone read returns 403).
+  - **Dashboard trap:** the Settings page has one environment selector, a
+    box in the right-hand column that defaults to **Production**. A variable
+    goes to whatever it shows. `VITE_DUEL_API` landed in Production twice
+    (once as a Secret) before it was moved to Preview. No production build
+    ran while it was there. Check this before every merge to `main` until
+    phase 3.
+- **Remaining.**
+  1. Check that the `staging` bundle contains `api-staging` and that
+     `staging.courtofalltime.win` serves it. `courtofalltime.win` must not
+     contain it.
+  2. Agent step 6: the play-test and the no-answer check.
+  3. The explorer with the API blocked, and a PR preview with no duel mode.
+  4. Agent step 7: the load test, then copy its figures into the F09
+     Session 8 record.
+  5. Finish this Record and open the PR from `deploy-p2-finish`.
+  6. The owner saves the salt and the staging secrets; then the agent
+     deletes the scratchpad secrets file if it still exists.
+
+**Resume prompt** (for a new session partway through phase 2):
+
+```text
+Continue deploying Court of All Time, phase 2 (staging duel server). Check
+out the branch deploy-p2-finish. Read CONTRIBUTING.md, docs/product/HANDOFF.md,
+docs/product/DEPLOYMENT.md (phase 1 Record, and the in-progress phase 2
+Record), and docs/product/features/F09-continuation-handoff.md. The staging
+Worker, D1, KV, pool, secrets, staging branch, domain and preview variable
+already exist; do not recreate them. Do the Record's "Remaining" list in
+order: verify the staging build serves the API, play-test every guest mode
+on staging.courtofalltime.win/duel with the no-answer check, check the
+explorer with the API blocked and that PR previews have no duel mode, run
+the load test at RATE_LIMIT_SCALE "100" then restore "1", record the
+figures, finish phase 2's Record, commit, push, and open a PR. Tell me
+which owner steps are still open.
+```
 
 **Kickoff prompt:**
 
