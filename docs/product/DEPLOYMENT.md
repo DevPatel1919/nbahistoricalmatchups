@@ -277,7 +277,7 @@ has run there, and its figures are recorded.
 data stays in D1 and KV until deleted.
 
 **Record.** 2026-09-29. Phase 2 is done: every agent step and every "Done
-when" check passed. Two owner steps remain; see "Left for the owner" at the
+when" check passed. One owner step remains; see "Left for the owner" at the
 end of this Record.
 
 - **Repo changes.** PR #12 (`deploy-p2-staging`), merged as `f1a9d6b`
@@ -421,13 +421,13 @@ end of this Record.
     times are in microseconds.
   - Machine dates: this machine's local date runs behind UTC in the
     evening. Analytics windows are in UTC.
-- **Left for the owner:**
-  1. Save `DUEL_POOL_SALT` (repo-root `.env`) and the three staging secrets
-     (`staging-secrets.json` in the phase 2 agent's session scratchpad) in a
-     password manager. Then tell the agent, which deletes that file. The
-     salt is needed again in phase 3.
-  2. Disconnect the Workers Builds trigger left from phase 1 (see phase 1's
-     Record).
+- **Secrets saved.** On 2026-09-29 the owner confirmed that
+  `DUEL_POOL_SALT` and the three staging secrets are saved. The agent then
+  deleted the scratchpad `staging-secrets.json`. The staging secrets were
+  also shown once in the agent's chat transcript. Replace them with
+  `wrangler secret put … --env staging` if that is ever a concern.
+- **Left for the owner:** disconnect the Workers Builds trigger left from
+  phase 1 (see phase 1's Record).
 **Kickoff prompt:**
 
 ```text
