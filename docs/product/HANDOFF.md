@@ -233,8 +233,8 @@ Start any deployment session there.
 
 **Next build:** F10 removes the pricing page and makes the whole site easier
 to use, keeping the matchup explorer intact. It is decided but not built; its
-brief has the kickoff prompt. F11 extends the explorer back to the 1985–86
-season (and later, pre-1986) on the branch `f11-older-seasons`. Its brief has
+brief has the kickoff prompt. F11 adds the 1985–86 to 1996–97 seasons to
+the explorer, on the branch `f11-older-seasons`. Its brief has
 one kickoff prompt per session.
 
 The duel Worker runs only on staging (deployment phase 2, done 2026-09-29):
@@ -265,7 +265,7 @@ stable.
 | F08 | [Publisher widget and API](features/F08-widget-and-api.md) | F00, F01, F05 | F07 after contracts are stable |
 | F09 | [Duel mode and ranked ladder](features/F09-daily-duel.md) | F01 for the pre-game bundle | F02, F03, F04 |
 | F10 | [Usability pass and pricing removal](features/F10-usability-and-no-pricing.md) | F02, F04, F05 | Deployment phases 2–4 |
-| F11 | [Older seasons (1985–86 onward, then pre-1986)](features/F11-older-seasons.md) | F01, F02 | Deployment phases 3–4 (it never touches duel mode). Coordinate with F10, which edits the same pages |
+| F11 | [Older seasons (1985–86 to 1996–97)](features/F11-older-seasons.md) | F01, F02 | Deployment phases 3–4 (it never touches duel mode). Coordinate with F10, which edits the same pages |
 
 Recommended sequence:
 

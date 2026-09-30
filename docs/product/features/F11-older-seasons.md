@@ -1,4 +1,4 @@
-# F11: Older seasons (1985–86 onward, then the pre-1986 legends)
+# F11: Older seasons (1985–86 to 1996–97)
 
 Status: **not started.** Decided 2026-09-29; the build is later sessions on the
 branch `f11-older-seasons`, which already holds this brief.
@@ -9,9 +9,10 @@ rules, and "Known gotchas"), `docs/product/HANDOFF.md`,
 
 ## Outcome
 
-The matchup explorer and tournaments cover every NBA season the data
-supports, not only 1998 onward. A fan can put the 72–10 1996 Bulls, the 1986
-Celtics, or the 1989 Pistons against any modern team. Every result still
+The matchup explorer and tournaments cover every season from 1985–86 on,
+not only 1998 onward. That adds the 314 team-seasons from 1985–86 to
+1996–97. A fan can put the 72–10 1996 Bulls, the 1986 Celtics, or the 1989
+Pistons against any modern team. Every result still
 comes from an honest, integrity-checked release, and older-era results are
 labelled with what the model can and cannot know about them.
 
@@ -30,7 +31,6 @@ already in `data/raw/`:
 
 | Seasons | Team-seasons | What exists |
 |---|---|---|
-| 1946–47 to 1984–85 | 510 | Results, scores, quarter scores, free throws, fouls. Shots, rebounds, assists, steals and turnovers are mostly **missing** (steals and turnovers are under 15% filled until 1984–85) |
 | **1985–86 to 1996–97** | **314** | **Full basic box scores**: FG, 3P, FT, offensive and defensive rebounds, assists, steals, blocks, turnovers, fouls. Player box scores too. `gameType` is filled on every row |
 | 1997–98 onward | 835 (served today) | The above, plus the NBA's advanced box score (`TeamStatisticsExtended.csv`) |
 
@@ -75,9 +75,8 @@ Facts that shape the work:
 
 Agreed with the owner on 2026-09-29 unless marked **(owner to decide)**.
 
-- **Scope, in order:** first 1985–86 to 1996–97, with the same kind of
-  analysis the site does today. Then, as a separate and clearly labelled
-  method, the pre-1986 seasons ("legends").
+- **Scope:** 1985–86 to 1996–97, with the same kind of analysis the site
+  does today. The site then covers 1985–86 onward.
 - **The explorer is protected.** Every existing matchup URL and tournament
   link keeps working. Existing team-season keys (`1998-bulls`) never change.
 - **Honest numbers only.** No accuracy figure is published unless it comes
@@ -90,8 +89,8 @@ Agreed with the owner on 2026-09-29 unless marked **(owner to decide)**.
   need era-relative inputs (each team measured against its own season's
   league average) is decided from Session 1's backtest, not assumed.
 - **The Champions Bracket (owner to decide in Session 3).** Either keep it as
-  "16 champions since 1998", or add champions back to 1986 (or 1947 after
-  Session 4) as a new curated bracket. Existing shared bracket links must
+  "16 champions since 1998", or add the 1986–97 champions as a new curated
+  bracket. Existing shared bracket links must
   keep working either way.
 
 ## Out of scope
@@ -102,6 +101,8 @@ Agreed with the owner on 2026-09-29 unless marked **(owner to decide)**.
   `worker/`. Deployment phase 3 uploads the current duel pool, with its salt,
   to production, and puzzle ids depend on it. Older games in duel mode would
   be a separate brief after launch.
+- **Seasons before 1985–86.** Keep the cutoff at 1985–86 in every script
+  this brief changes.
 - **Pricing, accounts, and anything commercial.**
 - **Other leagues (ABA, BAA-only analysis).** The dataset marks non-NBA and
   All-Star teams, and `clean_team_histories.py` filters them. Keep that
@@ -225,23 +226,6 @@ nothing that works today breaks.
 
 **Done when:** the preview shows the 1986–97 teams, every existing URL works,
 the verify list passes, and the owner has approved the merge.
-
-### Session 4 (later, owner to decide): pre-1986 legends
-
-**Goal.** Offer 1946–47 to 1984–85 teams (the 1960s Celtics, the 1967 76ers,
-the 1972 Lakers) honestly, even though their box scores are incomplete.
-
-- These seasons cannot use the Session 2 model: most of its inputs don't
-  exist. Use a separate method built only from what exists: results, point
-  margins, and schedule strength (for example a simple rating system or an
-  Elo), backtested the same way as Session 1.
-- The site must say clearly that these teams are rated by a different, simpler
-  method, and how comparable that makes them.
-- The owner decides from its backtest whether legends can be matched against
-  1986+ teams, or only against each other.
-
-**Done when:** the owner has seen the backtest and decided. Then it ships like
-Session 3.
 
 ## How to verify (every code session)
 
