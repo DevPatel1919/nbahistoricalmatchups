@@ -20,7 +20,7 @@ Read first, in order: `CONTRIBUTING.md`, `docs/product/HANDOFF.md`,
 | 5 | Accounts (magic link, Turnstile, names, ranked eligibility) | Done (PR #4, merge commit `e7643a9`) |
 | 6 | Ranked duels, matchmaking, friend invites, Elo application | Done (PR #5, merge commit `238e43a`) |
 | 7 | Leaderboard and anti-abuse enforcement | Done (PR #6, merge commit `2383d23`) |
-| 8 | Hardening, load/cost review, release gate | Done (PR #7, merge commit `9476db3`). The owner still runs the load test against a staging deploy |
+| 8 | Hardening, load/cost review, release gate | Done (PR #7, merge commit `9476db3`). The staging load run was done in deployment phase 2 |
 | — | Stored leaderboards (after Session 8) | Done (branch `f09-board-snapshot`) |
 
 Sessions 1–4 were merged to `main` in PR #3 (merge commit `3ad3858`), which
@@ -230,9 +230,9 @@ numbers call for them:
 
 - **Deploy.** Follow "Owner setup before any deploy" above, on the Workers
   Paid plan.
-- **Staging load run.** Run `worker/scripts/load-test.mjs` against a staging
-  deploy. Record its latency, and the dashboard's CPU time, in the Session 8
-  record (the steps are there).
+- **Staging load run.** Done on 2026-09-30 (deployment phase 2): 0 server
+  errors, 18 of 18 probes, and CPU p99 9.5 ms. The figures are in the
+  Session 8 record.
 - **Cost triggers.** The boards are already stored snapshots (the record
   after Session 8). Past about 5M KV writes a month, move short rate-limit
   windows to Cloudflare's rate-limiting binding. Past 10M KV reads, reconsider

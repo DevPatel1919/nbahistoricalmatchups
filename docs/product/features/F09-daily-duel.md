@@ -1559,13 +1559,56 @@ All 18 probes held:
 To run it against staging, the owner deploys a separate staging Worker, with
 its own D1 database and KV namespaces and the real pool. Then:
 
-1. Set `RATE_LIMIT_SCALE` high for the run. On a deployed Worker, Cloudflare
-   replaces `cf-connecting-ip`, so every virtual player shares the test
-   machine's address.
+1. Set `RATE_LIMIT_SCALE` high for the run. Against a deployed Worker the
+   script sends no `cf-connecting-ip`, because Cloudflare refuses a
+   client-supplied one. So every virtual player shares the test machine's
+   address.
 2. Run `node scripts/load-test.mjs --api https://<staging>`.
 3. Record latency from the report, and CPU time from the dashboard's Worker
    metrics.
 4. Restore `RATE_LIMIT_SCALE` to "1".
+
+**Staging run** (deployment phase 2, 2026-09-30, 00:12–00:21 UTC). The
+Worker `court-of-all-time-duel-staging` ran at `api-staging.courtofalltime.win`
+with the real pool and `RATE_LIMIT_SCALE` 100. The test ran 20 guests for
+120 s from one Windows machine, through edge location `MIA`. D1 runs in
+`ENAM`. The ranked part is skipped, as it needs the local auth doubles.
+
+| Measure | Result |
+|---|---|
+| Requests | 4,542 at 37/s |
+| Server errors | **0** |
+| Probes | **18 of 18 held**. The guest burst was limited at request 996 |
+| Worker CPU time per request (analytics, 4,452 requests) | p50 2.9 ms, p75 4.6 ms, p99 9.5 ms, p99.9 13.7 ms |
+| Worker wall time per request | p50 386 ms, p99 1,044 ms |
+
+Client-side latency per route, in ms (p50 / p95 / p99):
+
+| Route | n | p50 | p95 | p99 |
+|---|---|---|---|---|
+| `POST /v1/sets` solo | 709 | 939 | 1,106 | 1,270 |
+| `POST /v1/sets` bot | 701 | 939 | 1,049 | 1,150 |
+| `POST` submission solo | 709 | 556 | 736 | 857 |
+| `POST` submission bot | 701 | 605 | 744 | 865 |
+| `GET /v1/duels/:id` | 1,410 | 159 | 256 | 361 |
+| `GET /v1/leaderboard` (edge-cached) | 291 | 37 | 52 | 86 |
+| `POST /v1/guests` | 20 | 584 | 1,947 | 1,947 |
+
+Reading the figures:
+
+- **CPU is not a concern.** Even p99.9 is under the 15 ms average that the
+  cost model allows before CPU is billed at the 1,000-a-day volume.
+- **Latency is D1 round trips.** Wall time is about 100 times CPU time. The
+  cached board answers in 37 ms, which bounds network time from this
+  machine. Issuing a set takes about 0.9 s, and every request writes to the
+  one D1 primary in `ENAM`, with 20 players at once. That is slower than
+  hoped, but acceptable for a set that is played over minutes. If players
+  notice it, the first thing to look at is the number of sequential D1
+  calls in set issuance, for example by batching them.
+- **The deployed run needs one change from the local run.** Cloudflare's
+  edge refuses a client-supplied `cf-connecting-ip` with 403 (error 1000),
+  so the script sends that header only locally. On staging every player
+  shares one address, which is why `RATE_LIMIT_SCALE` must be raised.
 
 The ranked part needs the auth doubles, so it runs only locally; staging
 measures the guest and board paths.

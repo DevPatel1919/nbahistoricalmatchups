@@ -5,7 +5,7 @@ tournaments, growth, creator tools, or monetization. Read this file first, then
 open only the feature brief assigned to you. Read `CONTRIBUTING.md` before
 changing code.
 
-Last reviewed: 2026-09-26 (deployment phase 1).
+Last reviewed: 2026-09-29 (deployment phase 2).
 
 ## Product thesis
 
@@ -235,8 +235,12 @@ Start any deployment session there.
 to use, keeping the matchup explorer intact. It is decided but not built; its
 brief has the kickoff prompt.
 
-Only the static site is deployed; the duel Worker is not. The owner configuration steps are in the F09 Session 3,
-5, 6, 7, and 8 handoff records, including a staging run of the load test. The
+The duel Worker runs only on staging (deployment phase 2, done 2026-09-29):
+`staging.courtofalltime.win` plays guest duel mode against
+`api-staging.courtofalltime.win`, and its load run is recorded in the F09
+Session 8 record. Production `courtofalltime.win` has no duel mode until
+phase 3. The owner configuration steps are in the F09 Session 3, 5, 6, 7,
+and 8 handoff records. The
 `frontend/` has 142 unit and 48 Playwright tests; `worker/` has 123. F09 has
 no further build sessions.
 

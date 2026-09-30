@@ -276,8 +276,158 @@ has run there, and its figures are recorded.
 **Rollback.** `npx wrangler delete --env staging` removes the Worker. Its
 data stays in D1 and KV until deleted.
 
-**Record.** _(fill in)_
+**Record.** 2026-09-29. Phase 2 is done: every agent step and every "Done
+when" check passed. One owner step remains; see "Left for the owner" at the
+end of this Record.
 
+- **Repo changes.** PR #12 (`deploy-p2-staging`), merged as `f1a9d6b`
+  together with the phase 1 Record (#11, `40e2c12`).
+  - `worker/wrangler.jsonc`:
+    - the top level is production, with `https://courtofalltime.win`
+      origins, and its ids are still placeholders;
+    - `env.staging` is filled in;
+    - `EMAIL_FROM` is set to the phase 4 sender in both, which is inert
+      until `EMAIL_API_KEY` exists.
+  - Because the top level now names the production origins, every local
+    run overrides `ALLOWED_ORIGINS` and `APP_ORIGIN` to localhost:
+    - the Worker tests, in `worker/vitest.config.ts`;
+    - Playwright's `wrangler dev`, in `frontend/playwright.config.ts`;
+    - `npm run dev`, in `worker/.dev.vars.example` (copy it to `.dev.vars`);
+    - the local load test, in the header of `worker/scripts/load-test.mjs`.
+  - `frontend/buildEnv.ts`, used by `vite.config.ts`, blanks
+    `VITE_DUEL_API` and `VITE_TURNSTILE_SITE_KEY` when `CF_PAGES_BRANCH`
+    is set to anything but `main` or `staging`. Its tests are in
+    `tests/unit/build-env.test.ts`. Real builds confirmed it: a feature
+    branch's bundle contained neither value, while `staging` and local
+    builds kept both.
+  - Verified: frontend build, lint, 146 unit, and 48 Playwright tests; the
+    Worker's tsc and 123 tests; 40 Python tests; the leakage guard exits 0.
+- **Resources.** Ids, not secrets:
+  - D1 `court-of-all-time-duel-staging`, id
+    `5e7c6705-01e9-4679-82ae-ded466c52deb`. Migrations `0001`–`0006` are
+    applied remotely.
+  - KV `court-of-all-time-duel-staging-POOL`, id
+    `459faa0bc11d4797a92485c1e421e37d`.
+  - KV `court-of-all-time-duel-staging-RATE_LIMITS`, id
+    `93571ede4ee54dfa93f4e5f03313aec8`.
+  - Worker `court-of-all-time-duel-staging`, first version `4df977a9`:
+    - custom domain `api-staging.courtofalltime.win`;
+    - cron `*/15 * * * *`;
+    - `workers.dev` off.
+  - Secrets: `GUEST_TOKEN_SECRET`, `SET_TOKEN_SECRET`, and `ADMIN_TOKEN`,
+    set with `wrangler secret bulk --env staging`. Their values were written
+    only to the agent's session scratchpad (`staging-secrets.json`) for the
+    owner to save. That file is temporary: the owner saves the values in a
+    password manager, then the file is deleted. **If they were not saved
+    before the file was lost, generate new ones and `wrangler secret put`
+    them again.** Staging secrets can be replaced; the salt below cannot.
+- **Pool.**
+  - A new `DUEL_POOL_SALT` is in the repo-root `.env`. That file did not
+    exist before; it is gitignored and holds only this line.
+  - **The owner must save the salt in a password manager.** Phase 3 uploads
+    this same pool to production, and puzzle ids depend on it.
+  - The generator reported `duel-pool-v1` (23,705 unranked and 6,684 ranked
+    puzzles), so `POOL_VERSION` is unchanged.
+  - `build-pool-kv.mjs` wrote 30,413 KV entries in 4 files. All four were
+    uploaded with `kv bulk put --binding POOL --remote --env staging`.
+  - `reports/duel_pool_report.json` changed only because the salt decides
+    which games fall in each partition.
+  - The old local pool, whose salt was never recorded, was copied to the
+    agent's scratchpad before it was overwritten. It is not needed.
+- **Worker checks.**
+  - `https://api-staging.courtofalltime.win/v1/health` answers
+    `{"ok":true,"poolVersion":"duel-pool-v1"}`.
+  - `POST /v1/guests` from origin `https://staging.courtofalltime.win`
+    answers 201 with `Access-Control-Allow-Origin` set to that origin.
+- **Pages.**
+  - The `staging` branch was pushed from `main` at `f1a9d6b`.
+  - The owner added the custom domain `staging.courtofalltime.win` and
+    pointed its CNAME at `staging.courtofalltime.pages.dev`. It resolves and
+    answers 200.
+  - The preview variable is `VITE_DUEL_API` =
+    `https://api-staging.courtofalltime.win` (Text).
+  - As of 2026-09-28 the Production variables are only `NODE_VERSION`
+    (checked through the API).
+  - The owner retried the `staging` build: deployment `1e2882b8`. Checked
+    on 2026-09-29:
+    - `staging.courtofalltime.win` serves its bundle `index-DiocxOKC.js`,
+      which contains `api-staging.courtofalltime.win`;
+    - `courtofalltime.win` serves `index-CTn4GtRt.js`, which does not;
+    - the Production variables are still only `NODE_VERSION`.
+- **Play-test.** On 2026-09-29, in Chrome on
+  `https://staging.courtofalltime.win/duel`, as a guest. A `fetch` wrapper
+  kept every API response body, and each one was searched for answer
+  fields: `actualWinner`, `modelHomeWinProbability`, a winner, a score, a
+  date, and the other player's picks.
+  - **Sparring Partner, any era.** The only response before lock was
+    `POST /v1/sets`, and it held pre-game fields only. Its `setToken`
+    decodes to the guest id, the duel id, and the expiry, plus a signature.
+    Answers appeared first in the submission response. The result showed the
+    Sparring Partner disclosure and the model benchmark.
+  - **Solo, any era.** Same outcome, with no answers before lock.
+  - **Friend, era 2005–2011.** All five games came from that era.
+    - After the creator locked in, their duel answered `waiting`, with no
+      answers.
+    - A second guest accepted the invite. The accept response held no
+      answers and none of the creator's picks.
+    - Once the second guest locked in, both sides showed the same revealed
+      result (100 to −103).
+  - Ranked is shown disabled, with "Needs an account".
+- **Explorer with the API blocked.** Playwright loaded staging with every
+  request to `api-staging.courtofalltime.win` aborted from the first load.
+  `/`, `/1998-bulls-vs-2017-warriors`, `/tournament`, `/about`, and `/duel`
+  all rendered, with no API request and no console error. The duel page
+  makes no request until a set is started.
+- **PR previews.** The `deploy-p2-finish` branch preview (`f39e6ab8`) serves
+  `index-L9s-Q1rf.js`, which contains neither API address. Its header has no
+  Duel link, and `/duel` says duel mode isn't available. The only console
+  errors there came from the Web Analytics beacon, which CORS blocks on
+  `*.pages.dev` hosts.
+- **Load test.** 2026-09-30, 00:12–00:21 UTC, from the owner's Windows
+  machine (edge `MIA`; D1 runs in `ENAM`).
+  - The staging Worker was deployed with
+    `--var RATE_LIMIT_SCALE:100` (version `b283c7e5`) rather than by editing
+    `wrangler.jsonc`. A plain `npx wrangler deploy --env staging` then
+    restored `"1"` (version `130bfc0e`). After that, `POST /v1/guests` from
+    the same address answered 429, as it should.
+  - Results: 4,542 requests at 37 a second, **0 server errors, and 18 of 18
+    probes**. The guest burst hit 429 at request 996 (10 an hour × 100, less
+    the run's own guests). The full figures are in the F09 Session 8 record,
+    "Load and abuse test".
+  - The first attempt failed at once: Cloudflare's edge refuses a
+    client-supplied `cf-connecting-ip` with 403 (error 1000). The script
+    now sends that header only on local runs.
+- **Verified on this branch:** frontend build, lint, 146 unit, and 48
+  Playwright tests; the Worker's tsc and 123 tests; 40 Python tests; the
+  leakage guard exits 0. One Playwright account test
+  (`account.spec.ts:141`) failed once and then passed on a rerun of all 48.
+- **Differed from the plan.**
+  - Claude Code's auto-mode classifier refused to let the agent change the
+    Pages project through the API ("Modify Shared Resources"). Pages
+    variables and domains are therefore owner dashboard steps.
+  - Reading the project through the API is allowed. Use
+    `GET /accounts/<id>/pages/projects/courtofalltime` with the wrangler
+    OAuth token from `%APPDATA%/xdg.config/.wrangler/config/default.toml`.
+    In Git Bash, set `MSYS_NO_PATHCONV=1` so the path is not rewritten.
+  - The token cannot read DNS (zone read returns 403).
+  - **Dashboard trap:** the Settings page has one environment selector, a
+    box in the right-hand column that defaults to **Production**. A variable
+    goes to whatever it shows. `VITE_DUEL_API` landed in Production twice
+    (once as a Secret) before it was moved to Preview. No production build
+    ran while it was there. Check this before every merge to `main` until
+    phase 3.
+  - Worker analytics can be read through the GraphQL API
+    (`workersInvocationsAdaptive`) with the same token. Its CPU and wall
+    times are in microseconds.
+  - Machine dates: this machine's local date runs behind UTC in the
+    evening. Analytics windows are in UTC.
+- **Secrets saved.** On 2026-09-29 the owner confirmed that
+  `DUEL_POOL_SALT` and the three staging secrets are saved. The agent then
+  deleted the scratchpad `staging-secrets.json`. The staging secrets were
+  also shown once in the agent's chat transcript. Replace them with
+  `wrangler secret put … --env staging` if that is ever a concern.
+- **Left for the owner:** disconnect the Workers Builds trigger left from
+  phase 1 (see phase 1's Record).
 **Kickoff prompt:**
 
 ```text

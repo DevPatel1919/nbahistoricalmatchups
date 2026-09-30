@@ -11,8 +11,9 @@
 // (AUTH_TEST_DOUBLES), so against staging the ranked part is skipped.
 //
 // Locally every request comes from one address, so each virtual player sends
-// its own cf-connecting-ip; Cloudflare replaces that header on a deployed
-// Worker, where every player shares the test machine's address. Raise
+// its own cf-connecting-ip. Only local runs send it: Cloudflare's edge refuses
+// a client-supplied cf-connecting-ip with 403 (error 1000), so against a
+// deployed Worker every player shares the test machine's address. Raise
 // RATE_LIMIT_SCALE on staging for the run, or the per-IP limits (correctly)
 // answer 429. Restore it to "1" afterwards.
 //
@@ -46,7 +47,7 @@ async function call(route, path, { method = "GET", body, token, ip, headers = {}
   const h = { ...headers };
   if (body !== undefined) h["content-type"] = "application/json";
   if (token) h.authorization = "Bearer " + token;
-  if (ip) h["cf-connecting-ip"] = ip;
+  if (ip && LOCAL) h["cf-connecting-ip"] = ip;
   const started = performance.now();
   let status = 0;
   let json = null;
