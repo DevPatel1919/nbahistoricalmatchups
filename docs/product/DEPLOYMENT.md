@@ -276,9 +276,9 @@ has run there, and its figures are recorded.
 **Rollback.** `npx wrangler delete --env staging` removes the Worker. Its
 data stays in D1 and KV until deleted.
 
-**Record.** In progress. Last updated 2026-09-28. Agent steps 1–5 are done;
-steps 6 and 7 and the checks in "Done when" remain. To continue, use the
-**resume prompt** below this Record, not the kickoff prompt.
+**Record.** 2026-09-29. Phase 2 is done: every agent step and every "Done
+when" check passed. Two owner steps remain; see "Left for the owner" at the
+end of this Record.
 
 - **Repo changes.** PR #12 (`deploy-p2-staging`), merged as `f1a9d6b`
   together with the phase 1 Record (#11, `40e2c12`).
@@ -334,7 +334,7 @@ steps 6 and 7 and the checks in "Done when" remain. To continue, use the
     which games fall in each partition.
   - The old local pool, whose salt was never recorded, was copied to the
     agent's scratchpad before it was overwritten. It is not needed.
-- **Checks so far.**
+- **Worker checks.**
   - `https://api-staging.courtofalltime.win/v1/health` answers
     `{"ok":true,"poolVersion":"duel-pool-v1"}`.
   - `POST /v1/guests` from origin `https://staging.courtofalltime.win`
@@ -348,10 +348,59 @@ steps 6 and 7 and the checks in "Done when" remain. To continue, use the
     `https://api-staging.courtofalltime.win` (Text).
   - As of 2026-09-28 the Production variables are only `NODE_VERSION`
     (checked through the API).
-  - The owner retried the `staging` build: deployment `1e2882b8`.
-    **Not yet checked** that its bundle contains `api-staging`, or that
-    `staging.courtofalltime.win` serves that bundle rather than
-    production's.
+  - The owner retried the `staging` build: deployment `1e2882b8`. Checked
+    on 2026-09-29:
+    - `staging.courtofalltime.win` serves its bundle `index-DiocxOKC.js`,
+      which contains `api-staging.courtofalltime.win`;
+    - `courtofalltime.win` serves `index-CTn4GtRt.js`, which does not;
+    - the Production variables are still only `NODE_VERSION`.
+- **Play-test.** On 2026-09-29, in Chrome on
+  `https://staging.courtofalltime.win/duel`, as a guest. A `fetch` wrapper
+  kept every API response body, and each one was searched for answer
+  fields: `actualWinner`, `modelHomeWinProbability`, a winner, a score, a
+  date, and the other player's picks.
+  - **Sparring Partner, any era.** The only response before lock was
+    `POST /v1/sets`, and it held pre-game fields only. Its `setToken`
+    decodes to the guest id, the duel id, and the expiry, plus a signature.
+    Answers appeared first in the submission response. The result showed the
+    Sparring Partner disclosure and the model benchmark.
+  - **Solo, any era.** Same outcome, with no answers before lock.
+  - **Friend, era 2005–2011.** All five games came from that era.
+    - After the creator locked in, their duel answered `waiting`, with no
+      answers.
+    - A second guest accepted the invite. The accept response held no
+      answers and none of the creator's picks.
+    - Once the second guest locked in, both sides showed the same revealed
+      result (100 to −103).
+  - Ranked is shown disabled, with "Needs an account".
+- **Explorer with the API blocked.** Playwright loaded staging with every
+  request to `api-staging.courtofalltime.win` aborted from the first load.
+  `/`, `/1998-bulls-vs-2017-warriors`, `/tournament`, `/about`, and `/duel`
+  all rendered, with no API request and no console error. The duel page
+  makes no request until a set is started.
+- **PR previews.** The `deploy-p2-finish` branch preview (`f39e6ab8`) serves
+  `index-L9s-Q1rf.js`, which contains neither API address. Its header has no
+  Duel link, and `/duel` says duel mode isn't available. The only console
+  errors there came from the Web Analytics beacon, which CORS blocks on
+  `*.pages.dev` hosts.
+- **Load test.** 2026-09-30, 00:12–00:21 UTC, from the owner's Windows
+  machine (edge `MIA`; D1 runs in `ENAM`).
+  - The staging Worker was deployed with
+    `--var RATE_LIMIT_SCALE:100` (version `b283c7e5`) rather than by editing
+    `wrangler.jsonc`. A plain `npx wrangler deploy --env staging` then
+    restored `"1"` (version `130bfc0e`). After that, `POST /v1/guests` from
+    the same address answered 429, as it should.
+  - Results: 4,542 requests at 37 a second, **0 server errors, and 18 of 18
+    probes**. The guest burst hit 429 at request 996 (10 an hour × 100, less
+    the run's own guests). The full figures are in the F09 Session 8 record,
+    "Load and abuse test".
+  - The first attempt failed at once: Cloudflare's edge refuses a
+    client-supplied `cf-connecting-ip` with 403 (error 1000). The script
+    now sends that header only on local runs.
+- **Verified on this branch:** frontend build, lint, 146 unit, and 48
+  Playwright tests; the Worker's tsc and 123 tests; 40 Python tests; the
+  leakage guard exits 0. One Playwright account test
+  (`account.spec.ts:141`) failed once and then passed on a rerun of all 48.
 - **Differed from the plan.**
   - Claude Code's auto-mode classifier refused to let the agent change the
     Pages project through the API ("Modify Shared Resources"). Pages
@@ -367,35 +416,18 @@ steps 6 and 7 and the checks in "Done when" remain. To continue, use the
     (once as a Secret) before it was moved to Preview. No production build
     ran while it was there. Check this before every merge to `main` until
     phase 3.
-- **Remaining.**
-  1. Check that the `staging` bundle contains `api-staging` and that
-     `staging.courtofalltime.win` serves it. `courtofalltime.win` must not
-     contain it.
-  2. Agent step 6: the play-test and the no-answer check.
-  3. The explorer with the API blocked, and a PR preview with no duel mode.
-  4. Agent step 7: the load test, then copy its figures into the F09
-     Session 8 record.
-  5. Finish this Record and open the PR from `deploy-p2-finish`.
-  6. The owner saves the salt and the staging secrets; then the agent
-     deletes the scratchpad secrets file if it still exists.
-
-**Resume prompt** (for a new session partway through phase 2):
-
-```text
-Continue deploying Court of All Time, phase 2 (staging duel server). Check
-out the branch deploy-p2-finish. Read CONTRIBUTING.md, docs/product/HANDOFF.md,
-docs/product/DEPLOYMENT.md (phase 1 Record, and the in-progress phase 2
-Record), and docs/product/features/F09-continuation-handoff.md. The staging
-Worker, D1, KV, pool, secrets, staging branch, domain and preview variable
-already exist; do not recreate them. Do the Record's "Remaining" list in
-order: verify the staging build serves the API, play-test every guest mode
-on staging.courtofalltime.win/duel with the no-answer check, check the
-explorer with the API blocked and that PR previews have no duel mode, run
-the load test at RATE_LIMIT_SCALE "100" then restore "1", record the
-figures, finish phase 2's Record, commit, push, and open a PR. Tell me
-which owner steps are still open.
-```
-
+  - Worker analytics can be read through the GraphQL API
+    (`workersInvocationsAdaptive`) with the same token. Its CPU and wall
+    times are in microseconds.
+  - Machine dates: this machine's local date runs behind UTC in the
+    evening. Analytics windows are in UTC.
+- **Left for the owner:**
+  1. Save `DUEL_POOL_SALT` (repo-root `.env`) and the three staging secrets
+     (`staging-secrets.json` in the phase 2 agent's session scratchpad) in a
+     password manager. Then tell the agent, which deletes that file. The
+     salt is needed again in phase 3.
+  2. Disconnect the Workers Builds trigger left from phase 1 (see phase 1's
+     Record).
 **Kickoff prompt:**
 
 ```text
