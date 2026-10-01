@@ -1,7 +1,7 @@
 # F11: Older seasons (1985–86 to 1996–97)
 
-Status: **Session 1 done (2026-09-30); waiting on the owner's era-adjustment
-decision before Session 2.** Decided 2026-09-29; the build runs on the branch
+Status: **Session 1 done (2026-09-30). The owner chose era-relative inputs on
+2026-10-01; Session 2 is next.** Decided 2026-09-29; the build runs on the branch
 `f11-older-seasons`.
 
 Read first, in order: `CONTRIBUTING.md` (the point-in-time rule, the release
@@ -86,9 +86,11 @@ Agreed with the owner on 2026-09-29 unless marked **(owner to decide)**.
   backtest shows weaker results for them.
 - **Nothing goes live without the owner's OK.** A merge to `main` deploys the
   site at once (`DEPLOYMENT.md`). The site stays static.
-- **Era adjustment (owner to decide after Session 1).** Whether older teams
-  need era-relative inputs (each team measured against its own season's
-  league average) is decided from Session 1's backtest, not assumed.
+- **Era adjustment: era-relative inputs (owner, 2026-10-01).** `hist-v2`
+  measures each team's stats against its own season's league, not as raw
+  numbers. The deciding evidence was Session 1's backtest: raw inputs gave
+  older teams 46.4% in evenly matched cross-era pairs, era-relative inputs
+  49.9%, with the same accuracy on real games.
 - **The Champions Bracket (owner to decide in Session 3).** Either keep it as
   "16 champions since 1998", or add the 1986–97 champions as a new curated
   bracket. Existing shared bracket links must
@@ -363,9 +365,9 @@ passed; leakage guard exit 0 (350 + 350 games, 0 mismatches);
 `verify_static_export.py` 200/200; `test_release_integrity.py` 23 passed.
 Nothing in `frontend/public/data/` or `models/releases/` changed.
 
-**Owner decision:** era adjustment, pending. The recommendation is
-era-relative inputs for `hist-v2`; the report gives the reasons and the open
-points for Session 2 (served reference season, the 2022 hole, rebound %).
+**Owner decision (2026-10-01):** era-relative inputs for `hist-v2`, as
+recommended. The open points for Session 2 are in the report: the served
+reference season, the 2022 hole, and rebound %.
 
 ## Kickoff prompts
 
