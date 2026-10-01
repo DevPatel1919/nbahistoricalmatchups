@@ -234,11 +234,14 @@ Start any deployment session there.
 **Next build:** F10 removes the pricing page and makes the whole site easier
 to use, keeping the matchup explorer intact. It is decided but not built; its
 brief has the kickoff prompt. F11 adds the 1985–86 to 1996–97 seasons to
-the explorer, on the branch `f11-older-seasons`. Its brief has
-one kickoff prompt per session. Session 1 (the 1986–97 rebuild and backtest,
-`reports/older_seasons_backtest.md`) is done. On 2026-10-01 the owner chose
-era-relative inputs. The next session starts from
-`features/F11-continuation-handoff.md`.
+the explorer, on the branch `f11-older-seasons`, and is built (2026-10-01):
+- Release `hist-v2` is active. It judges each team against its own season's
+  league, and was chosen by the owner after `reports/hist_v2_evaluation.md`.
+- The export holds 1,177 team-seasons.
+- 2022 and 2001 are restored.
+- Its PR waits for the owner to approve the Pages preview, because merging
+  deploys. See the Session 3 record in `features/F11-older-seasons.md`.
+No accuracy figure is published.
 
 The duel Worker runs only on staging (deployment phase 2, done 2026-09-29):
 `staging.courtofalltime.win` plays guest duel mode against
@@ -246,7 +249,8 @@ The duel Worker runs only on staging (deployment phase 2, done 2026-09-29):
 Session 8 record. Production `courtofalltime.win` has no duel mode until
 phase 3. The owner configuration steps are in the F09 Session 3, 5, 6, 7,
 and 8 handoff records. The
-`frontend/` has 142 unit and 48 Playwright tests; `worker/` has 123. F09 has
+`frontend/` has 159 unit and 50 Playwright tests; `worker/` has 123
+(after F11). F09 has
 no further build sessions.
 
 ## Feature map

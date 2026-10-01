@@ -10,11 +10,18 @@ import RandomMatchupButton from "../components/RandomMatchupButton";
 import { DUEL_API } from "../lib/duelApi";
 
 const SUGGESTIONS: [string, string][] = [
+  ["1996-bulls", "2017-warriors"],
+  ["1986-celtics", "2008-celtics"],
   ["1998-bulls", "2017-warriors"],
   ["2001-lakers", "2008-celtics"],
   ["1998-jazz", "2016-cavaliers"],
   ["2015-warriors", "2023-nuggets"],
 ];
+
+/** The earliest season in the export, as its ending year (1986 = 1985-86). */
+function firstSeason(teams: IndexTeam[]): number {
+  return teams.reduce((min, t) => Math.min(min, t.season), Infinity);
+}
 
 export default function HomePage() {
   const [teams, setTeams] = useState<IndexTeam[] | null>(null);
@@ -72,7 +79,8 @@ export default function HomePage() {
       <section className="hero">
         <h1>Any two teams. Any two seasons. One neutral court.</h1>
         <p>
-          835 team-seasons since 1998. Pick two, and the model calls a winner, a margin, and best-of-7 series odds.
+          {teams.length.toLocaleString("en-US")} team-seasons since {firstSeason(teams)}. Pick two, and the model calls a
+          winner, a margin, and best-of-7 series odds.
         </p>
 
         <SearchPicker

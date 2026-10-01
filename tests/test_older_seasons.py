@@ -126,11 +126,15 @@ def test_older_profiles_have_unique_era_correct_keys(older_games):
 @needs_raw
 @pytest.mark.skipif(not INDEX_PATH.exists(), reason="static export not built")
 def test_existing_keys_and_names_do_not_change():
+    """Every key served from 1998 on keeps its key and era-correct name, and the served 1986-97 keys are new."""
     from scripts.export_static_site_data import attach_identity
     served = {t["key"]: (t["city"], t["name"]) for t in json.loads(INDEX_PATH.read_text())["teams"]}
-    current = attach_identity(prof.build_season_profiles(
+    modern = attach_identity(prof.build_season_profiles(
         prof.load_team_games(prof.MODERN_ERA_START + 1, prof.load_allowed_team_ids())))
-    assert dict(zip(current["key"], zip(current["era_city"], current["era_name"]))) == served
+    expected = dict(zip(modern["key"], zip(modern["era_city"], modern["era_name"])))
+    assert {k: served[k] for k in expected} == expected
+    pre_f11 = json.loads((REPO_ROOT / "frontend" / "tests" / "unit" / "pre-f11-keys.json").read_text())["keys"]
+    assert set(pre_f11) <= set(served)
 
 
 # ---------------------------------------------------------------------------

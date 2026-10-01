@@ -19,21 +19,21 @@ test("search a team, pick a second, and see a probability", async ({ page }) => 
 test("a share URL loads the same numbers directly", async ({ page }) => {
   await page.goto("/1998-bulls-vs-2017-warriors");
 
-  await expect(page.locator(".winner-card__prob")).toContainText("73.8%");
-  await expect(page.locator(".winner-card__margin")).toContainText("wins by about 1 pt");
+  await expect(page.locator(".winner-card__prob")).toContainText("64.4%");
+  await expect(page.locator(".winner-card__margin")).toContainText("wins by about 5 pts");
   await expect(page.locator(".stat-comparison")).toContainText("62-20");
   await expect(page.locator(".stat-comparison")).toContainText("67-15");
 
   // Reloading the exact same URL must show the exact same numbers.
   await page.reload();
-  await expect(page.locator(".winner-card__prob")).toContainText("73.8%");
-  await expect(page.locator(".winner-card__margin")).toContainText("wins by about 1 pt");
+  await expect(page.locator(".winner-card__prob")).toContainText("64.4%");
+  await expect(page.locator(".winner-card__margin")).toContainText("wins by about 5 pts");
 });
 
 test("the reverse-order URL redirects to the canonical URL", async ({ page }) => {
   await page.goto("/2017-warriors-vs-1998-bulls");
   await expect(page).toHaveURL(/\/1998-bulls-vs-2017-warriors$/);
-  await expect(page.locator(".winner-card__prob")).toContainText("73.8%");
+  await expect(page.locator(".winner-card__prob")).toContainText("64.4%");
 });
 
 test("theme toggle persists across a reload", async ({ page }) => {
@@ -60,12 +60,12 @@ test("A vs B equals B vs A (neutral-site symmetry)", async ({ page }) => {
   // capturing raw textContent (which can race the in-flight count-up animation
   // and read a mid-animation frame).
   await page.goto("/1998-bulls-vs-2017-warriors");
-  await expect(page.locator(".winner-card__prob")).toContainText("73.8%");
-  await expect(page.locator(".winner-card__margin")).toContainText("wins by about 1 pt");
+  await expect(page.locator(".winner-card__prob")).toContainText("64.4%");
+  await expect(page.locator(".winner-card__margin")).toContainText("wins by about 5 pts");
 
   await page.goto("/2017-warriors-vs-1998-bulls");
-  await expect(page.locator(".winner-card__prob")).toContainText("73.8%");
-  await expect(page.locator(".winner-card__margin")).toContainText("wins by about 1 pt");
+  await expect(page.locator(".winner-card__prob")).toContainText("64.4%");
+  await expect(page.locator(".winner-card__margin")).toContainText("wins by about 5 pts");
 });
 
 test("/about renders without a bare accuracy figure", async ({ page }) => {
@@ -73,4 +73,31 @@ test("/about renders without a bare accuracy figure", async ({ page }) => {
   await expect(page.getByRole("heading", { name: /about court of all time/i })).toBeVisible();
   const text = await page.locator("body").innerText();
   expect(text).not.toMatch(/\b7\d(\.\d+)?%\s*(accura|accur)/i);
+});
+
+// F11: the 1985-86 to 1996-97 seasons are searchable and get matchup pages,
+// and URLs shared before F11 still load.
+test("an older team-season is searchable and gets a matchup page", async ({ page }) => {
+  await page.goto("/");
+  const searchInput = page.locator(".search-box input");
+  await searchInput.fill("96 bulls");
+  await page.getByRole("option", { name: /Chicago Bulls 1996/ }).first().click();
+  await searchInput.fill("2017 warriors");
+  await page.getByRole("option", { name: /Golden State Warriors/ }).first().click();
+
+  await expect(page).toHaveURL(/\/1996-bulls-vs-2017-warriors$/);
+  await expect(page.locator(".winner-card__prob")).toContainText("%");
+  await expect(page.locator(".stat-comparison")).toContainText("72-10");
+});
+
+test("matchup URLs shared before F11 still load", async ({ page }) => {
+  for (const [url, name] of [
+    ["/2005-supersonics-vs-1999-grizzlies", "SuperSonics"],
+    ["/1990-bullets-vs-2022-warriors", "Bullets"],
+    ["/2022-clippers-vs-2022-lakers", "Clippers"],
+  ]) {
+    await page.goto(url);
+    await expect(page.locator(".winner-card__prob")).toContainText("%");
+    await expect(page.locator(".winner-card")).toContainText(name);
+  }
 });

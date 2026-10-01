@@ -229,18 +229,25 @@ def test_releases_are_immutable(layout):
 # The committed active release and its public metadata
 # ---------------------------------------------------------------------------
 
-def test_active_release_is_hist_v1_and_valid():
+def test_active_release_is_hist_v2_and_valid():
     release = rel.load_active_release()
-    assert release.version == "hist-v1"
+    assert release.version == "hist-v2"
     assert release.purpose == "historical_entertainment"
-    assert release.manifest["columns"]["count"] == len(release.columns) == 70
+    assert release.manifest["columns"]["count"] == len(release.columns) == 14
     assert release.manifest["trainedThroughSeason"] == 2018
+
+
+def test_hist_v1_still_loads_for_rollback():
+    """promote_release.py --activate hist-v1 must keep working (F11)."""
+    release = rel.load_release(SHIPPED)
+    assert release.version == "hist-v1"
+    assert release.manifest["columns"]["count"] == len(release.columns) == 70
+    assert release.metrics["recordedAtTraining"]["validForClaims"] is False
 
 
 def test_active_release_publishes_no_accuracy_claim():
     release = rel.load_active_release()
     assert release.metrics["publicAccuracyClaim"] is None
-    assert release.metrics["recordedAtTraining"]["validForClaims"] is False
     assert any("margin is approximate" in l for l in release.manifest["limitations"])
 
 
@@ -261,6 +268,11 @@ SMOKE_MATCHUPS = [
     ("same season, one missed playoffs",      "Golden State Warriors", 2016, "Philadelphia 76ers",      2016, "playoff_context_model_extrapolated"),
     ("historical names: Sonics vs Vancouver", "Oklahoma City Thunder", 2005, "Memphis Grizzlies",       1999, "playoff_context_model_extrapolated"),
     ("cross-era",                             "Chicago Bulls",         1998, "Denver Nuggets",          2023, "playoff_context_model"),
+    # F11: 1985-86 to 1996-97 (predict_matchup finds teams by current franchise name)
+    ("older playoff team",                    "Boston Celtics",        1986, "Detroit Pistons",         1989, "playoff_context_model"),
+    ("older non-playoff team",                "Clippers",              1987, "Los Angeles Lakers",      1987, "playoff_context_model_extrapolated"),
+    ("historical name: 1990 Bullets",         "Washington Wizards",    1990, "Golden State Warriors",   2022, "playoff_context_model_extrapolated"),
+    ("cross-era: 1996 Bulls vs 2017 Warriors", "Chicago Bulls",        1996, "Golden State Warriors",   2017, "playoff_context_model"),
 ]
 
 
@@ -270,9 +282,10 @@ def test_smoke_matchup(label, a, sa, b, sb, mode):
     pm.reload()
     result = pm.predict_matchup(a, sa, b, sb)
 
-    assert result["model_release"] == "hist-v1"
-    assert result["model_purpose"] == "historical_entertainment"
-    assert result["model_feature_count"] == 70
+    release = rel.load_active_release()
+    assert result["model_release"] == release.version
+    assert result["model_purpose"] == release.purpose
+    assert result["model_feature_count"] == release.manifest["columns"]["count"]
     assert result["prediction_mode"] == mode
     assert 0.0 < result["team_a_win_probability"] < 1.0
     assert result["team_a_win_probability"] + result["team_b_win_probability"] == pytest.approx(1.0, abs=1e-4)

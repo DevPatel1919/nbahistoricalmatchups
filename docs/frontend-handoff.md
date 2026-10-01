@@ -7,9 +7,9 @@ Written for a coding agent with repo access and no prior context. Read
 
 ## The product
 
-**Court of All Time** answers one question: *take any two NBA teams from any two seasons since 1998 and play them on a neutral court, who wins?* It is a fan toy for settling arguments, not a betting tool.
+**Court of All Time** answers one question: *take any two NBA teams from any two seasons since 1985–86 and play them on a neutral court, who wins?* It is a fan toy for settling arguments, not a betting tool.
 
-- **835 team-seasons**, 1998–2026, 30 franchises.
+- **1,177 team-seasons**, 1986–2026, 30 franchises (835 from 1998 at launch; F11 added 1986–97 and restored 2022).
 - Each matchup shows a **winner, a win probability, a projected margin, best-of-7 series odds**, and a side-by-side stat comparison.
 - Every result comes from the existing model, precomputed ahead of time. The site is static files: no server, no database, no API.
 
@@ -59,7 +59,7 @@ data/processed/team_season_profiles_extended.csv
 scripts/export_static_site_data.py        <- you write this
         |
         v
-frontend/public/data/*.json               <- 835 team files + index + names/colors
+frontend/public/data/*.json               <- 1,177 team files + index + names/colors
         |
         v
 frontend/ (React + TS + Vite)  ->  build  ->  Cloudflare Pages
@@ -89,7 +89,7 @@ With this, A vs B and B vs A agree exactly, so each pair is stored once and read
 
 ### Performance
 
-There are 835 × 834 / 2 ≈ **348k pairs**, each needing two model calls. Calling `predict_matchup` in a loop builds a one-row DataFrame per call and takes hours. Instead, load the pipeline once and score in batches:
+There are 1,177 × 1,176 / 2 ≈ **692k pairs** (348k at launch, before F11), each needing two model calls. Calling `predict_matchup` in a loop builds a one-row DataFrame per call and takes hours. Instead, load the pipeline once and score in batches:
 
 1. Build a feature matrix for a chunk of pairs (reuse the column logic in `build_model_input`, vectorised).
 2. Call `predict_proba` and the regressor once per chunk.

@@ -237,9 +237,9 @@ def test_hist_v2_loads_and_reads_only_era_safe_columns():
 
 
 @needs_hist_v2
-def test_hist_v1_stays_loadable_and_active():
+def test_hist_v1_stays_loadable_for_rollback():
     assert rel.load_release(rel.RELEASES_DIR / "hist-v1").version == "hist-v1"
-    assert rel.active_version() == "hist-v1"
+    assert rel.active_version() in ("hist-v1", "hist-v2")
 
 
 # ---------------------------------------------------------------------------

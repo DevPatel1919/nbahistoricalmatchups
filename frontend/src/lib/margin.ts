@@ -1,6 +1,7 @@
 // The projected margin is a rough regressor estimate (typical error on real
-// games was about 10 points, per the hist-v1 release limitations), so it is
-// never shown with decimals or as a precise number.
+// games was about 11 points: hist-v2's ridge regressor, test MAE 11.4, per
+// reports/hist_v2_evaluation.md), so it is never shown with decimals or as a
+// precise number.
 
 export function formatMargin(points: number): string {
   const rounded = Math.round(Math.abs(points));

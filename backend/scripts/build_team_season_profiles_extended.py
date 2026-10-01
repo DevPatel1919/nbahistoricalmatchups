@@ -22,12 +22,16 @@ Each row contains three prefixed stat blocks:
 Plus binary flags: made_play_in, made_playoffs.
 
 Only teams present in team_histories_cleaned.csv are included.
-By default only seasons after 1997 are written (the seasons served today).
---since accepts any season from 1986 (1985-86) on.
+This script writes the profiles the site serves: every season from 1986
+(1985-86) on by default, from load_team_games(..., fill_game_types=True).
+Blank 2000-01 and 2021-22 game types are filled from Games.csv, and playoff
+games count in the calendar year they were played (the 2020 bubble Finals stay
+in 2020). The duel and pre-game data (build_matchup_training_data.py,
+build_pregame_features.py) keep their own 1997-98 start and season rule.
 
 Run from repo root:
     python backend/scripts/build_team_season_profiles_extended.py
-    python backend/scripts/build_team_season_profiles_extended.py --since 1986 --output <csv>
+    python backend/scripts/build_team_season_profiles_extended.py --since 1998 --output <csv>
 """
 
 import argparse
@@ -43,7 +47,7 @@ GAMES_TABLE_PATH  = REPO_ROOT / "data" / "raw" / "Games.csv"
 TEAM_HISTORY_PATH = REPO_ROOT / "data" / "processed" / "team_histories_cleaned.csv"
 OUTPUT_PATH       = REPO_ROOT / "data" / "processed" / "team_season_profiles_extended.csv"
 
-MODERN_ERA_START     = 1997   # default output: seasons after this (1997-98 on)
+MODERN_ERA_START     = 1997   # duel / pre-game data: seasons after this (1997-98 on)
 OLDER_ERA_START      = 1985   # earliest supported: seasons after this (1985-86 on)
 EXTENDED_STATS_START = 1996   # TeamStatisticsExtended.csv covers seasons after this
 
@@ -563,16 +567,16 @@ def build_season_profiles(df: pd.DataFrame) -> pd.DataFrame:
 
 def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build one profile row per team-season.")
-    parser.add_argument("--since", type=int, default=MODERN_ERA_START + 1,
-                        help="first season (the year it ends) to include; default "
-                             + str(MODERN_ERA_START + 1) + ", earliest " + str(OLDER_ERA_START + 1))
+    parser.add_argument("--since", type=int, default=OLDER_ERA_START + 1,
+                        help="first season (the year it ends) to include; default and earliest "
+                             + str(OLDER_ERA_START + 1) + " (1985-86)")
     parser.add_argument("--output", type=Path, default=OUTPUT_PATH)
     return parser.parse_args(argv)
 
 
 def main(argv=None):
     args = parse_args(argv)
-    out  = build_season_profiles(load_team_games(args.since, load_allowed_team_ids()))
+    out  = build_season_profiles(load_team_games(args.since, load_allowed_team_ids(), fill_game_types=True))
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(args.output, index=False)

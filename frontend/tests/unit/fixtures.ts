@@ -45,6 +45,22 @@ export function realTable(keys: readonly string[]): MatchupTable {
 }
 
 /**
+ * REAL_FIELD_16's team files frozen as release hist-v1 exported them (before
+ * F11). The golden engine results read these, so a new model release cannot
+ * move them: a golden failure always means the engine changed.
+ */
+export function goldenFieldTable(keys: readonly string[]): MatchupTable {
+  const path = fileURLToPath(new URL("./golden-field.hist-v1.json", import.meta.url));
+  const frozen = JSON.parse(readFileSync(path, "utf8")) as { files: TeamFile[] };
+  const byKey = new Map(frozen.files.map((f) => [f.key, f]));
+  return unwrap(buildMatchupTable(keys.map((key) => {
+    const file = byKey.get(key);
+    if (!file) throw new Error(`${key} is not in the frozen golden field`);
+    return { key, opponents: Object.fromEntries(keys.filter((k) => k !== key).map((k) => [k, file.opponents[k]])) };
+  })));
+}
+
+/**
  * A synthetic field with arbitrary pairwise probabilities, built the way the
  * export is: each file lists every opponent from its own perspective.
  */

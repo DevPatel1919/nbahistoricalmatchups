@@ -22,16 +22,23 @@ export default function AboutPage() {
     <article className="prose">
       <h1>About Court of All Time</h1>
       <p>
-        Court of All Time answers one question: take any two NBA teams from any two seasons since 1998, put them on a
+        Court of All Time answers one question: take any two NBA teams from any two seasons since 1985&ndash;86, put them on a
         neutral court, and see who the model thinks wins. It's a fan toy for settling arguments. Results are model
         estimates for entertainment, not a forecast and not betting advice, and this is not an official NBA product.
       </p>
 
       <h2>How it works</h2>
       <p>
-        Each team-season is represented by its full-season averages: its regular-season statistics plus, when it made
-        a playoff run, its playoff performance in that same season. A logistic regression model compares the two
-        profiles and estimates a win probability. A separate model gives a rough projected point margin.
+        Each team-season is represented by its full regular season, measured against its own season&rsquo;s league.
+        Scoring, shooting and pace changed a lot between eras: the league&rsquo;s offensive rating was about 107 in 1990
+        and about 115 today. Raw numbers would tilt every matchup toward one era. So each team is judged by how far it
+        stood above or below the average team of its own season.
+      </p>
+      <p>
+        A logistic regression model compares the two teams and estimates a win probability. In practice it reads two
+        numbers per team: net rating and win percentage, each against its own league. The other stats it was offered
+        (shooting, pace, turnovers, assists) carry no weight, and a deep playoff run doesn&rsquo;t raise a team&rsquo;s
+        rating. A separate model gives a rough projected point margin.
       </p>
       <p>
         Because home court is meaningless when comparing teams from different eras and arenas, every matchup is
@@ -51,16 +58,22 @@ export default function AboutPage() {
           an accuracy figure for this model.
         </li>
         <li>
-          It ignores rule changes, pace-of-play differences, and equipment/training differences across eras. A 1998
-          team and a 2023 team are compared purely on their statistical profile, not on how basketball itself has
-          changed.
+          Measuring each team against its own league removes the drift in scoring and pace, not every difference
+          between eras. A 1990 team and a 2023 team are compared on how dominant each was in its own season, not on how
+          basketball itself has changed: rules, styles, and equipment and training are left out. Few threes were taken
+          before the mid-1990s, and the three-point line was moved in for 1994&ndash;95 to 1996&ndash;97.
         </li>
         <li>
-          The model was trained on playoff games only, so a matchup involving a team that missed the playoffs is an
-          extrapolation. You'll see a "missed the playoffs" note on those teams for that reason.
+          The NBA&rsquo;s own advanced numbers start in 1996&ndash;97. For older seasons, possessions, ratings, pace and
+          shooting are computed from the box score. Rebound percentages can&rsquo;t be rebuilt that way, so the model
+          doesn&rsquo;t use them for any season.
         </li>
         <li>
-          The point margin is approximate: on real games it was typically off by about 10 points, which is why it's
+          A team that missed the playoffs is judged the same way as one that made them: on its regular season. The
+          &ldquo;missed the playoffs&rdquo; note is there for context.
+        </li>
+        <li>
+          The point margin is approximate: on real games it was typically off by about 11 points, which is why it's
           shown rounded.
         </li>
         <li>

@@ -21,7 +21,7 @@ Model artifacts come from the active release bundle (src/models/release.py),
 the same one predict_matchup() serves, and index.json records its version so
 verify_static_export.py can refuse data exported from a different release.
 
-There are 835 * 834 = 696,390 ordered pairs. Calling predict_matchup() in a
+There are 1,177 * 1,176 = 1,384,152 ordered pairs (1985-86 on). Calling predict_matchup() in a
 per-pair loop builds a one-row DataFrame per call and takes hours, so this
 script loads the classifier/regressor once, builds a vectorised feature
 matrix for chunks of ~50k ordered pairs at a time, and calls predict_proba /

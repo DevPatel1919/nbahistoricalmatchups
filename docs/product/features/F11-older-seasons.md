@@ -1,10 +1,12 @@
 # F11: Older seasons (1985–86 to 1996–97)
 
-Status: **Session 2 (Phase A) done (2026-10-01): `hist-v2` is built, not
-active. Waiting for the owner's review of `reports/hist_v2_evaluation.md`
-before Phase B (the site).** Session 1 was done 2026-09-30, and the owner
-chose era-relative inputs on 2026-10-01. Decided 2026-09-29; the build runs on
-the branch `f11-older-seasons`.
+Status: **Session 3 (Phase B) built (2026-10-01).**
+- The site serves 1,177 team-seasons from 1985–86 on, through release
+  `hist-v2`.
+- The PR from `f11-older-seasons` is open. **Do not merge until the owner
+  approves its Pages preview**, because the merge deploys.
+- Sessions 1 and 2 (Phase A) were done 2026-09-30 and 2026-10-01. Decided
+  2026-09-29.
 
 Read first, in order: `CONTRIBUTING.md` (the point-in-time rule, the release
 rules, and "Known gotchas"), `docs/product/HANDOFF.md`,
@@ -520,9 +522,127 @@ and Heat.
 Nothing in `frontend/public/data/`, `models/production/` or
 `team_season_profiles_extended.csv` changed.
 
-**Owner decision needed:** go ahead with `hist-v2`, adjust, or keep
-`hist-v1` (the evaluation report's "Decision for the owner"); and whether to
-publish an accuracy figure (default no).
+**Owner decision (2026-10-01):** go ahead with `hist-v2`. Publish no
+accuracy figure, so `publicAccuracyClaim` stays null.
+
+### Session 3 / Phase B (2026-10-01): the site shows the older seasons
+
+**What changed**
+
+- **B1, served profiles.** `build_team_season_profiles_extended.py` now
+  writes 1986 onward by default, with `fill_game_types=True`. That is
+  1,177 team-seasons: 314 from 1986–97, and 863 from 1998–2026, including all
+  30 from 2022.
+  - `build_matchup_training_data.py` and `build_pregame_features.py` keep
+    1998.
+  - `promote_release.py --activate hist-v2` (the previous release was
+    `hist-v1`). Roll back with `--activate hist-v1`, then re-export.
+- **B2, export.** 1,177 team files, 1,384,152 ordered pairs.
+  `verify_static_export.py` passes 200/200 with max diff 0.0.
+  `index.json` has `release.version = "hist-v2"`.
+- **B3, frontend:**
+  - `lib/search.ts`: `MIN_SEASON = 1986`. "96 bulls" finds 1996, "86
+    celtics" finds 1986, and "17" still finds 2017.
+  - Home page: the count and first season come from `index.json` ("1,177
+    team-seasons since 1986"). `1996-bulls` vs `2017-warriors` and
+    `1986-celtics` vs `2008-celtics` lead the suggestions.
+  - About page: rewritten for `hist-v2`. It covers the own-league
+    comparison, box-score stats before 1996–97, no rebound percentages,
+    three-point history, non-playoff teams judged the same way, and a margin
+    of about 11 points.
+  - `team-colors.ts` gains `Bullets`. The `margin.ts` comment cites
+    `hist-v2`. Duel files are untouched.
+- **B4, stability tests:**
+  - `frontend/tests/unit/stability.test.ts` checks:
+    - all 835 pre-F11 keys still exist (`pre-f11-keys.json`, from
+      `git show main:…/index.json`);
+    - four existing matchup URLs resolve;
+    - search covers the older seasons;
+    - the Champions link and a custom link decode, re-encode identically,
+      and replay deterministically.
+  - The golden engine results now read a frozen copy of their 16 teams'
+    hist-v1 data (`golden-field.hist-v1.json`), so a model release can't
+    move them. They pass unchanged, which shows the bracket engine did not
+    change.
+  - Playwright adds an older-team search and three pre-F11 URLs. The 73.8% /
+    "about 1 pt" pins became 64.4% / "about 5 pts".
+  - `test_release_integrity.py`:
+    - `hist-v2` is active (14 columns);
+    - a separate test shows `hist-v1` still loads for rollback;
+    - the smoke tests read the release and column count from the active
+      manifest;
+    - four 1986–97 smoke cases: the 1986 Celtics vs 1989 Pistons, the 1987
+      Clippers (non-playoff), the 1990 Bullets via "Washington Wizards", and
+      the 1996 Bulls vs 2017 Warriors.
+  - `test_existing_keys_and_names_do_not_change` now checks that every key
+    from 1998 on keeps its name, and that every pre-F11 key is served.
+- **B5, docs:** CONTRIBUTING (scope, pipeline, z-score rule, blank game types
+  and season-label gotchas, accuracy and serving gotchas), `HANDOFF.md`,
+  `frontend-handoff.md`, and this record.
+
+**Champions Bracket decision.** The question was put to the owner on
+2026-10-01 and dismissed without an answer, so the default that changes
+nothing was taken: `champions-v1` stays "16 champions since 1998".
+- On the fixed data the same 16 still qualify, in the same seed order. The
+  2022 Warriors (+5.5 net) rank 23rd of 28 champions.
+- Only the "2022 champion is missing" note was removed. The definition and
+  its shared link are unchanged.
+- A separate 1986–97 bracket would be the 8 best of the 12 champions (the
+  engine allows 8 or 16). It is easy to add if the owner wants it.
+
+**Before and after.** Neutral P(first team wins): `hist-v1` as served before
+F11 against `hist-v2` now (full tables in `reports/hist_v2_evaluation.md`).
+
+| Pair | Before (`hist-v1`) | After (`hist-v2`) |
+|---|---|---|
+| `1998-bulls` vs `2017-warriors` | 26.25% (site: Warriors 73.8%, by about 1 pt) | 35.65% (site: Warriors 64.4%, by about 5 pts) |
+| `1998-jazz` vs `2016-cavaliers` | 37.2% | 50.8% |
+| `1996-bulls` vs `2017-warriors` | not served | 46.9% |
+| `1986-celtics` vs `2008-celtics` | not served | 54.1% |
+| `1989-pistons` vs `2004-pistons` | not served | 48.0% |
+| `1987-lakers` vs `2001-lakers` | not served | 61.8% |
+
+**Shared tournament replays change**, because the probabilities changed.
+Every link still decodes.
+- The Champions Bracket link (`t1.7.champions-v1.2025-thunder~…~2012-heat`,
+  also the default `/tournament`) was won by `2017-warriors` over
+  `2025-thunder` in 6. It is now won by `2025-thunder` over `2002-lakers` in
+  7.
+- A custom link,
+  `t1.7.f11demo.2017-warriors~1998-bulls~2016-warriors~2008-celtics~2001-lakers~2013-heat~2004-pistons~2014-spurs`,
+  went from `2004-pistons` to `2016-warriors`.
+
+**The two broken 2022 teams** keep their keys and get full seasons:
+`2022-clippers` (was 1–0, now 42–40) and `2022-lakers` (was 0–1, now
+33–49). Every 2001 team goes from about 41 games to 82.
+
+**Export size**
+
+| | Before | After |
+|---|---|---|
+| Team files | 835, 27 MB | 1,177, 50.1 MB (47.8 MiB) |
+| Largest team file | ~30 KB | 43.9 KB (`1993-mavericks.json`); the Pages limit is 25 MiB per file |
+| Files | 836 | 1,178, under Pages' 20,000 |
+| `index.json` | 189 KB (20 KB gzip) | 267 KB (28 KB gzip) |
+| Matchup page data (index + one team file) | ~219 KB (~28 KB gzip) | ~309 KB (~37 KB gzip) |
+
+**Verify list (all green):**
+- frontend: build, lint, 159 unit tests (146 + 13) and 50 Playwright tests
+  (48 + 2);
+- worker: `tsc` and 123 tests;
+- `python -m pytest tests`: 83;
+- `test_release_integrity.py`: 28 (23 + 5);
+- leakage guard: exit 0;
+- `verify_static_export.py`: 200/200;
+- `matchup_training_data.csv` (`58ceb688…`) and `pregame_team_features.csv`
+  (`a6fa3051…`) are unchanged.
+
+**Owner, before merging:**
+- review the Pages preview;
+- confirm or change the Champions Bracket default.
+
+After the merge, check the live site loads `/`, a matchup,
+`/1996-bulls-vs-2017-warriors`, `/about` and `/tournament`.
 
 ## Kickoff prompts
 

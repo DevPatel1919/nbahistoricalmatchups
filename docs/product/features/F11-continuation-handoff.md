@@ -9,11 +9,12 @@ new session needs to finish F11. It covers:
 
 Branch: `f11-older-seasons` (last commit at writing: `f4105c8`).
 
-**Status (2026-10-01): Phase A is done.** `hist-v2` is built, not active.
-The results are in `reports/hist_v2_evaluation.md` and in the Session 2
-record in `F11-older-seasons.md`. It includes the 2000–01 blank game types
-that A1 did not expect. Phase B waits for the owner's answer to the STOP
-below.
+**Status (2026-10-01): Phases A and B are built.**
+- The owner chose `hist-v2` and no published accuracy figure.
+- The PR is open. **Merge only on the owner's OK**, after the Pages preview.
+- The Session 2 and 3 records in `F11-older-seasons.md` hold the details,
+  including the 2000–01 blank game types that A1 did not expect, and the
+  Champions Bracket default.
 
 ## Read first, in order
 

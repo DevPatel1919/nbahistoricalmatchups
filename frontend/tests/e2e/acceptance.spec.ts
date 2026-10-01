@@ -12,7 +12,7 @@ test.describe("360px width", () => {
 
   test("the result page fits without horizontal scroll", async ({ page }) => {
     await page.goto(MATCHUP);
-    await expect(page.locator(".winner-card__prob")).toContainText("73.8%");
+    await expect(page.locator(".winner-card__prob")).toContainText("64.4%");
 
     // The document must never be wider than the viewport: a horizontal
     // scrollbar at phone width is the failure this criterion guards against.
@@ -78,7 +78,7 @@ test.describe("reduced motion", () => {
     // With prefers-reduced-motion the number must HOLD its final value, never
     // animating up from zero. A single immediate read would pass vacuously:
     // CountUpPercent initialises its state to the target before the effect
-    // starts animating, so the first paint shows 73.8% either way. Sample
+    // starts animating, so the first paint shows 64.4% either way. Sample
     // repeatedly across the animation window instead and require every frame
     // to be the settled value.
     const prob = page.locator(".winner-card__prob");
@@ -91,7 +91,7 @@ test.describe("reduced motion", () => {
     }
 
     expect(samples.length).toBeGreaterThan(0);
-    const deviating = samples.filter((s) => s !== "73.8%");
+    const deviating = samples.filter((s) => s !== "64.4%");
     expect(deviating, `probability animated under reduced motion: ${samples.join(", ")}`).toEqual([]);
   });
 });
@@ -114,7 +114,7 @@ test("index.json loads once; a team file only when that team is chosen", async (
   expect(teamHits()).toBe(0);
 
   await page.goto(MATCHUP);
-  await expect(page.locator(".winner-card__prob")).toContainText("73.8%");
+  await expect(page.locator(".winner-card__prob")).toContainText("64.4%");
 
   // Exactly one team file backs a matchup: the pair is stored on one side.
   expect(teamHits()).toBe(1);
@@ -125,10 +125,12 @@ test("/about names the served model release and its limitations", async ({ page 
   await page.goto("/about");
   // The tag comes from index.json, which verify_static_export.py pins to the
   // active release, so this line cannot drift from what is actually served.
-  await expect(page.locator(".about-release")).toContainText("hist-v1");
+  await expect(page.locator(".about-release")).toContainText("hist-v2");
 
   const text = await page.locator("article").innerText();
-  expect(text).toMatch(/trained on playoff games only/i);
+  expect(text).toMatch(/measured against its own season/i);
+  expect(text).toMatch(/since 1985/i);
+  expect(text).not.toMatch(/trained on playoff games only/i);
   expect(text).toMatch(/not betting advice/i);
   expect(text).toMatch(/don't publish\s+an accuracy figure/i);
   expect(text).not.toMatch(/\d+(\.\d+)?%/);
