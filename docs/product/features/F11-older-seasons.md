@@ -1,7 +1,8 @@
 # F11: Older seasons (1985–86 to 1996–97)
 
-Status: **not started.** Decided 2026-09-29; the build is later sessions on the
-branch `f11-older-seasons`, which already holds this brief.
+Status: **Session 1 done (2026-09-30); waiting on the owner's era-adjustment
+decision before Session 2.** Decided 2026-09-29; the build runs on the branch
+`f11-older-seasons`.
 
 Read first, in order: `CONTRIBUTING.md` (the point-in-time rule, the release
 rules, and "Known gotchas"), `docs/product/HANDOFF.md`,
@@ -279,6 +280,92 @@ From `TeamStatistics.csv`, regular season, as each season names them.
 
 _(Each session adds its record here: what changed, the numbers, the owner's
 decisions, and anything that differed from this plan.)_
+
+### Session 1 (2026-09-30): rebuild and backtest 1986–97
+
+The full evidence and the recommendation are in
+`reports/older_seasons_backtest.md`. Regenerate its tables with
+`python scripts/backtest_older_seasons.py`, which keeps the hand-written
+summary above its marker.
+
+**What changed**
+
+- `build_team_season_profiles_extended.py` has a new `load_team_games(since,
+  allowed_ids)`:
+  - It reads 1996–97 onward from the Extended file, unchanged.
+  - It reads earlier seasons from `TeamStatistics.csv`, with
+    `BOX_SCORE_FORMULAS` computing the advanced stats. Those sit next to
+    `MEAN_STATS` and `PCT_STATS` and are keyed by the Extended column each
+    one replaces.
+  - New constants: `OLDER_ERA_START = 1985`, `EXTENDED_STATS_START = 1996`,
+    `POSSESSION_SCALE = 0.985` and `UNMATCHED_FORMULA_COLS`.
+  - `--since 1986 --output <csv>` builds the older profiles. The default is
+    still 1998 on, and its output is byte-identical.
+  - `build_profiles` now keeps its columns when a game type has no games.
+    That case only arises in ranges without a play-in.
+- `build_matchup_training_data.py`: refactored into
+  `load_games(since, allowed_ids)` and `attach_point_in_time_profiles(games,
+  stats)` so the backtest uses the identical point-in-time logic.
+  `MODERN_ERA_START` is unchanged, and its output is byte-identical (sha256
+  `58ceb688…`).
+- `clean_team_histories.py`: the cutoff is now 1985–86 (`OLDER_ERA_START`,
+  `seasonActiveTill >= 1985`). That adds one row, the Washington Bullets,
+  which share the Wizards' team id. Every reader sees the same team ids.
+  `pregame_team_features.csv` was rebuilt to check, and it is byte-identical
+  (duel mode untouched).
+- `export_static_site_data.py`: era-correct names fall back to
+  `TeamStatistics.csv` only for (team, season) pairs missing from the
+  Extended file. `attach_identity(profiles)` is split out of
+  `load_profiles_with_identity()`. The export was **not** re-run.
+- `test_pregame_leakage.py` is refactored into
+  `check_rows`/`sample_rows`/`prepare_stats`. It also checks
+  `data/processed/older_seasons_matchups.csv` (written by the backtest)
+  against `TeamStatistics.csv`, including offensive and defensive rating,
+  pace, true shooting and turnover percentage.
+  `tests/test_older_seasons.py` proves the check fails on full-season
+  profiles and on a profile that includes the game itself.
+- New: `scripts/backtest_older_seasons.py`,
+  `reports/older_seasons_backtest.md`, `tests/test_older_seasons.py` (11
+  tests). CONTRIBUTING has the backtest in the pipeline and a gotcha for
+  pre-1996–97 data.
+
+**Numbers**
+
+| | Value |
+|---|---|
+| 1986–97 team-seasons / keys | 314, all unique (1,149 for 1986–2026) |
+| Formula error / avg-to-good gap | ratings 6–8% (playoffs 8–14%), pace 6%, TS and eFG 0%, TOV% 7–8%, assist stats 0–12% |
+| Not usable | offensive, defensive and total rebound %, and opponent offensive rebound % (144–165%, 28% for total): blank before 1996–97 |
+| `hist-v1` on 1986–97 games (13,563) | 63.0% accuracy, log loss 0.682, Brier 0.239 |
+| `hist-v1` on 2019–21 / 2022–26 | log loss 0.721 / 0.711 |
+| `hist-v1` playoffs, 1986–97 / 2022–26 | log loss 0.949 / 0.972 |
+| 1996–97, NBA values vs formulas | mean change in probability 0.01 points, 0 of 1,246 picks flip |
+| Matched-quality cross-era P(older wins) | raw probe 46.4%, era-relative probe 49.9%, `hist-v1` 52.3% |
+
+**Found along the way**
+
+- `hist-v1`'s classifier is almost entirely `playoff_win_pct_diff`
+  (1.19; nothing else is above 0.15). Every rating, pace and shooting weight
+  is 0. On honest point-in-time games it barely beats "home team wins".
+- `TeamStatistics.csv` stores 0, not blank, for `plusMinusPoints` and the
+  situational points before 1996–97. The builder recomputes plus-minus and
+  blanks the situational stats.
+- The NBA's turnover % is turnovers per possession, not per play.
+- No 1986–97 game falls in October of its ending year.
+- Five 2020 Finals games (October 2020) are labelled season 2021 by the
+  `month < 10` rule. This is existing behaviour and was left alone.
+- 2022's 2 one-game profiles make it useless as a previous-season reference
+  for 2023.
+
+**Verify list (all green):** frontend build, lint, 146 unit and 48
+Playwright tests; worker `tsc` and 123 tests; `python -m pytest tests` 51
+passed; leakage guard exit 0 (350 + 350 games, 0 mismatches);
+`verify_static_export.py` 200/200; `test_release_integrity.py` 23 passed.
+Nothing in `frontend/public/data/` or `models/releases/` changed.
+
+**Owner decision:** era adjustment, pending. The recommendation is
+era-relative inputs for `hist-v2`; the report gives the reasons and the open
+points for Session 2 (served reference season, the 2022 hole, rebound %).
 
 ## Kickoff prompts
 

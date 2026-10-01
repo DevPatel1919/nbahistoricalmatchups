@@ -34,6 +34,8 @@ The profile CSV labels every season with a franchise's CURRENT name (e.g.
 the 2005 Sonics appear as the Thunder). This script derives era-correct
 names/cities from TeamStatisticsExtended.csv, where teamCity/teamName are
 as of that season, and uses those for team identity, keys and slugs.
+Seasons that file does not cover (before 1996-97) take their names from
+TeamStatistics.csv instead.
 
 Run from repo root (after predict_matchup() has been verified working):
     python scripts/export_static_site_data.py
@@ -56,6 +58,7 @@ from src.models.release import check_profiles, load_active_release, parse_base_s
 
 REPO_ROOT   = Path(__file__).resolve().parent.parent
 STATS_PATH  = REPO_ROOT / "data" / "raw" / "TeamStatisticsExtended.csv"
+BASIC_STATS_PATH = REPO_ROOT / "data" / "raw" / "TeamStatistics.csv"
 OUTPUT_DIR  = REPO_ROOT / "frontend" / "public" / "data"
 TEAMS_DIR   = OUTPUT_DIR / "teams"
 
@@ -69,23 +72,33 @@ HOME_WIN_CLASS = 1
 # Era-correct team identity
 # ---------------------------------------------------------------------------
 
+def _names_by_season(path: Path) -> pd.DataFrame:
+    s = pd.read_csv(path, usecols=["gameDateTimeEst", "teamId", "teamCity", "teamName"], low_memory=False)
+    s = s.dropna(subset=["teamCity", "teamName"])
+    t = pd.to_datetime(s["gameDateTimeEst"], format="mixed")
+    s["season"] = t.dt.year.where(t.dt.month < 10, t.dt.year + 1)
+    return s.groupby(["teamId", "season"]).agg(
+        era_city=("teamCity", lambda x: x.mode().iat[0]),
+        era_name=("teamName", lambda x: x.mode().iat[0]),
+    ).reset_index()
+
+
 def load_era_correct_names() -> pd.DataFrame:
     """
     Derive each team's city/name AS OF each season from raw per-game rows,
     rather than the profile CSV's current-franchise-name labelling.
 
+    TeamStatisticsExtended.csv names every season it covers, so existing keys
+    never change; TeamStatistics.csv only fills (team, season) pairs it lacks.
+
     Verified to yield 2005 Seattle SuperSonics, New Jersey Nets, Charlotte
-    Bobcats and New Orleans Hornets.
+    Bobcats and New Orleans Hornets, and 1990 Washington Bullets.
     """
-    s = pd.read_csv(STATS_PATH, usecols=["gameDateTimeEst", "teamId", "teamCity", "teamName"], low_memory=False)
-    s = s.dropna(subset=["teamCity", "teamName"])
-    t = pd.to_datetime(s["gameDateTimeEst"], format="mixed")
-    s["season"] = t.dt.year.where(t.dt.month < 10, t.dt.year + 1)
-    names = s.groupby(["teamId", "season"]).agg(
-        era_city=("teamCity", lambda x: x.mode().iat[0]),
-        era_name=("teamName", lambda x: x.mode().iat[0]),
-    ).reset_index()
-    return names
+    names = _names_by_season(STATS_PATH)
+    older = _names_by_season(BASIC_STATS_PATH)
+    known = pd.MultiIndex.from_frame(names[["teamId", "season"]])
+    older = older[~pd.MultiIndex.from_frame(older[["teamId", "season"]]).isin(known)]
+    return pd.concat([names, older], ignore_index=True)
 
 
 def slugify(name: str) -> str:
@@ -94,7 +107,11 @@ def slugify(name: str) -> str:
 
 def load_profiles_with_identity() -> pd.DataFrame:
     """Load team_season_profiles_extended.csv with era-correct identity + key/slug attached."""
-    profiles = pd.read_csv(PROFILES_PATH)
+    return attach_identity(pd.read_csv(PROFILES_PATH))
+
+
+def attach_identity(profiles: pd.DataFrame) -> pd.DataFrame:
+    """Attach era-correct city/name and a unique key/slug to every profile row."""
     names = load_era_correct_names()
 
     merged = profiles.merge(

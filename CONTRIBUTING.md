@@ -45,6 +45,7 @@ python backend/scripts/clean_team_histories.py
 python backend/scripts/build_team_season_profiles_extended.py
 python backend/scripts/build_pregame_features.py          # ~2 min (player box scores)
 python backend/scripts/build_matchup_training_data.py
+python scripts/backtest_older_seasons.py                  # F11: 1986-97 evidence; writes older_seasons_matchups.csv
 python src/models/test_pregame_leakage.py                 # must pass before training
 python src/models/train_pregame_model.py                  # ~15 s
 python src/models/train_model_experiments.py              # historical simulator, 10+ min
@@ -85,6 +86,7 @@ Match the surrounding code:
 
 ## Known gotchas
 
+- **Seasons before 1996-97 have no `TeamStatisticsExtended.csv` rows.** `load_team_games` in `build_team_season_profiles_extended.py` reads them from `TeamStatistics.csv` and computes the advanced stats with `BOX_SCORE_FORMULAS`. The NBA's rebound percentages cannot be reproduced that way, so they are blank for those seasons (`UNMATCHED_FORMULA_COLS`), as are the situational-scoring stats. `TeamStatistics.csv` stores 0, not blank, for `plusMinusPoints` and situational points before 1996-97. Evidence: `reports/older_seasons_backtest.md`.
 - **2022 season is almost missing:** it has 4 games in the matchup data, because most of its rows in the raw files have no `gameType`. Walk-forward skips it, and the test split effectively covers 2023–2026.
 - **Mixed date formats:** `gameDateTimeEst` omits the leading zero on some hours. Parse it with `pd.to_datetime(..., format="mixed")`.
 - **Releases are all-or-nothing:** `src/models/release.py` loads the active release as one unit and raises a single `ReleaseError` before inference if any file is missing, any hash differs, the column count or estimator feature names disagree with `columns.json`, or `models/production/` contains anything besides `ACTIVE_RELEASE`. There is no file-by-file fallback. Before Sep 2026 there was, and a retrain paired 196-feature weights with a stale 70-column list. Release files are marked `-text` in `.gitattributes` so line-ending conversion cannot change their hashes.
