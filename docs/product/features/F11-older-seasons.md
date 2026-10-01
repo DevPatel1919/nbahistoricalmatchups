@@ -371,6 +371,13 @@ reference season, the 2022 hole, and rebound %.
 
 ## Kickoff prompts
 
+**Use `F11-continuation-handoff.md` for Sessions 2 and 3.** It supersedes
+the two prompts below. It has the full plan after the owner's era decision,
+the duel-safety rules (hist-v2 trains from a new file, so
+`matchup_training_data.csv` stays byte-identical), the 2022 and October
+2020 fixes, and its own kickoff prompts for Phase A (model) and Phase B
+(site).
+
 Session 1:
 
 ```text

@@ -237,7 +237,8 @@ brief has the kickoff prompt. F11 adds the 1985–86 to 1996–97 seasons to
 the explorer, on the branch `f11-older-seasons`. Its brief has
 one kickoff prompt per session. Session 1 (the 1986–97 rebuild and backtest,
 `reports/older_seasons_backtest.md`) is done. On 2026-10-01 the owner chose
-era-relative inputs, so Session 2 (`hist-v2`) is next.
+era-relative inputs. The next session starts from
+`features/F11-continuation-handoff.md`.
 
 The duel Worker runs only on staging (deployment phase 2, done 2026-09-29):
 `staging.courtofalltime.win` plays guest duel mode against
