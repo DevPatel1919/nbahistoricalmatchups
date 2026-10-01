@@ -1,8 +1,10 @@
 # F11: Older seasons (1985–86 to 1996–97)
 
-Status: **Session 1 done (2026-09-30). The owner chose era-relative inputs on
-2026-10-01; Session 2 is next.** Decided 2026-09-29; the build runs on the branch
-`f11-older-seasons`.
+Status: **Session 2 (Phase A) done (2026-10-01): `hist-v2` is built, not
+active. Waiting for the owner's review of `reports/hist_v2_evaluation.md`
+before Phase B (the site).** Session 1 was done 2026-09-30, and the owner
+chose era-relative inputs on 2026-10-01. Decided 2026-09-29; the build runs on
+the branch `f11-older-seasons`.
 
 Read first, in order: `CONTRIBUTING.md` (the point-in-time rule, the release
 rules, and "Known gotchas"), `docs/product/HANDOFF.md`,
@@ -368,6 +370,159 @@ Nothing in `frontend/public/data/` or `models/releases/` changed.
 **Owner decision (2026-10-01):** era-relative inputs for `hist-v2`, as
 recommended. The open points for Session 2 are in the report: the served
 reference season, the 2022 hole, and rebound %.
+
+### Session 2 / Phase A (2026-10-01): build `hist-v2`
+
+Followed `F11-continuation-handoff.md` Phase A (A1–A9). The evidence and
+the owner's decision are in `reports/hist_v2_evaluation.md`. Regenerate its
+tables with `python scripts/evaluate_hist_v2.py`; it keeps the summary above
+its marker.
+
+**What changed**
+
+- `build_team_season_profiles_extended.py`:
+  - **A1, blank game types.** `fill_missing_game_types(df)` fills blank game
+    types from `Games.csv` by `gameId`. It fills only counted types: id
+    prefix 2 regular season, 4 playoffs, 5 play-in. It raises if one stays
+    blank or disagrees with its id.
+  - **A2, October 2020 Finals.** `assign_season_playoffs_by_year` gives
+    playoff and play-in games the calendar year they were played in.
+  - Both are opt-in: `load_team_games(since, ids, fill_game_types=False)`.
+  - **A3, era-relative inputs.** One definition, next to `MEAN_STATS`:
+    - `RELATIVE_STATS`: 14 stats, which is `CORE_STATS` minus the rebound
+      percentages;
+    - `ERA_NEUTRAL_STATS` and `is_era_safe_column`;
+    - `league_reference(profiles)`;
+    - `add_relative_columns(frame, seasons, reference, prefix)`;
+    - `add_own_season_relative_columns(profiles)` for served profiles.
+- **A4, training data.** The new `backend/scripts/build_historical_training_data.py`
+  writes `data/processed/historical_training_data.csv`.
+  - It covers 49,415 games from 1987 to 2026, including 1,323 from 2022.
+  - It reuses `load_games(..., playoffs_by_year=True)` and
+    `attach_point_in_time_profiles` unchanged, and skips the Elo/form merge.
+  - The `_z` columns use the previous season's `league_reference`. It
+    raises if a reference season is not a full league (fewer than 20 teams
+    or 45 games).
+  - `build_matchup_training_data.main()` is untouched, and its output is
+    byte-identical.
+- **Leakage guard.** `test_pregame_leakage.py` checks the new file with
+  `check_rows` and `OLDER_PROFILE_MEANS`, using playoff seasons by year.
+  - It checks 350 sampled games, plus 40 from 2022 and the 5 October 2020
+    Finals games.
+  - The new `check_relative` recomputes every `_z` from the previous
+    season's raw per-game rows.
+  - `tests/test_hist_v2.py` proves it fails when `_z` uses the game's own
+    season.
+- **A5, training.** `train_model_experiments.py` takes `--data` and `--out`.
+  - A file that already holds the `league_reference` z-scores runs the
+    era-relative mode:
+    - 6 era-safe feature sets × 4 training filters × 24 models;
+    - every candidate is chosen on one validation set (2019–21 games, both
+      teams with 20+ regular-season games);
+    - test is scored once.
+  - The default file runs as before.
+  - Artifacts are in `models/experiments/hist_v2/`; `models/experiments/*.pkl`
+    is untouched.
+- **A6, serving.** `predict_matchup._load()` and the export's
+  `load_profiles_with_identity()` both call
+  `add_own_season_relative_columns`. `PROFILE_SCHEMA_VERSION` is unchanged.
+  - `_prediction_mode` words its warning by the release's `trainingFilter`
+    in `metrics.json`. `hist-v1` has none and keeps its "playoff games only"
+    text.
+  - **Bug fixed:** `build_model_input` computed `_diff` columns only from the
+    model's own `home_`/`away_` columns, so a diff-only model got NaN and a
+    flat 50%. It now reads the profiles, as the export does. `hist-v1`'s
+    output is unchanged (verifier 200/200).
+- **A7, the release.** `hist-v2` is built from
+  `models/experiments/hist_v2/release_info.json` and **not activated**.
+  `promote_release.py --list` shows both releases valid, with `hist-v1`
+  active.
+- **New files:** `scripts/evaluate_hist_v2.py`,
+  `reports/hist_v2_evaluation.md`, and `tests/test_hist_v2.py` (27 tests).
+
+**`hist-v2`**
+
+- An L1 logistic regression with C=0.001, trained on 29,834 games from
+  1987–2018 in which both teams had played 20+ games.
+- It has 14 columns (`era_adjusted_diff_only`), but only two carry weight:
+  `regular_net_rating_z_diff` (0.51, 73%) and `regular_win_pct_z_diff`
+  (0.19, 27%).
+- The margin model is a ridge regression.
+
+**Numbers: `hist-v2` against `hist-v1`, on the same point-in-time games**
+
+| | `hist-v2` | `hist-v1` |
+|---|---|---|
+| Test 2022–26, all games (6,453) | 64.6% acc, log loss 0.638, ROC-AUC 0.688 | 55.6%, 0.712, 0.474 |
+| Test, both teams 20+ games (5,053) | 65.0%, 0.628, 0.701 | 54.9%, 0.720, 0.468 |
+| Test playoffs (422) | 62.6%, 0.653 | 59.2%, 0.976 |
+| Validation 2019–21, all games (3,578) | 63.7%, 0.640 | 56.3%, 0.707 |
+| Baselines, test | home team wins 55.5%; better record wins 62.9% | |
+| Seasons above "better record wins" | 36 of 40 (1987–2026) | |
+| Cross-era matched pairs, P(older wins) | 49.9% (mean distance from 50%: 1.7 pts) | 52.0% (16.6 pts) |
+| Margin test MAE | 11.41 pts | 11.37 pts |
+| `1998-bulls` vs `2017-warriors`, P(Bulls) | 35.6% | 26.25% (served) |
+
+**Where this departed from the plan**
+
+- **Training file.** `hist-v2` trains from the new
+  `historical_training_data.csv`, not by extending `MODERN_ERA_START` in
+  `build_matchup_training_data.py` (the brief's Session 2 step 2). Duel mode
+  and the pre-game trainer still read a byte-identical
+  `matchup_training_data.csv` (sha256 `58ceb688…`); `pregame_team_features.csv`
+  is unchanged too (`a6fa3051…`).
+- **2022 fix.** 2,644 blank 2021–22 rows are filled: 2,458 regular season,
+  174 playoffs and 12 play-in. The other 134 blank rows are preseason and
+  stay out.
+  - 2022 now has 30 team-seasons of 82 games.
+  - 2022's 1,307 scored games join the test split, which used to cover
+    2023–26 in effect.
+- **The 2001 hole (not in the plan).** 2000–01 has 1,194 blank
+  regular-season rows (all 2xx ids) in both raw files. The same fix fills
+  them. Every 2001 team goes from about 41 to 82 games, in training and, from
+  Phase B, on the site. The site serves 2001 on half-seasons today.
+- **Other blank rows** are preseason in every season (30–226 a year), plus 2
+  NBA Cup rows and 4 prefix-6 rows in `TeamStatistics.csv` for 2025–26. That
+  file is never read for those seasons. All stay out.
+- **October 2020.** All 6 Finals games (Sept 30 to Oct 11) are now in 2020.
+  The 5 October ones had moved to 2021. The served team-seasons that change
+  in Phase B:
+  - 2020 Lakers and Heat: playoffs 16 → 21 games;
+  - 2021 Lakers: 11 → 6;
+  - 2021 Heat: 9 → 4.
+- **Selection fix.** The old script compared validation log loss across
+  dataset filters with different validation sets. hist-v2 scores every
+  candidate on the same validation games, and test only for the winner.
+- **Playoff ratings left out.** Non-playoff teams carry 0 there, which is
+  meaningless as a z-score. Playoff win % and net rating, and the flags,
+  were offered and got no weight.
+- **1986** has no previous season. Its games are not trained or evaluated
+  on, and 1986 is only the reference for 1987. 1986 teams are served against
+  their own season, like every served team.
+- **Rows** need both teams to have played 1+ regular-season game that
+  season.
+
+**Phase B count to expect:** 1,177 team-seasons: 314 from 1986–97 and 863
+from 1998–2026. Of those, 28 are new 2022 teams and 35 already-served
+team-seasons change: 29 from 2001, 2 from 2022, and the 2020 and 2021 Lakers
+and Heat.
+
+**Verify list (all green):**
+
+- frontend: build, lint, 146 unit and 48 Playwright tests;
+- worker: `tsc` and 123 tests;
+- `python -m pytest tests`: 78 passed (51 + 27 new);
+- leakage guard: exit 0 (350 + 350 + 395 games, 0 mismatches);
+- `verify_static_export.py`: 200/200;
+- `test_release_integrity.py`: 23 passed;
+- the duel hashes are unchanged.
+
+Nothing in `frontend/public/data/`, `models/production/` or
+`team_season_profiles_extended.csv` changed.
+
+**Owner decision needed:** go ahead with `hist-v2`, adjust, or keep
+`hist-v1` (the evaluation report's "Decision for the owner"); and whether to
+publish an accuracy figure (default no).
 
 ## Kickoff prompts
 

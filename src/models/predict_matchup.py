@@ -12,6 +12,11 @@ Accepts team name (full, city-only, or team-name-only), case-insensitive.
 Looks up profiles from team_season_profiles_extended.csv, builds the exact
 feature row expected by the active model release, and returns a prediction dict.
 
+Era-relative (_z) profile columns are computed here, in memory, each completed
+season measured against its own league (add_own_season_relative_columns, the
+one definition shared with training and the static export). The profile CSV's
+columns do not change.
+
 All model artifacts come from one validated release bundle (src/models/release.py).
 If the release is missing, partial, or inconsistent, the first call raises a
 single ReleaseError before any inference runs.
@@ -27,6 +32,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+from backend.scripts.build_team_season_profiles_extended import add_own_season_relative_columns
 from src.models.model_config import PROFILES_PATH as _PROFILES_PATH
 from src.models.release import (
     Release,
@@ -57,7 +63,7 @@ def _load() -> None:
 
     if not _PROFILES_PATH.exists():
         raise FileNotFoundError(f"Required file not found: {_PROFILES_PATH}  (team profiles)")
-    profiles = pd.read_csv(_PROFILES_PATH)
+    profiles = add_own_season_relative_columns(pd.read_csv(_PROFILES_PATH))
     check_profiles(release, profiles.columns)
 
     _release, _clf, _reg, _cols, _profiles = release, release.classifier, release.regressor, release.columns, profiles
@@ -159,7 +165,8 @@ def build_model_input(team_a: pd.Series, team_b: pd.Series, model_cols: list[str
     team_b is treated as the away/Team B side.
 
     Pass 1: fill home_ and away_ columns from source profiles.
-    Pass 2: compute _diff columns as home_base - away_base.
+    Pass 2: compute _diff columns as team_a[base] - team_b[base], read from the
+    profiles, so a model that lists only _diff columns (hist-v2) gets them too.
 
     Returns a pd.DataFrame with shape (1, len(model_cols)).
     """
@@ -179,8 +186,8 @@ def build_model_input(team_a: pd.Series, team_b: pd.Series, model_cols: list[str
     for col in model_cols:
         if col.endswith("_diff"):
             base = col[:-5]
-            h = row.get("home_" + base, np.nan)
-            av = row.get("away_" + base, np.nan)
+            h = a.get(base, np.nan)
+            av = b.get(base, np.nan)
             try:
                 row[col] = float(h) - float(av)
             except (TypeError, ValueError):
@@ -233,9 +240,19 @@ def _validate_input(df: pd.DataFrame, model_cols: list[str]) -> list[str]:
 # Prediction routing
 # ---------------------------------------------------------------------------
 
-def _prediction_mode(team_a: pd.Series, team_b: pd.Series) -> tuple[str, list[str]]:
+# Training rows a release was fit on, from its metrics.json "trainingFilter".
+# hist-v1 predates the field and was trained on playoff games only.
+PLAYOFFS_ONLY_FILTER = "playoffs_only"
+
+
+def _trained_on_playoffs_only(release: Release) -> bool:
+    return release.metrics.get("trainingFilter", PLAYOFFS_ONLY_FILTER) == PLAYOFFS_ONLY_FILTER
+
+
+def _prediction_mode(team_a: pd.Series, team_b: pd.Series, playoffs_only: bool = True) -> tuple[str, list[str]]:
     """
     Determine prediction_mode and any warnings based on playoff participation.
+    playoffs_only says whether the release was trained on playoff games only.
 
     Returns (mode_str, warnings_list).
     """
@@ -246,11 +263,29 @@ def _prediction_mode(team_a: pd.Series, team_b: pd.Series) -> tuple[str, list[st
         return "playoff_context_model", []
 
     warn = []
-    if not a_playoffs and not b_playoffs:
+    if playoffs_only:
+        if not a_playoffs and not b_playoffs:
+            warn.append(
+                "Neither team made the playoffs that season. "
+                "The current model was trained on playoff games only (playoffs_only filter). "
+                "Predictions for non-playoff teams are extrapolations and less reliable."
+            )
+        else:
+            non_playoff_team = (
+                f"{team_a.get('team_city', '')} {team_a.get('team_name', '')}"
+                if not a_playoffs
+                else f"{team_b.get('team_city', '')} {team_b.get('team_name', '')}"
+            ).strip()
+            warn.append(
+                f"{non_playoff_team} did not make the playoffs that season. "
+                "The current model was trained on playoff games only. "
+                "Playoff context features for non-playoff teams are filled with 0, "
+                "which may reduce prediction accuracy."
+            )
+    elif not a_playoffs and not b_playoffs:
         warn.append(
             "Neither team made the playoffs that season. "
-            "The current model was trained on playoff games only (playoffs_only filter). "
-            "Predictions for non-playoff teams are extrapolations and less reliable."
+            "Both are judged on their regular season; their playoff stats are 0."
         )
     else:
         non_playoff_team = (
@@ -260,9 +295,7 @@ def _prediction_mode(team_a: pd.Series, team_b: pd.Series) -> tuple[str, list[st
         ).strip()
         warn.append(
             f"{non_playoff_team} did not make the playoffs that season. "
-            "The current model was trained on playoff games only. "
-            "Playoff context features for non-playoff teams are filled with 0, "
-            "which may reduce prediction accuracy."
+            "It is judged on its regular season; its playoff stats are 0."
         )
 
     return "playoff_context_model_extrapolated", warn
@@ -317,7 +350,7 @@ def predict_matchup(
     label_b = f"{int(profile_b['season'])} {profile_b['team_city']} {profile_b['team_name']}"
 
     # 2. Prediction mode + playoff warnings
-    mode, warn = _prediction_mode(profile_a, profile_b)
+    mode, warn = _prediction_mode(profile_a, profile_b, _trained_on_playoffs_only(_release))
 
     # 3. Build feature row
     X = build_model_input(profile_a, profile_b, _cols)

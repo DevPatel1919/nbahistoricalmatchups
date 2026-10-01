@@ -1,0 +1,149 @@
+{
+  "training_file": "data\\processed\\historical_training_data.csv",
+  "mode": "era_relative",
+  "split": {
+    "train": [
+      1987,
+      2018
+    ],
+    "validation": [
+      2019,
+      2021
+    ],
+    "test": [
+      2022,
+      2026
+    ]
+  },
+  "selection": "lowest log loss on one shared validation set: 2019-2021 games, both teams with 20+ regular-season games. Test scored once, for the chosen candidate only.",
+  "rows_note": "Rows need both teams to have played 1+ regular-season game that season.",
+  "best_model_name": "LogisticRegression",
+  "best_dataset_filter": "both_teams_20_games",
+  "best_feature_set": "era_adjusted_diff_only",
+  "best_hyperparameters": {
+    "penalty": "l1",
+    "C": 0.001,
+    "solver": "liblinear",
+    "class_weight": "None"
+  },
+  "best_train_rows": 29834,
+  "best_validation_metrics": {
+    "accuracy": 0.6442,
+    "roc_auc": 0.6941,
+    "log_loss": 0.6282,
+    "brier_score": 0.2193
+  },
+  "validation_all_games": {
+    "all": {
+      "accuracy": 0.6372,
+      "roc_auc": 0.6793,
+      "log_loss": 0.6395,
+      "brier_score": 0.2236,
+      "n": 3578
+    },
+    "regular_season": {
+      "accuracy": 0.6381,
+      "roc_auc": 0.6808,
+      "log_loss": 0.6383,
+      "brier_score": 0.2231,
+      "n": 3321
+    },
+    "playoffs": {
+      "accuracy": 0.62,
+      "roc_auc": 0.6708,
+      "log_loss": 0.6574,
+      "brier_score": 0.2323,
+      "n": 250
+    }
+  },
+  "test_yardstick": {
+    "all": {
+      "accuracy": 0.6501,
+      "roc_auc": 0.7009,
+      "log_loss": 0.6275,
+      "brier_score": 0.219,
+      "n": 5053
+    },
+    "regular_season": {
+      "accuracy": 0.6525,
+      "roc_auc": 0.7067,
+      "log_loss": 0.625,
+      "brier_score": 0.2179,
+      "n": 4601
+    },
+    "playoffs": {
+      "accuracy": 0.6256,
+      "roc_auc": 0.6303,
+      "log_loss": 0.6526,
+      "brier_score": 0.2302,
+      "n": 422
+    }
+  },
+  "test_all_games": {
+    "all": {
+      "accuracy": 0.6459,
+      "roc_auc": 0.6885,
+      "log_loss": 0.6375,
+      "brier_score": 0.2222,
+      "n": 6453
+    },
+    "regular_season": {
+      "accuracy": 0.6474,
+      "roc_auc": 0.6921,
+      "log_loss": 0.6364,
+      "brier_score": 0.2215,
+      "n": 6001
+    },
+    "playoffs": {
+      "accuracy": 0.6256,
+      "roc_auc": 0.6303,
+      "log_loss": 0.6526,
+      "brier_score": 0.2302,
+      "n": 422
+    }
+  },
+  "classification_result_count": 576,
+  "regression_summary": {
+    "feature_set_used": "era_adjusted_diff_only",
+    "dataset_filter_used": "both_teams_20_games",
+    "best_model": "Ridge",
+    "best_validation_mae": 10.6646,
+    "all_models": [
+      {
+        "model": "Ridge",
+        "validation_mae": 10.6646,
+        "validation_rmse": 13.5124,
+        "validation_r2": 0.144
+      },
+      {
+        "model": "RandomForestRegressor",
+        "validation_mae": 10.7094,
+        "validation_rmse": 13.5554,
+        "validation_r2": 0.1385
+      },
+      {
+        "model": "HistGradientBoostingRegressor",
+        "validation_mae": 10.6984,
+        "validation_rmse": 13.5545,
+        "validation_r2": 0.1387
+      }
+    ],
+    "best_metrics": {
+      "validation": {
+        "mae": 10.6646,
+        "rmse": 13.5124,
+        "r2": 0.144
+      },
+      "test": {
+        "mae": 11.411,
+        "rmse": 14.5343,
+        "r2": 0.1493
+      },
+      "test_all_games": {
+        "mae": 11.3984,
+        "rmse": 14.5349,
+        "r2": 0.1168
+      }
+    }
+  }
+}

@@ -26,6 +26,7 @@ from build_team_season_profiles_extended import (
     GAME_TYPE_REGULAR,
     MEAN_STATS,
     PCT_STATS,
+    assign_season_playoffs_by_year,
     load_allowed_team_ids,
     load_team_games,
 )
@@ -144,8 +145,13 @@ def attach_pregame_profile(games: pd.DataFrame, profile: pd.DataFrame, side: str
     return merged.drop(columns="_profile_time")
 
 
-def load_games(since_season: int, allowed_ids: set) -> pd.DataFrame:
-    """Completed games of a tracked type from games.csv, seasons >= since_season, both teams allowed."""
+def load_games(since_season: int, allowed_ids: set, playoffs_by_year: bool = False) -> pd.DataFrame:
+    """
+    Completed games of a tracked type from games.csv, seasons >= since_season,
+    both teams allowed. playoffs_by_year=True (hist-v2 only) gives playoff and
+    play-in games the season of the calendar year they were played in, as
+    load_team_games(..., fill_game_types=True) does for the stats.
+    """
     games = pd.read_csv(GAMES_PATH, low_memory=False)
 
     games = games.rename(columns={
@@ -173,7 +179,10 @@ def load_games(since_season: int, allowed_ids: set) -> pd.DataFrame:
     games = games[games["game_type"].isin(VALID_GAME_TYPES)].copy()
 
     # Assign season and filter to the requested seasons
-    games["season"] = assign_season(games["game_date"])
+    if playoffs_by_year:
+        games["season"] = assign_season_playoffs_by_year(games["game_date"], games["game_type"])
+    else:
+        games["season"] = assign_season(games["game_date"])
     games = games[games["season"] >= since_season].copy()
 
     # Label

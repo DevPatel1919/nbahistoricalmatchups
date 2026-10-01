@@ -1,7 +1,7 @@
 """
 export_static_site_data.py
 
-Precomputes every neutral-site matchup between the 835 team-seasons in
+Precomputes every neutral-site matchup between the team-seasons in
 team_season_profiles_extended.csv and writes the result as static JSON for
 the "Court of All Time" frontend (see docs/frontend-handoff.md).
 
@@ -53,6 +53,7 @@ _REPO_ROOT_FOR_IMPORTS = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT_FOR_IMPORTS) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT_FOR_IMPORTS))
 
+from backend.scripts.build_team_season_profiles_extended import add_own_season_relative_columns
 from src.models.model_config import PROFILES_PATH
 from src.models.release import check_profiles, load_active_release, parse_base_stats
 
@@ -106,8 +107,12 @@ def slugify(name: str) -> str:
 
 
 def load_profiles_with_identity() -> pd.DataFrame:
-    """Load team_season_profiles_extended.csv with era-correct identity + key/slug attached."""
-    return attach_identity(pd.read_csv(PROFILES_PATH))
+    """
+    Load team_season_profiles_extended.csv with era-correct identity + key/slug
+    attached, and the era-relative (_z) columns predict_matchup() computes:
+    each completed season measured against its own league.
+    """
+    return attach_identity(add_own_season_relative_columns(pd.read_csv(PROFILES_PATH)))
 
 
 def attach_identity(profiles: pd.DataFrame) -> pd.DataFrame:

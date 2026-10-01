@@ -4,15 +4,31 @@ train_model_experiments.py
 Runs classification and regression experiments for the Historical NBA Matchup Simulator.
 Tests multiple feature engineering theories and model configurations.
 
-Outputs saved to models/experiments/.
+Outputs saved to models/experiments/ (or --out).
 Does NOT overwrite baseline files in models/.
+
+Two modes, chosen by the training file:
+
+  matchup_training_data.csv (the default) - raw profile stats; _z and
+      _pctile features are built here against the previous season
+      (_build_pool). This is the run hist-v1's era came from.
+
+  historical_training_data.csv (hist-v2) - the file already carries _z
+      columns from league_reference (build_historical_training_data.py), the
+      same function predict_matchup and the static export use, so they are
+      read as they are. Only era-safe feature sets are tried
+      (is_era_safe_column), and every candidate is chosen on ONE shared
+      validation set (VALIDATION_YARDSTICK), whatever rows it trained on.
 
 Run from repo root:
     python src/models/train_model_experiments.py
+    python src/models/train_model_experiments.py --data data/processed/historical_training_data.csv --out models/experiments/hist_v2
 """
 
+import argparse
 import json
 import pickle
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -41,6 +57,14 @@ from sklearn.preprocessing import StandardScaler
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DATA_PATH = REPO_ROOT / "data" / "processed" / "matchup_training_data.csv"
 EXP_DIR   = REPO_ROOT / "models" / "experiments"
+
+if str(REPO_ROOT / "backend" / "scripts") not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT / "backend" / "scripts"))
+from build_team_season_profiles_extended import (  # noqa: E402
+    RELATIVE_STATS,
+    RELATIVE_SUFFIX,
+    is_era_safe_column,
+)
 
 TRAIN_MAX  = 2018
 VAL_MIN    = 2019
@@ -297,17 +321,280 @@ def chrono_split(data: pd.DataFrame):
 
 
 # ---------------------------------------------------------------------------
+# Era-relative run (hist-v2)
+# ---------------------------------------------------------------------------
+
+# Rows where a team has played fewer regular-season games than this carry a
+# season-to-date profile (and z-score) built on a handful of games.
+SETTLED_GAMES = 20
+
+# The one validation set every hist-v2 candidate is chosen on: every
+# 2019-2021 game (regular season, play-in and playoffs) in which both teams
+# had played SETTLED_GAMES+ regular-season games. Served profiles are full
+# seasons, so these rows resemble what is served.
+VALIDATION_YARDSTICK = "2019-2021 games, both teams with " + str(SETTLED_GAMES) + "+ regular-season games"
+
+MINIMAL_ERA_STATS = [
+    "regular_net_rating",
+    "regular_offensive_rating",
+    "regular_defensive_rating",
+    "regular_true_shooting_percentage",
+    "regular_team_turnover_percentage",
+    "regular_pace",
+]
+
+ERA_NEUTRAL_RECORD_STATS = ["regular_win_pct", "regular_net_rating", "regular_point_diff_per_game"]
+ERA_NEUTRAL_PLAYOFF_STATS = ["made_playoffs", "made_play_in", "playoff_win_pct", "playoff_net_rating"]
+
+
+def has_relative_columns(df: pd.DataFrame) -> bool:
+    return all(f"home_{s}{RELATIVE_SUFFIX}" in df.columns for s in RELATIVE_STATS)
+
+
+def build_era_safe_feature_sets(df: pd.DataFrame) -> dict:
+    """Feature sets for hist-v2; every column passes is_era_safe_column."""
+    def hd(stats, suffix=""):
+        cols = []
+        for s in stats:
+            cols += [f"home_{s}{suffix}", f"away_{s}{suffix}", f"{s}{suffix}_diff"]
+        return cols
+
+    def diffs(stats, suffix=""):
+        return [f"{s}{suffix}_diff" for s in stats]
+
+    z_core   = hd(RELATIVE_STATS, RELATIVE_SUFFIX)
+    z_diffs  = diffs(RELATIVE_STATS, RELATIVE_SUFFIX)
+    playoff  = hd(ERA_NEUTRAL_PLAYOFF_STATS)
+
+    sets = {
+        "era_adjusted_core":                     z_core,
+        "era_adjusted_diff_only":                z_diffs,
+        "minimal_era_adjusted_diff":             diffs(MINIMAL_ERA_STATS, RELATIVE_SUFFIX),
+        "era_adjusted_plus_playoff_context":     z_core + playoff,
+        "era_adjusted_diff_plus_playoff_diff":   z_diffs + diffs(ERA_NEUTRAL_PLAYOFF_STATS),
+        "era_neutral_record":                    hd(ERA_NEUTRAL_RECORD_STATS),
+    }
+    for name, cols in sets.items():
+        missing = [c for c in cols if c not in df.columns]
+        unsafe  = [c for c in cols if not is_era_safe_column(c)]
+        if missing or unsafe:
+            raise ValueError("Feature set " + name + ": missing " + str(missing) + ", not era-safe " + str(unsafe))
+    return sets
+
+
+def classifier_candidates() -> list:
+    out = []
+    for C in [0.001, 0.01, 0.1, 1, 10, 100]:
+        for cw in [None, "balanced"]:
+            out.append(("LogisticRegression",
+                        LogisticRegression(penalty="l2", C=C, solver="lbfgs", class_weight=cw, max_iter=3000, random_state=42),
+                        {"penalty": "l2", "C": C, "solver": "lbfgs", "class_weight": str(cw)}))
+    for C in [0.001, 0.01, 0.1, 1, 10]:
+        for cw in [None, "balanced"]:
+            out.append(("LogisticRegression",
+                        LogisticRegression(penalty="l1", C=C, solver="liblinear", class_weight=cw, max_iter=3000, random_state=42),
+                        {"penalty": "l1", "C": C, "solver": "liblinear", "class_weight": str(cw)}))
+    out.append(("RandomForest", RandomForestClassifier(n_estimators=300, max_depth=8, random_state=42, n_jobs=-1),
+                {"n_estimators": 300, "max_depth": 8}))
+    out.append(("HistGradientBoosting", HistGradientBoostingClassifier(max_iter=300, learning_rate=0.05, random_state=42),
+                {"max_iter": 300, "learning_rate": 0.05}))
+    return out
+
+
+def settled(df: pd.DataFrame) -> pd.Series:
+    return (df["home_regular_games_played"] >= SETTLED_GAMES) & (df["away_regular_games_played"] >= SETTLED_GAMES)
+
+
+def era_relative_filters(df: pd.DataFrame) -> dict:
+    """Training-row filters; each is scored on the same VALIDATION_YARDSTICK."""
+    return {
+        "all_games":            df,
+        "both_teams_20_games":  df[settled(df)],
+        "regular_season_only":  df[df["game_type"] == "Regular Season"],
+        "playoffs_only":        df[df["game_type"] == "Playoffs"],
+    }
+
+
+def split_metrics(pipeline, rows: pd.DataFrame, cols: list) -> dict:
+    out = {"all": dict(eval_clf(pipeline, rows[cols], rows["home_win"]), n=len(rows))}
+    for label, gtype in (("regular_season", "Regular Season"), ("playoffs", "Playoffs")):
+        sub = rows[rows["game_type"] == gtype]
+        if len(sub) >= MIN_ROWS:
+            out[label] = dict(eval_clf(pipeline, sub[cols], sub["home_win"]), n=len(sub))
+    return out
+
+
+def run_era_relative(df: pd.DataFrame, exp_dir: Path, data_path: Path) -> None:
+    df = df.copy()
+    df["home_point_margin"] = df["homeScore"] - df["awayScore"]
+
+    # A row needs at least one earlier regular-season game per team to have a profile
+    df = df[(df["home_regular_games_played"] >= 1) & (df["away_regular_games_played"] >= 1)]
+    tr_all, va_all, te_all = chrono_split(df)
+    yard_va = va_all[settled(va_all)]
+    yard_te = te_all[settled(te_all)]
+    print("Train seasons:   " + str(tr_all["season"].min()) + "-" + str(tr_all["season"].max()) + "  rows " + str(len(tr_all)))
+    print("Validation rows: " + str(len(va_all)) + "  (yardstick: " + str(len(yard_va)) + ")")
+    print("Test rows:       " + str(len(te_all)) + "  (2022: " + str(int((te_all["season"] == 2022).sum())) + ")")
+
+    feature_sets = build_era_safe_feature_sets(df)
+    filters      = era_relative_filters(df)
+    candidates   = classifier_candidates()
+    print("Running classification experiments: " + str(len(feature_sets) * len(filters) * len(candidates)))
+
+    exp_rows = []
+    best = None
+    for ds_name, ds_df in filters.items():
+        tr_d = chrono_split(ds_df)[0]
+        for fs_name, cols in feature_sets.items():
+            for model_name, base_clf, hp in candidates:
+                pipeline = make_clf_pipeline(clone(base_clf))
+                pipeline.fit(tr_d[cols], tr_d["home_win"])
+                val_m = eval_clf(pipeline, yard_va[cols], yard_va["home_win"])
+                row = {
+                    "dataset_filter":         ds_name,
+                    "feature_set":            fs_name,
+                    "model_type":             model_name,
+                    "hyperparameters":        str(hp),
+                    "feature_count":          len(cols),
+                    "train_rows":             len(tr_d),
+                    "train_accuracy":         round(float(accuracy_score(tr_d["home_win"], pipeline.predict(tr_d[cols]))), 4),
+                    "validation_accuracy":    val_m["accuracy"],
+                    "validation_roc_auc":     val_m["roc_auc"],
+                    "validation_log_loss":    val_m["log_loss"],
+                    "validation_brier_score": val_m["brier_score"],
+                }
+                exp_rows.append(row)
+                key = (val_m["log_loss"], -val_m["accuracy"])
+                if best is None or key < best["key"]:
+                    best = {"key": key, "pipeline": pipeline, "cols": cols, "row": row, "hp": hp}
+        print("  done: " + ds_name)
+
+    pipeline, cols, row = best["pipeline"], best["cols"], best["row"]
+
+    # Test is scored once, for the chosen candidate only.
+    test_yard = split_metrics(pipeline, yard_te, cols)
+    test_all  = split_metrics(pipeline, te_all, cols)
+    val_all   = split_metrics(pipeline, va_all, cols)
+
+    print("")
+    print("Best classification model:  " + row["model_type"] + " " + str(best["hp"]))
+    print("Best dataset filter:        " + row["dataset_filter"])
+    print("Best feature set:           " + row["feature_set"] + " (" + str(len(cols)) + " columns)")
+    print("Validation (yardstick):     acc " + str(row["validation_accuracy"]) + "  log loss " + str(row["validation_log_loss"]))
+    print("Test (yardstick):           acc " + str(test_yard["all"]["accuracy"]) + "  log loss " + str(test_yard["all"]["log_loss"]))
+    print("Test (all games):           acc " + str(test_all["all"]["accuracy"]) + "  log loss " + str(test_all["all"]["log_loss"]))
+
+    # --- Point-margin regression: same training rows and columns -------------
+    print("\nRunning point-margin regression experiments...")
+    tr_r = chrono_split(filters[row["dataset_filter"]])[0]
+    reg_candidates = [
+        ("Ridge",                         Ridge()),
+        ("RandomForestRegressor",         RandomForestRegressor(n_estimators=300, max_depth=8, random_state=42, n_jobs=-1)),
+        ("HistGradientBoostingRegressor", HistGradientBoostingRegressor(max_iter=300, learning_rate=0.05, random_state=42)),
+    ]
+    reg_results, best_reg = [], None
+    for reg_name, base_reg in reg_candidates:
+        reg = make_reg_pipeline(clone(base_reg))
+        reg.fit(tr_r[cols], tr_r["home_point_margin"])
+        val_r = eval_reg(reg, yard_va[cols], yard_va["home_point_margin"])
+        reg_results.append({"model": reg_name, "validation_mae": val_r["mae"], "validation_rmse": val_r["rmse"],
+                            "validation_r2": val_r["r2"]})
+        if best_reg is None or val_r["mae"] < best_reg[2]["mae"]:
+            best_reg = (reg_name, reg, val_r)
+    reg_name, reg, reg_val = best_reg
+    reg_test_yard = eval_reg(reg, yard_te[cols], yard_te["home_point_margin"])
+    reg_test_all  = eval_reg(reg, te_all[cols], te_all["home_point_margin"])
+    print("Best regression model: " + reg_name + "  validation MAE " + str(reg_val["mae"])
+          + "  test MAE " + str(reg_test_yard["mae"]) + " (all test games " + str(reg_test_all["mae"]) + ")")
+
+    reg_summary = {
+        "feature_set_used":    row["feature_set"],
+        "dataset_filter_used": row["dataset_filter"],
+        "best_model":          reg_name,
+        "best_validation_mae": reg_val["mae"],
+        "all_models":          reg_results,
+        "best_metrics":        {"validation": reg_val, "test": reg_test_yard, "test_all_games": reg_test_all},
+    }
+
+    # --- Save -----------------------------------------------------------------
+    with open(exp_dir / "best_experiment_model.pkl", "wb") as f:
+        pickle.dump(pipeline, f)
+    with open(exp_dir / "point_margin_model.pkl", "wb") as f:
+        pickle.dump(reg, f)
+    with open(exp_dir / "best_experiment_columns.json", "w") as f:
+        json.dump(cols, f, indent=2)
+    with open(exp_dir / "point_margin_metrics.json", "w") as f:
+        json.dump(reg_summary, f, indent=2)
+    pd.DataFrame(exp_rows).sort_values("validation_log_loss").to_csv(exp_dir / "experiment_results.csv", index=False)
+
+    final = pipeline.named_steps["clf"]
+    if hasattr(final, "coef_"):
+        coef = final.coef_[0]
+        coef_df = pd.DataFrame({
+            "feature":         cols,
+            "coefficient":     coef,
+            "abs_coefficient": np.abs(coef),
+            "direction":       ["helps_home_win" if c > 0 else "hurts_home_win" for c in coef],
+        }).sort_values("abs_coefficient", ascending=False)
+    else:
+        coef_df = pd.DataFrame({"note": ["Coefficients unavailable for model type: " + row["model_type"]]})
+    coef_df.to_csv(exp_dir / "feature_coefficients.csv", index=False)
+
+    with open(exp_dir / "experiment_metrics.json", "w") as f:
+        json.dump({
+            "training_file":          str(data_path.relative_to(REPO_ROOT)) if data_path.is_absolute() else str(data_path),
+            "mode":                   "era_relative",
+            "split":                  {"train": [int(tr_all["season"].min()), TRAIN_MAX], "validation": [VAL_MIN, VAL_MAX],
+                                       "test": [TEST_MIN, int(te_all["season"].max())]},
+            "selection":              "lowest log loss on one shared validation set: " + VALIDATION_YARDSTICK
+                                      + ". Test scored once, for the chosen candidate only.",
+            "rows_note":              "Rows need both teams to have played 1+ regular-season game that season.",
+            "best_model_name":        row["model_type"],
+            "best_dataset_filter":    row["dataset_filter"],
+            "best_feature_set":       row["feature_set"],
+            "best_hyperparameters":   best["hp"],
+            "best_train_rows":        row["train_rows"],
+            "best_validation_metrics": {
+                "accuracy":    row["validation_accuracy"],
+                "roc_auc":     row["validation_roc_auc"],
+                "log_loss":    row["validation_log_loss"],
+                "brier_score": row["validation_brier_score"],
+            },
+            "validation_all_games":   val_all,
+            "test_yardstick":         test_yard,
+            "test_all_games":         test_all,
+            "classification_result_count": len(exp_rows),
+            "regression_summary":     reg_summary,
+        }, f, indent=2)
+
+    for name in ("best_experiment_model.pkl", "best_experiment_columns.json", "experiment_metrics.json",
+                 "experiment_results.csv", "feature_coefficients.csv", "point_margin_model.pkl", "point_margin_metrics.json"):
+        print("Saved: " + str(exp_dir / name))
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
-def main():
-    # --- Load and validate ---------------------------------------------------
-    if not DATA_PATH.exists():
-        raise FileNotFoundError("Missing: " + str(DATA_PATH))
+def parse_args(argv=None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Train historical-simulator candidates and save the best.")
+    parser.add_argument("--data", type=Path, default=DATA_PATH, help="training file (default matchup_training_data.csv)")
+    parser.add_argument("--out",  type=Path, default=EXP_DIR,   help="artifact folder (default models/experiments)")
+    return parser.parse_args(argv)
 
-    df = pd.read_csv(DATA_PATH, low_memory=False)
+
+def main(argv=None):
+    args    = parse_args(argv)
+    EXP_DIR = args.out
+
+    # --- Load and validate ---------------------------------------------------
+    if not args.data.exists():
+        raise FileNotFoundError("Missing: " + str(args.data))
+
+    df = pd.read_csv(args.data, low_memory=False)
     if df.empty:
-        raise ValueError("matchup_training_data.csv is empty.")
+        raise ValueError(args.data.name + " is empty.")
     for col in ("home_win", "season"):
         if col not in df.columns:
             raise ValueError("Missing required column: " + col)
@@ -321,6 +608,11 @@ def main():
     print("Loaded matchup data: " + str(len(df)) + " rows, " + str(len(df.columns)) + " columns")
 
     EXP_DIR.mkdir(parents=True, exist_ok=True)
+
+    if has_relative_columns(df):
+        print("Training file carries league_reference _z columns: era-relative (hist-v2) run.")
+        run_era_relative(df, EXP_DIR, args.data)
+        return
 
     # --- Feature engineering -------------------------------------------------
     df = add_derived_features(df)

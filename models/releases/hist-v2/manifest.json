@@ -1,0 +1,40 @@
+{
+  "manifestVersion": 1,
+  "version": "hist-v2",
+  "purpose": "historical_entertainment",
+  "description": "Neutral-court historical matchup simulator. Compares two completed NBA team-seasons (1985-86 onward), each measured against its own season's league rather than by raw numbers. An L1 logistic-regression classifier estimates the win probability; a ridge regressor gives a rough point margin. Output is a model estimate for entertainment, not a forecast or betting advice.",
+  "limitations": [
+    "Cross-era matchups never happened, so these outcomes cannot be validated against real results.",
+    "Results are for a neutral court: each matchup is scored with both teams at home and the two averaged.",
+    "Each team is compared with its own season's league: its stats are read as how far above or below that season's league average it was (a z-score), not as raw numbers, because scoring, shooting and pace changed between eras.",
+    "In practice the model reads two numbers per team: its net rating and its win percentage, each against its own league. Every other stat it was offered carries zero weight.",
+    "Seasons before 1996-97 use ratings, pace and shooting computed from the box score; the NBA's own advanced values exist only from 1996-97.",
+    "Rebound percentages are not used: they cannot be rebuilt from the box score for older seasons.",
+    "No accuracy figure is published for this release.",
+    "The point margin is approximate; typical error on real games was about 11 points.",
+    "Team strength comes from full-season averages, not rosters, injuries, or rest."
+  ],
+  "source": "models/experiments/hist_v2/ (F11 Phase A, branch f11-older-seasons, 2026-10-01): train_model_experiments.py on data/processed/historical_training_data.csv (1986-87 to 2025-26, point-in-time, z-scores against the previous season), dataset filter both_teams_20_games, feature set era_adjusted_diff_only, L1 LogisticRegression (C=0.001), chosen on one shared validation set.",
+  "classifier": {
+    "path": "classifier.pkl",
+    "sha256": "e077c7611c52196554b22154182e96286b17ed9179b442ddad967cf3c54ff022",
+    "estimator": "LogisticRegression"
+  },
+  "regressor": {
+    "path": "regressor.pkl",
+    "sha256": "3301c92098b98801304a318ff5632763a69efa1020637bd9767cb067379eb19b",
+    "estimator": "Ridge"
+  },
+  "columns": {
+    "path": "columns.json",
+    "sha256": "b12fee2ff33cc42663f176b60b1e98a9a1f3e07043f8e6a118ce8a06c4e8367d",
+    "count": 14
+  },
+  "metrics": {
+    "path": "metrics.json",
+    "sha256": "67b457da46eaa503ed15f30575372dccc4f9b451031d20e6c77c3f907dc486de"
+  },
+  "metricsPath": "metrics.json",
+  "profileSchemaVersion": "team_season_profiles_extended.v1",
+  "trainedThroughSeason": 2018
+}

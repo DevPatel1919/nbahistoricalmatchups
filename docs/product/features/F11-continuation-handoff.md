@@ -9,6 +9,12 @@ new session needs to finish F11. It covers:
 
 Branch: `f11-older-seasons` (last commit at writing: `f4105c8`).
 
+**Status (2026-10-01): Phase A is done.** `hist-v2` is built, not active.
+The results are in `reports/hist_v2_evaluation.md` and in the Session 2
+record in `F11-older-seasons.md`. It includes the 2000–01 blank game types
+that A1 did not expect. Phase B waits for the owner's answer to the STOP
+below.
+
 ## Read first, in order
 
 1. `CONTRIBUTING.md`: the point-in-time rule, the pipeline, code conventions,

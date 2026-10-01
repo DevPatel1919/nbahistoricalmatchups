@@ -1,0 +1,70 @@
+{
+  "purpose": "historical_entertainment",
+  "description": "Neutral-court historical matchup simulator. Compares two completed NBA team-seasons (1985-86 onward), each measured against its own season's league rather than by raw numbers. An L1 logistic-regression classifier estimates the win probability; a ridge regressor gives a rough point margin. Output is a model estimate for entertainment, not a forecast or betting advice.",
+  "limitations": [
+    "Cross-era matchups never happened, so these outcomes cannot be validated against real results.",
+    "Results are for a neutral court: each matchup is scored with both teams at home and the two averaged.",
+    "Each team is compared with its own season's league: its stats are read as how far above or below that season's league average it was (a z-score), not as raw numbers, because scoring, shooting and pace changed between eras.",
+    "In practice the model reads two numbers per team: its net rating and its win percentage, each against its own league. Every other stat it was offered carries zero weight.",
+    "Seasons before 1996-97 use ratings, pace and shooting computed from the box score; the NBA's own advanced values exist only from 1996-97.",
+    "Rebound percentages are not used: they cannot be rebuilt from the box score for older seasons.",
+    "No accuracy figure is published for this release.",
+    "The point margin is approximate; typical error on real games was about 11 points.",
+    "Team strength comes from full-season averages, not rosters, injuries, or rest."
+  ],
+  "trainedThroughSeason": 2018,
+  "source": "models/experiments/hist_v2/ (F11 Phase A, branch f11-older-seasons, 2026-10-01): train_model_experiments.py on data/processed/historical_training_data.csv (1986-87 to 2025-26, point-in-time, z-scores against the previous season), dataset filter both_teams_20_games, feature set era_adjusted_diff_only, L1 LogisticRegression (C=0.001), chosen on one shared validation set.",
+  "metrics": {
+    "publicAccuracyClaim": null,
+    "publicClaimNote": "Do not publish an accuracy number for this release without the owner's OK. The figures below are honest point-in-time results, recorded for review.",
+    "trainingFilter": "both_teams_20_games",
+    "featureSet": "era_adjusted_diff_only",
+    "pointInTime": {
+      "honest": true,
+      "note": "Every training feature is built only from games that tipped off earlier; z-scores use the previous season's league. Checked by src/models/test_pregame_leakage.py.",
+      "split": "train 1987-2018, validation 2019-2021, test 2022-2026",
+      "selection": "lowest log loss on one shared validation set: 2019-2021 games, both teams with 20+ regular-season games. Test scored once, for the chosen candidate only.",
+      "validation": {
+        "accuracy": 0.6442,
+        "roc_auc": 0.6941,
+        "log_loss": 0.6282,
+        "brier_score": 0.2193
+      },
+      "test": {
+        "accuracy": 0.6501,
+        "roc_auc": 0.7009,
+        "log_loss": 0.6275,
+        "brier_score": 0.219,
+        "n": 5053
+      },
+      "testByGameType": {
+        "regular_season": {
+          "accuracy": 0.6525,
+          "roc_auc": 0.7067,
+          "log_loss": 0.625,
+          "brier_score": 0.2179,
+          "n": 4601
+        },
+        "playoffs": {
+          "accuracy": 0.6256,
+          "roc_auc": 0.6303,
+          "log_loss": 0.6526,
+          "brier_score": 0.2302,
+          "n": 422
+        }
+      },
+      "testAllGames": {
+        "accuracy": 0.6459,
+        "roc_auc": 0.6885,
+        "log_loss": 0.6375,
+        "brier_score": 0.2222,
+        "n": 6453
+      },
+      "regressionTest": {
+        "mae": 11.411,
+        "rmse": 14.5343,
+        "r2": 0.1493
+      }
+    }
+  }
+}

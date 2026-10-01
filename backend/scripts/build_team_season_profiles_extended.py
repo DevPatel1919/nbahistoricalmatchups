@@ -39,6 +39,7 @@ from pathlib import Path
 REPO_ROOT         = Path(__file__).resolve().parents[2]
 STATS_PATH        = REPO_ROOT / "data" / "raw" / "TeamStatisticsExtended.csv"
 BASIC_STATS_PATH  = REPO_ROOT / "data" / "raw" / "TeamStatistics.csv"
+GAMES_TABLE_PATH  = REPO_ROOT / "data" / "raw" / "Games.csv"
 TEAM_HISTORY_PATH = REPO_ROOT / "data" / "processed" / "team_histories_cleaned.csv"
 OUTPUT_PATH       = REPO_ROOT / "data" / "processed" / "team_season_profiles_extended.csv"
 
@@ -55,6 +56,19 @@ def assign_season(dates: pd.Series) -> pd.Series:
     """Oct-Dec games belong to the next calendar year's season."""
     dt = pd.to_datetime(dates, utc=True)
     return dt.dt.year.where(dt.dt.month < 10, dt.dt.year + 1)
+
+
+# Game types whose season is the calendar year they were played in. Playoffs
+# never cross into a new season, but the 2020 bubble Finals ran into October
+# 2020, which assign_season labels 2021. hist-v2 data only (fill_game_types);
+# the duel and pre-game scripts keep assign_season as it is.
+CALENDAR_SEASON_GAME_TYPES = {"Playoffs", "Playoff", "Play-in Tournament", "Play-In"}
+
+
+def assign_season_playoffs_by_year(dates: pd.Series, game_types: pd.Series) -> pd.Series:
+    """assign_season, except playoff and play-in games take the calendar year they were played in."""
+    dt = pd.to_datetime(dates, utc=True)
+    return assign_season(dates).where(~game_types.isin(CALENDAR_SEASON_GAME_TYPES), dt.dt.year)
 
 
 # Per-game stats averaged across games: output name -> (source column, rounding digits)
@@ -110,6 +124,106 @@ PCT_STATS = {
     "three_pt_pct": ("threePointersMade", "threePointersAttempted"),
     "ft_pct":       ("freeThrowsMade",    "freeThrowsAttempted"),
 }
+
+
+# ---------------------------------------------------------------------------
+# Compared with its own league (hist-v2's era-relative inputs)
+# ---------------------------------------------------------------------------
+
+# Regular-season profile stats that hist-v2 reads as z-scores against a
+# season's league: (value - league mean) / league standard deviation, over
+# that season's full-season team profiles. The rebound percentages are left
+# out: they are blank before 1996-97 (UNMATCHED_FORMULA_COLS).
+RELATIVE_STATS = [
+    "regular_win_pct",
+    "regular_offensive_rating",
+    "regular_defensive_rating",
+    "regular_net_rating",
+    "regular_pace",
+    "regular_true_shooting_percentage",
+    "regular_effective_field_goal_percentage",
+    "regular_three_pt_pct",
+    "regular_ft_pct",
+    "regular_assist_percentage",
+    "regular_assist_to_turnover_ratio",
+    "regular_team_turnover_percentage",
+    "regular_opponent_effective_field_goal_percentage",
+    "regular_opponent_turnover_percentage",
+]
+RELATIVE_SUFFIX = "_z"
+
+# Stats whose league average does not move between eras, so hist-v2 may read
+# them raw: win %, net rating, point differential, playoff win % and net
+# rating, and the participation flags. Everything else drifts with the era
+# (ratings, pace, shooting, turnovers, assists) and is only read as _z.
+ERA_NEUTRAL_STATS = [
+    "regular_win_pct",
+    "regular_net_rating",
+    "regular_point_diff_per_game",
+    "playoff_win_pct",
+    "playoff_net_rating",
+    "made_playoffs",
+    "made_play_in",
+]
+
+
+def is_era_safe_column(col: str) -> bool:
+    """
+    True if a model column (home_<stat>, away_<stat> or <stat>_diff) reads a
+    _z stat built from RELATIVE_STATS or an ERA_NEUTRAL_STATS stat, so it means
+    the same thing in 1987 as in 2026.
+    """
+    if col.startswith("home_") or col.startswith("away_"):
+        base = col[5:]
+    elif col.endswith("_diff"):
+        base = col[:-5]
+    else:
+        return False
+    if base.endswith(RELATIVE_SUFFIX):
+        return base[:-len(RELATIVE_SUFFIX)] in RELATIVE_STATS
+    return base in ERA_NEUTRAL_STATS
+
+
+def league_reference(profiles: pd.DataFrame) -> pd.DataFrame:
+    """
+    Per season, the mean and standard deviation (ddof 1) of each RELATIVE_STATS
+    column over that season's team-seasons. profiles are full-season profiles
+    (build_season_profiles output, or the served profile CSV). Columns are a
+    (stat, "mean"|"std") MultiIndex; the index is the season.
+    """
+    missing = [s for s in RELATIVE_STATS if s not in profiles.columns]
+    if missing:
+        raise ValueError("Profiles lack relative stats: " + str(missing))
+    if profiles.duplicated(subset=["team_id", "season"]).any():
+        raise ValueError("league_reference needs one row per team-season.")
+    return profiles.groupby("season")[RELATIVE_STATS].agg(["mean", "std"])
+
+
+def add_relative_columns(frame: pd.DataFrame, seasons: pd.Series, reference: pd.DataFrame,
+                         prefix: str = "") -> pd.DataFrame:
+    """
+    Return frame with <prefix><stat>_z = (value - mean) / std for every
+    RELATIVE_STATS stat, each row measured against reference (league_reference
+    output) at its entry in seasons. A season missing from the reference, or
+    a std <= 0, gives NaN.
+
+    Training rows pass seasons = season - 1 (the previous, finished season:
+    the point-in-time rule). Served full-season profiles pass their own season.
+    """
+    seasons = pd.Series(np.asarray(seasons), index=frame.index)
+    new = {}
+    for stat in RELATIVE_STATS:
+        mean = seasons.map(reference[(stat, "mean")])
+        std  = seasons.map(reference[(stat, "std")])
+        std  = std.where(std > 0)
+        new[prefix + stat + RELATIVE_SUFFIX] = (frame[prefix + stat] - mean) / std
+    return pd.concat([frame.drop(columns=[c for c in new if c in frame.columns]),
+                      pd.DataFrame(new, index=frame.index)], axis=1)
+
+
+def add_own_season_relative_columns(profiles: pd.DataFrame) -> pd.DataFrame:
+    """Served profiles: each completed season measured against its own league."""
+    return add_relative_columns(profiles, profiles["season"], league_reference(profiles))
 
 # Situational scoring the box score before 1996-97 does not record
 # (TeamStatistics.csv stores 0, not blank, for these). Left NaN for older games.
@@ -225,15 +339,68 @@ def load_allowed_team_ids() -> set:
     return set(pd.to_numeric(histories["team_id"], errors="coerce").dropna().astype(int))
 
 
-def _read_team_games(path: Path) -> pd.DataFrame:
+def _read_team_games(path: Path, fill_game_types: bool = False) -> pd.DataFrame:
     df = pd.read_csv(path, low_memory=False)
     df["teamId"] = pd.to_numeric(df["teamId"], errors="coerce")
     df["win"]    = pd.to_numeric(df["win"],    errors="coerce").fillna(0).astype(int)
-    df["season"] = assign_season(df["gameDateTimeEst"])
+    if fill_game_types:
+        df = fill_missing_game_types(df)
+        df["season"] = assign_season_playoffs_by_year(df["gameDateTimeEst"], df["gameType"])
+    else:
+        df["season"] = assign_season(df["gameDateTimeEst"])
     return df
 
 
-def load_team_games(since_season: int, allowed_ids: set) -> pd.DataFrame:
+# The NBA's game id starts with its game type: 1 preseason, 2 regular season,
+# 4 playoffs, 5 play-in, 6 NBA Cup final. Only these types are counted.
+GAME_ID_PREFIX_TYPES = {
+    "2": GAME_TYPE_REGULAR,
+    "4": GAME_TYPE_PLAYOFF,
+    "5": GAME_TYPE_PLAY_IN,
+}
+
+
+def game_id_prefix(game_ids: pd.Series) -> pd.Series:
+    return pd.to_numeric(game_ids, errors="coerce").astype("Int64").astype(str).str[0]
+
+
+def fill_missing_game_types(df: pd.DataFrame, games_path: Path = GAMES_TABLE_PATH) -> pd.DataFrame:
+    """
+    Fill a blank gameType from Games.csv by gameId, for games of a counted
+    type (GAME_ID_PREFIX_TYPES). Both raw team-game files leave gameType blank
+    on almost every 2021-22 row and on about half of 2000-01's; Games.csv has
+    every one. Blank preseason and NBA Cup rows stay blank, so they stay out.
+
+    Raises ValueError if a counted game is still blank, or if Games.csv gives
+    it a type its game id disagrees with.
+    """
+    df = df.copy()
+    blank = df["gameType"].isna() | (df["gameType"].astype(str).str.strip() == "")
+    prefix = game_id_prefix(df["gameId"])
+    counted = blank & prefix.isin(GAME_ID_PREFIX_TYPES)
+    if not counted.any():
+        return df
+
+    games = pd.read_csv(games_path, usecols=["gameId", "gameType"], low_memory=False)
+    games = games.dropna(subset=["gameType"]).drop_duplicates("gameId")
+    filled = df.loc[counted, "gameId"].map(games.set_index("gameId")["gameType"])
+
+    still_blank = filled.isna()
+    if still_blank.any():
+        raise ValueError(str(int(still_blank.sum())) + " team-game rows of a counted game type have no gameType "
+                         "in either file, e.g. game " + str(df.loc[filled[still_blank].index, "gameId"].head().tolist()))
+    expected = prefix[counted].map(GAME_ID_PREFIX_TYPES)
+    wrong = filled != expected
+    if wrong.any():
+        raise ValueError("Games.csv game types disagree with their game ids, e.g. "
+                         + str(df.loc[filled[wrong].index, "gameId"].head().tolist()))
+
+    df["gameType"] = df["gameType"].astype(object)
+    df.loc[counted, "gameType"] = filled
+    return df
+
+
+def load_team_games(since_season: int, allowed_ids: set, fill_game_types: bool = False) -> pd.DataFrame:
     """
     One row per team per game for every season >= since_season, carrying the
     TeamStatisticsExtended.csv columns that MEAN_STATS and PCT_STATS read.
@@ -242,18 +409,24 @@ def load_team_games(since_season: int, allowed_ids: set) -> pd.DataFrame:
     come from TeamStatistics.csv (which agrees with the Extended file on every
     overlapping row), with BOX_SCORE_FORMULAS filling the advanced columns and
     SITUATIONAL_SOURCE_COLS and UNMATCHED_FORMULA_COLS left NaN.
+
+    fill_game_types=True is the hist-v2 path: blank game types are filled from
+    Games.csv (fill_missing_game_types), and playoff and play-in games take the
+    season of the calendar year they were played in
+    (assign_season_playoffs_by_year). The default leaves both as they were, so
+    matchup_training_data.csv (duel mode, pre-game model) does not change.
     """
     if since_season <= OLDER_ERA_START:
         raise ValueError("Seasons before " + str(OLDER_ERA_START + 1)
                          + " are not supported (requested " + str(since_season) + ").")
 
-    ext = _read_team_games(STATS_PATH)
+    ext = _read_team_games(STATS_PATH, fill_game_types)
     ext = ext[(ext["season"] >= since_season) & (ext["season"] > EXTENDED_STATS_START)]
     ext = ext[ext["teamId"].isin(allowed_ids)]
     if since_season > EXTENDED_STATS_START:
         return ext.copy()
 
-    basic = _read_team_games(BASIC_STATS_PATH)
+    basic = _read_team_games(BASIC_STATS_PATH, fill_game_types)
     basic = basic[(basic["season"] >= since_season) & (basic["season"] <= EXTENDED_STATS_START)]
     basic = compute_box_score_advanced(basic)
     basic[SITUATIONAL_SOURCE_COLS + UNMATCHED_FORMULA_COLS] = np.nan

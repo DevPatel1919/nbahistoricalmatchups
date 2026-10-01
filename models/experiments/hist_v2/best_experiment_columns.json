@@ -1,0 +1,16 @@
+[
+  "regular_win_pct_z_diff",
+  "regular_offensive_rating_z_diff",
+  "regular_defensive_rating_z_diff",
+  "regular_net_rating_z_diff",
+  "regular_pace_z_diff",
+  "regular_true_shooting_percentage_z_diff",
+  "regular_effective_field_goal_percentage_z_diff",
+  "regular_three_pt_pct_z_diff",
+  "regular_ft_pct_z_diff",
+  "regular_assist_percentage_z_diff",
+  "regular_assist_to_turnover_ratio_z_diff",
+  "regular_team_turnover_percentage_z_diff",
+  "regular_opponent_effective_field_goal_percentage_z_diff",
+  "regular_opponent_turnover_percentage_z_diff"
+]
