@@ -254,7 +254,45 @@ def test_active_release_publishes_no_accuracy_claim():
 def test_static_export_matches_active_release():
     index = json.loads(INDEX_PATH.read_text())
     release = rel.load_active_release()
-    assert index["release"] == {"version": release.version, "purpose": release.purpose}
+    assert index["release"] == {
+        "version":                 release.version,
+        "purpose":                 release.purpose,
+        "nonPlayoffExtrapolation": rel.extrapolates_non_playoff_teams(release),
+    }
+
+
+def test_only_a_playoffs_only_release_extrapolates_non_playoff_teams():
+    """hist-v1 trained on playoff games only; hist-v2 on all game types, regular-season stats only."""
+    assert rel.extrapolates_non_playoff_teams(rel.load_release(SHIPPED)) is True
+    assert rel.extrapolates_non_playoff_teams(rel.load_release(rel.RELEASES_DIR / "hist-v2")) is False
+
+
+# ---------------------------------------------------------------------------
+# prediction_mode follows how the release was trained
+# ---------------------------------------------------------------------------
+
+PLAYOFF     = {"made_playoffs": 1, "team_city": "Golden State", "team_name": "Warriors"}
+NON_PLAYOFF = {"made_playoffs": 0, "team_city": "Philadelphia", "team_name": "76ers"}
+
+
+@pytest.mark.parametrize("a, b", [(PLAYOFF, PLAYOFF), (PLAYOFF, NON_PLAYOFF), (NON_PLAYOFF, PLAYOFF),
+                                  (NON_PLAYOFF, NON_PLAYOFF)])
+def test_non_playoff_teams_are_not_extrapolations_for_hist_v2(a, b):
+    mode, warnings = pm._prediction_mode(a, b, extrapolates_non_playoff=False)
+    assert mode == pm.MODE_REGULAR_SEASON_RELATIVE
+    assert warnings == []
+
+
+@pytest.mark.parametrize("a, b, mode, warned", [
+    (PLAYOFF,     PLAYOFF,     "playoff_context_model",              False),
+    (PLAYOFF,     NON_PLAYOFF, "playoff_context_model_extrapolated", True),
+    (NON_PLAYOFF, NON_PLAYOFF, "playoff_context_model_extrapolated", True),
+])
+def test_playoffs_only_release_still_flags_extrapolation(a, b, mode, warned):
+    got, warnings = pm._prediction_mode(a, b, extrapolates_non_playoff=True)
+    assert got == mode
+    assert bool(warnings) is warned
+    assert all("trained on playoff games only" in w for w in warnings)
 
 
 # ---------------------------------------------------------------------------
@@ -262,27 +300,29 @@ def test_static_export_matches_active_release():
 # ---------------------------------------------------------------------------
 
 SMOKE_MATCHUPS = [
-    # label,                                 team A,                  season, team B,                  season, expected mode
-    ("playoff vs playoff",                    "Golden State Warriors", 2017, "Cleveland Cavaliers",     2016, "playoff_context_model"),
-    ("same season, both missed playoffs",     "Philadelphia 76ers",    2016, "Brooklyn Nets",           2016, "playoff_context_model_extrapolated"),
-    ("same season, one missed playoffs",      "Golden State Warriors", 2016, "Philadelphia 76ers",      2016, "playoff_context_model_extrapolated"),
-    ("historical names: Sonics vs Vancouver", "Oklahoma City Thunder", 2005, "Memphis Grizzlies",       1999, "playoff_context_model_extrapolated"),
-    ("cross-era",                             "Chicago Bulls",         1998, "Denver Nuggets",          2023, "playoff_context_model"),
+    # label,                                 team A,                  season, team B,                  season, a non-playoff team?
+    ("playoff vs playoff",                    "Golden State Warriors", 2017, "Cleveland Cavaliers",     2016, False),
+    ("same season, both missed playoffs",     "Philadelphia 76ers",    2016, "Brooklyn Nets",           2016, True),
+    ("same season, one missed playoffs",      "Golden State Warriors", 2016, "Philadelphia 76ers",      2016, True),
+    ("historical names: Sonics vs Vancouver", "Oklahoma City Thunder", 2005, "Memphis Grizzlies",       1999, True),
+    ("cross-era",                             "Chicago Bulls",         1998, "Denver Nuggets",          2023, False),
     # F11: 1985-86 to 1996-97 (predict_matchup finds teams by current franchise name)
-    ("older playoff team",                    "Boston Celtics",        1986, "Detroit Pistons",         1989, "playoff_context_model"),
-    ("older non-playoff team",                "Clippers",              1987, "Los Angeles Lakers",      1987, "playoff_context_model_extrapolated"),
-    ("historical name: 1990 Bullets",         "Washington Wizards",    1990, "Golden State Warriors",   2022, "playoff_context_model_extrapolated"),
-    ("cross-era: 1996 Bulls vs 2017 Warriors", "Chicago Bulls",        1996, "Golden State Warriors",   2017, "playoff_context_model"),
+    ("older playoff team",                    "Boston Celtics",        1986, "Detroit Pistons",         1989, False),
+    ("older non-playoff team",                "Clippers",              1987, "Los Angeles Lakers",      1987, True),
+    ("historical name: 1990 Bullets",         "Washington Wizards",    1990, "Golden State Warriors",   2022, True),
+    ("cross-era: 1996 Bulls vs 2017 Warriors", "Chicago Bulls",        1996, "Golden State Warriors",   2017, False),
 ]
 
 
-@needs_profiles
-@pytest.mark.parametrize("label, a, sa, b, sb, mode", SMOKE_MATCHUPS, ids=[m[0] for m in SMOKE_MATCHUPS])
-def test_smoke_matchup(label, a, sa, b, sb, mode):
-    pm.reload()
-    result = pm.predict_matchup(a, sa, b, sb)
+def expected_mode(release, non_playoff: bool) -> str:
+    """The mode a release should report: only a playoffs-only release extrapolates."""
+    if not rel.extrapolates_non_playoff_teams(release):
+        return "regular_season_relative_model"
+    return "playoff_context_model_extrapolated" if non_playoff else "playoff_context_model"
 
-    release = rel.load_active_release()
+
+def check_smoke(result, release, non_playoff: bool) -> None:
+    mode = expected_mode(release, non_playoff)
     assert result["model_release"] == release.version
     assert result["model_purpose"] == release.purpose
     assert result["model_feature_count"] == release.manifest["columns"]["count"]
@@ -290,8 +330,32 @@ def test_smoke_matchup(label, a, sa, b, sb, mode):
     assert 0.0 < result["team_a_win_probability"] < 1.0
     assert result["team_a_win_probability"] + result["team_b_win_probability"] == pytest.approx(1.0, abs=1e-4)
     assert isinstance(result["projected_margin_team_a"], float)
-    if mode.endswith("_extrapolated"):
-        assert result["warnings"]
+    # A playoff warning appears exactly when the pair lies outside the training
+    # data. (hist-v1 also warns that pre-1996-97 teams lack rebound percentages.)
+    playoff_warnings = [w for w in result["warnings"] if "playoff" in w.lower()]
+    assert bool(playoff_warnings) is mode.endswith("_extrapolated")
+    if not rel.extrapolates_non_playoff_teams(release):
+        assert result["warnings"] == []
+
+
+@needs_profiles
+@pytest.mark.parametrize("label, a, sa, b, sb, non_playoff", SMOKE_MATCHUPS, ids=[m[0] for m in SMOKE_MATCHUPS])
+def test_smoke_matchup(label, a, sa, b, sb, non_playoff):
+    pm.reload()
+    check_smoke(pm.predict_matchup(a, sa, b, sb), rel.load_active_release(), non_playoff)
+
+
+@needs_profiles
+@pytest.mark.parametrize("label, a, sa, b, sb, non_playoff", SMOKE_MATCHUPS, ids=[m[0] for m in SMOKE_MATCHUPS])
+def test_smoke_matchup_after_rollback_to_hist_v1(monkeypatch, label, a, sa, b, sb, non_playoff):
+    """A rollback to hist-v1 serves the same profiles and keeps its playoffs-only warnings."""
+    monkeypatch.setattr(pm, "load_active_release", lambda: rel.load_release(SHIPPED))
+    pm.reload()
+    try:
+        check_smoke(pm.predict_matchup(a, sa, b, sb), rel.load_release(SHIPPED), non_playoff)
+    finally:
+        monkeypatch.undo()
+        pm._release = pm._clf = pm._reg = pm._cols = pm._profiles = None
 
 
 @needs_profiles

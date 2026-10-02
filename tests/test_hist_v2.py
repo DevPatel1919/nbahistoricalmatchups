@@ -305,9 +305,12 @@ def test_cross_era_pair_matches_between_predict_and_export(serve_hist_v2, key_a,
 
 @needs_raw
 @needs_hist_v2
-def test_hist_v2_warnings_match_its_training(serve_hist_v2):
-    result = pm.predict_matchup("Philadelphia 76ers", 2016, "Brooklyn Nets", 2016)
-    assert result["model_release"] == "hist-v2"
-    assert result["warnings"]
-    trained_playoffs_only = rel.load_release(HIST_V2).metrics.get("trainingFilter") == "playoffs_only"
-    assert any("trained on playoff games only" in w for w in result["warnings"]) == trained_playoffs_only
+def test_hist_v2_does_not_treat_non_playoff_teams_as_extrapolations(serve_hist_v2):
+    """hist-v2 trained on regular-season, play-in and playoff games and reads regular-season stats only."""
+    assert rel.load_release(HIST_V2).metrics["trainingFilter"] != "playoffs_only"
+    for a, sa, b, sb in [("Philadelphia 76ers", 2016, "Brooklyn Nets", 2016),
+                         ("Clippers", 1987, "Chicago Bulls", 1996)]:
+        result = pm.predict_matchup(a, sa, b, sb)
+        assert result["model_release"] == "hist-v2"
+        assert result["prediction_mode"] == "regular_season_relative_model"
+        assert result["warnings"] == []

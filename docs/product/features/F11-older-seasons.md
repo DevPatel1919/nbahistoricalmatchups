@@ -637,6 +637,38 @@ Every link still decodes.
 - `matchup_training_data.csv` (`58ceb688…`) and `pregame_team_features.csv`
   (`a6fa3051…`) are unchanged.
 
+**Review fix: non-playoff teams are not extrapolations under `hist-v2`.**
+`hist-v2` was trained on regular-season, play-in and playoff games and reads
+regular-season stats only. Even so, `predict_matchup` still returned
+`playoff_context_model_extrapolated`, with a warning, whenever a team had
+missed the playoffs. The site's `matchup_completed` event also set
+`extrapolationWarning` from playoff participation alone, and the smoke tests
+kept that behaviour.
+
+- **One rule.** `release.extrapolates_non_playoff_teams(release)` is true only
+  for a playoffs-only release. Its `trainingFilter` is `playoffs_only`, or
+  missing, as in `hist-v1`.
+- **`predict_matchup`.** Under `hist-v2`, every pair gets the mode
+  `regular_season_relative_model` and no warnings. `hist-v1`'s modes and
+  warnings are unchanged.
+- **The export.** `index.json`'s release block gains
+  `nonPlayoffExtrapolation` (false for `hist-v2`). `verify_static_export.py`
+  fails if the block differs from the active release. Re-exporting changed
+  only `index.json`; every team file is byte-identical.
+- **The site.** `lib/extrapolation.ts` `isExtrapolation(release, a, b)` drives
+  `extrapolationWarning`. An export without the flag counts as `hist-v1`.
+- **Tests:**
+  - the smoke suite derives the expected mode from the release, and asserts
+    that a playoff warning appears exactly when the pair is an
+    extrapolation;
+  - the same 9 smoke matchups run again under a `hist-v1` rollback;
+  - unit tests cover `_prediction_mode` for both kinds of release;
+  - `extrapolation.test.ts` covers the site helper;
+  - the Playwright test now expects `extrapolationWarning: false` for a
+    non-playoff team.
+- **Counts after the fix:** `pytest tests` 100, `test_release_integrity.py`
+  45, frontend 163 unit and 50 Playwright tests.
+
 **Owner, before merging:**
 - review the Pages preview;
 - confirm or change the Champions Bracket default.

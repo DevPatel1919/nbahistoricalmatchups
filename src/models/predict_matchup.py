@@ -38,6 +38,7 @@ from src.models.release import (
     Release,
     ReleaseError,
     check_profiles,
+    extrapolates_non_playoff_teams,
     load_active_release,
     parse_base_stats,
 )
@@ -240,52 +241,41 @@ def _validate_input(df: pd.DataFrame, model_cols: list[str]) -> list[str]:
 # Prediction routing
 # ---------------------------------------------------------------------------
 
-# Training rows a release was fit on, from its metrics.json "trainingFilter".
-# hist-v1 predates the field and was trained on playoff games only.
-PLAYOFFS_ONLY_FILTER = "playoffs_only"
+# prediction_mode values.
+#   A playoffs-only release (hist-v1): playoff_context_model when both teams
+#   made the playoffs, else playoff_context_model_extrapolated with a warning.
+#   Any other release (hist-v2, trained on regular-season, play-in and playoff
+#   games, reading regular-season stats only): regular_season_relative_model
+#   for every pair. Missing the playoffs is not an extrapolation for it.
+MODE_PLAYOFF_CONTEXT              = "playoff_context_model"
+MODE_PLAYOFF_CONTEXT_EXTRAPOLATED = "playoff_context_model_extrapolated"
+MODE_REGULAR_SEASON_RELATIVE      = "regular_season_relative_model"
 
 
-def _trained_on_playoffs_only(release: Release) -> bool:
-    return release.metrics.get("trainingFilter", PLAYOFFS_ONLY_FILTER) == PLAYOFFS_ONLY_FILTER
-
-
-def _prediction_mode(team_a: pd.Series, team_b: pd.Series, playoffs_only: bool = True) -> tuple[str, list[str]]:
+def _prediction_mode(team_a: pd.Series, team_b: pd.Series, extrapolates_non_playoff: bool = True) -> tuple[str, list[str]]:
     """
-    Determine prediction_mode and any warnings based on playoff participation.
-    playoffs_only says whether the release was trained on playoff games only.
+    Determine prediction_mode and any warnings. extrapolates_non_playoff is
+    release.extrapolates_non_playoff_teams(): True only for a release trained
+    on playoff games only, the one case in which a non-playoff team lies
+    outside the training data.
 
     Returns (mode_str, warnings_list).
     """
+    if not extrapolates_non_playoff:
+        return MODE_REGULAR_SEASON_RELATIVE, []
+
     a_playoffs = int(team_a.get("made_playoffs", 0)) == 1
     b_playoffs = int(team_b.get("made_playoffs", 0)) == 1
 
     if a_playoffs and b_playoffs:
-        return "playoff_context_model", []
+        return MODE_PLAYOFF_CONTEXT, []
 
     warn = []
-    if playoffs_only:
-        if not a_playoffs and not b_playoffs:
-            warn.append(
-                "Neither team made the playoffs that season. "
-                "The current model was trained on playoff games only (playoffs_only filter). "
-                "Predictions for non-playoff teams are extrapolations and less reliable."
-            )
-        else:
-            non_playoff_team = (
-                f"{team_a.get('team_city', '')} {team_a.get('team_name', '')}"
-                if not a_playoffs
-                else f"{team_b.get('team_city', '')} {team_b.get('team_name', '')}"
-            ).strip()
-            warn.append(
-                f"{non_playoff_team} did not make the playoffs that season. "
-                "The current model was trained on playoff games only. "
-                "Playoff context features for non-playoff teams are filled with 0, "
-                "which may reduce prediction accuracy."
-            )
-    elif not a_playoffs and not b_playoffs:
+    if not a_playoffs and not b_playoffs:
         warn.append(
             "Neither team made the playoffs that season. "
-            "Both are judged on their regular season; their playoff stats are 0."
+            "The current model was trained on playoff games only (playoffs_only filter). "
+            "Predictions for non-playoff teams are extrapolations and less reliable."
         )
     else:
         non_playoff_team = (
@@ -295,10 +285,12 @@ def _prediction_mode(team_a: pd.Series, team_b: pd.Series, playoffs_only: bool =
         ).strip()
         warn.append(
             f"{non_playoff_team} did not make the playoffs that season. "
-            "It is judged on its regular season; its playoff stats are 0."
+            "The current model was trained on playoff games only. "
+            "Playoff context features for non-playoff teams are filled with 0, "
+            "which may reduce prediction accuracy."
         )
 
-    return "playoff_context_model_extrapolated", warn
+    return MODE_PLAYOFF_CONTEXT_EXTRAPOLATED, warn
 
 
 # ---------------------------------------------------------------------------
@@ -327,7 +319,9 @@ def predict_matchup(
     dict with keys:
         team_a                  - "{season} {city} {name}"
         team_b                  - "{season} {city} {name}"
-        prediction_mode         - "playoff_context_model" or "playoff_context_model_extrapolated"
+        prediction_mode         - "regular_season_relative_model" (hist-v2), or for a
+                                  playoffs-only release (hist-v1) "playoff_context_model"
+                                  or "playoff_context_model_extrapolated"
         predicted_winner        - team_a or team_b label
         team_a_win_probability  - float [0, 1]
         team_b_win_probability  - float [0, 1]
@@ -350,7 +344,7 @@ def predict_matchup(
     label_b = f"{int(profile_b['season'])} {profile_b['team_city']} {profile_b['team_name']}"
 
     # 2. Prediction mode + playoff warnings
-    mode, warn = _prediction_mode(profile_a, profile_b, _trained_on_playoffs_only(_release))
+    mode, warn = _prediction_mode(profile_a, profile_b, extrapolates_non_playoff_teams(_release))
 
     # 3. Build feature row
     X = build_model_input(profile_a, profile_b, _cols)

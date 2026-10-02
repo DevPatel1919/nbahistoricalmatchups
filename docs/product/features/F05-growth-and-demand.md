@@ -102,7 +102,7 @@ replaced.
 | Event | Fired | Properties |
 |---|---|---|
 | `matchup_started` | `ResultPage`, once per navigation + pair, when a canonical pair begins loading | `entrySurface`: home-search, browse, suggested, random, swap, direct, shared-plain, shared-challenge |
-| `matchup_completed` | `ResultPage`, when the result is on screen (after the pick on a challenge link) | `teamA`, `teamB`, `extrapolationWarning` (a team missed the playoffs) |
+| `matchup_completed` | `ResultPage`, when the result is on screen (after the pick on a challenge link) | `teamA`, `teamB`, `extrapolationWarning`: the pair is outside the served model's training data (`lib/extrapolation.ts`). That is a team that missed the playoffs under a playoffs-only release (`hist-v1`); never under `hist-v2` (F11), whose `index.json` sets `release.nonPlayoffExtrapolation: false` |
 | `matchup_shared` | copy link, or share image | `surface`, `shareMethod` (copy/image), `variant` |
 | `tournament_*`, `bracket_predictions_completed` | F04 (see its brief); `tournament_shared` also has `shareMethod: image` | unchanged |
 | `price_intent_clicked` | `OfferPanel` buttons | `audience`, `offerId`, `displayedPrice`, `qualified` (browser already completed a matchup or revealed a bracket) |

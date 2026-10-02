@@ -67,11 +67,13 @@ test("a matchup from the home search fires started, completed, and shared once e
   }
 });
 
-test("the extrapolation warning is reported for a non-playoff team", async ({ page }) => {
+test("a non-playoff team is not reported as an extrapolation under hist-v2", async ({ page }) => {
+  // hist-v2 trained on every game type and reads regular-season stats only
+  // (index.json release.nonPlayoffExtrapolation is false).
   await page.goto("/1998-76ers-vs-2017-warriors");
   await expect(page.locator(".winner-card__prob")).toContainText("%");
   expect(await named(page, "matchup_completed")).toEqual([
-    { name: "matchup_completed", teamA: "1998-76ers", teamB: "2017-warriors", extrapolationWarning: true },
+    { name: "matchup_completed", teamA: "1998-76ers", teamB: "2017-warriors", extrapolationWarning: false },
   ]);
 });
 

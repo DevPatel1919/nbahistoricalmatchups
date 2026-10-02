@@ -21,6 +21,8 @@ export interface IndexTeam {
 export interface ReleaseInfo {
   version: string;
   purpose: string;
+  /** True when a matchup with a non-playoff team is outside the model's training data (hist-v1 only). */
+  nonPlayoffExtrapolation?: boolean;
 }
 
 export interface IndexData {

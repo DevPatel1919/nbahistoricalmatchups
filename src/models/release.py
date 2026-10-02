@@ -250,6 +250,26 @@ def load_active_release(
     return load_release(directory)
 
 
+# The training rows a release was fit on, from its metrics.json "trainingFilter".
+# hist-v1 predates the field and was trained on playoff games only.
+PLAYOFFS_ONLY_FILTER = "playoffs_only"
+
+
+def trained_on_playoffs_only(release: Release) -> bool:
+    return release.metrics.get("trainingFilter", PLAYOFFS_ONLY_FILTER) == PLAYOFFS_ONLY_FILTER
+
+
+def extrapolates_non_playoff_teams(release: Release) -> bool:
+    """
+    True if a matchup involving a team that missed the playoffs lies outside
+    what the release was trained on. Only a playoffs-only release (hist-v1)
+    does: hist-v2 was trained on regular-season, play-in and playoff games
+    and reads regular-season stats only. predict_matchup's prediction_mode and
+    the exported index.json flag (read by the site) both come from here.
+    """
+    return trained_on_playoffs_only(release)
+
+
 def check_profiles(release: Release, profile_columns) -> None:
     """Raise ReleaseError if the profile table lacks any stat the release reads."""
     missing = [s for s in release.profile_base_stats if s not in set(profile_columns)]

@@ -55,7 +55,12 @@ if str(_REPO_ROOT_FOR_IMPORTS) not in sys.path:
 
 from backend.scripts.build_team_season_profiles_extended import add_own_season_relative_columns
 from src.models.model_config import PROFILES_PATH
-from src.models.release import check_profiles, load_active_release, parse_base_stats
+from src.models.release import (
+    check_profiles,
+    extrapolates_non_playoff_teams,
+    load_active_release,
+    parse_base_stats,
+)
 
 REPO_ROOT   = Path(__file__).resolve().parent.parent
 STATS_PATH  = REPO_ROOT / "data" / "raw" / "TeamStatisticsExtended.csv"
@@ -245,6 +250,19 @@ def build_index_entry(row: pd.Series) -> dict:
     }
 
 
+def release_info(release) -> dict:
+    """
+    index.json's release block. nonPlayoffExtrapolation tells the site whether
+    a matchup with a team that missed the playoffs is outside what the model
+    was trained on (true only for a playoffs-only release such as hist-v1).
+    """
+    return {
+        "version":                 release.version,
+        "purpose":                 release.purpose,
+        "nonPlayoffExtrapolation": extrapolates_non_playoff_teams(release),
+    }
+
+
 def main():
     print("Loading active model release...")
     release = load_active_release()
@@ -294,7 +312,7 @@ def main():
     print("Building index.json...")
     index_payload = {
         "generated": date.today().isoformat(),
-        "release":   {"version": release.version, "purpose": release.purpose},
+        "release":   release_info(release),
         "teams": [build_index_entry(profiles.iloc[i]) for i in range(n)],
     }
     if len({t["key"] for t in index_payload["teams"]}) != n:

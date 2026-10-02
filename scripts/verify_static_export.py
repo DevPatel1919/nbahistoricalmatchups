@@ -42,6 +42,7 @@ if str(_REPO_ROOT_FOR_IMPORTS) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT_FOR_IMPORTS))
 
 from src.models.model_config import PROFILES_PATH
+from scripts.export_static_site_data import release_info
 from src.models.predict_matchup import get_release, predict_matchup
 
 REPO_ROOT  = Path(__file__).resolve().parent.parent
@@ -91,6 +92,10 @@ def main():
     if exported_release != active:
         print("FAILED: index.json was exported from release " + str(exported_release)
               + " but the active release is " + active + ". Re-run scripts/export_static_site_data.py.")
+        sys.exit(1)
+    if index.get("release") != release_info(get_release()):
+        print("FAILED: index.json's release block " + str(index.get("release")) + " does not match the active release "
+              + str(release_info(get_release())) + ". Re-run scripts/export_static_site_data.py.")
         sys.exit(1)
     print("Release: " + active)
 
