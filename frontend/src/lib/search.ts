@@ -4,7 +4,7 @@
 
 import type { IndexTeam } from "../types";
 
-const MIN_SEASON = 1998;
+const MIN_SEASON = 1986;
 const MAX_SEASON = 2026;
 
 /** Expand a bare 2-digit year token ("98", "17") to the one in-range season it can mean. */

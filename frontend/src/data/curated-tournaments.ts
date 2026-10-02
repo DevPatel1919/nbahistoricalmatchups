@@ -17,16 +17,18 @@ export interface CuratedTournament {
   definition: TournamentDefinition;
 }
 
-// NBA champions 1998-2025 that are in the export (2022 is missing; see
-// CONTRIBUTING.md), the 16 with the best regular-season net rating, seeded by
-// net rating (ties by win percentage). A real statistic rather than the
-// model's own ranking, so the seeding does not pre-empt the result.
+// NBA champions 1998-2025, the 16 with the best regular-season net rating,
+// seeded by net rating (ties by win percentage). A real statistic rather than
+// the model's own ranking, so the seeding does not pre-empt the result. F11
+// (2026-10) restored 2022 and the full 2001 season; the same 16 still qualify
+// in the same order (the 2022 Warriors, +5.5, rank 23rd), so the definition
+// and every shared link are unchanged.
 export const CHAMPIONS: CuratedTournament = {
   id: "champions-v1",
   title: "The Champions Bracket",
   summary: "Sixteen NBA champions since 1998, one neutral court, best-of-7 all the way.",
   seedingNote:
-    "The 16 title winners since 1998 with the best regular-season net rating, seeded by that net rating. The 2022 champion is missing from the data.",
+    "The 16 title winners since 1998 with the best regular-season net rating, seeded by that net rating.",
   definition: {
     version: 1,
     seed: "champions-v1",

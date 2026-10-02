@@ -67,11 +67,13 @@ test("a matchup from the home search fires started, completed, and shared once e
   }
 });
 
-test("the extrapolation warning is reported for a non-playoff team", async ({ page }) => {
+test("a non-playoff team is not reported as an extrapolation under hist-v2", async ({ page }) => {
+  // hist-v2 trained on every game type and reads regular-season stats only
+  // (index.json release.nonPlayoffExtrapolation is false).
   await page.goto("/1998-76ers-vs-2017-warriors");
   await expect(page.locator(".winner-card__prob")).toContainText("%");
   expect(await named(page, "matchup_completed")).toEqual([
-    { name: "matchup_completed", teamA: "1998-76ers", teamB: "2017-warriors", extrapolationWarning: true },
+    { name: "matchup_completed", teamA: "1998-76ers", teamB: "2017-warriors", extrapolationWarning: false },
   ]);
 });
 
@@ -84,7 +86,7 @@ test("a challenge link asks for a pick before revealing the model", async ({ pag
   await page.getByRole("button", { name: /1998 Chicago Bulls/ }).click();
   await expect(page.locator(".challenge__verdict")).toContainText("You picked the 1998 Bulls.");
   await expect(page.locator(".challenge__verdict")).toContainText("The model disagrees.");
-  await expect(page.locator(".winner-card__prob")).toContainText("73.8%");
+  await expect(page.locator(".winner-card__prob")).toContainText("64.4%");
 
   expect(await named(page, "matchup_started", "challenge_answered", "matchup_completed")).toEqual([
     { name: "matchup_started", entrySurface: "shared-challenge" },
@@ -96,7 +98,7 @@ test("a challenge link asks for a pick before revealing the model", async ({ pag
 test("attribution survives the reverse-order redirect", async ({ page }) => {
   await page.goto("/2017-warriors-vs-1998-bulls?via=share");
   await expect(page).toHaveURL(`${MATCHUP}?via=share`);
-  await expect(page.locator(".winner-card__prob")).toContainText("73.8%");
+  await expect(page.locator(".winner-card__prob")).toContainText("64.4%");
   expect(await named(page, "matchup_started")).toEqual([{ name: "matchup_started", entrySurface: "shared-plain" }]);
 });
 
@@ -106,7 +108,7 @@ test("opting out silences analytics and changes nothing else", async ({ page }) 
   await expect(page.getByText("Analytics events are off in this browser.")).toBeVisible();
 
   await page.goto(MATCHUP);
-  await expect(page.locator(".winner-card__prob")).toContainText("73.8%");
+  await expect(page.locator(".winner-card__prob")).toContainText("64.4%");
   await page.goto("/tournament");
   await page.getByRole("button", { name: "Make my picks" }).click();
   await expect(page.locator(".tournament__progress")).toContainText("0 of 15");
@@ -115,7 +117,7 @@ test("opting out silences analytics and changes nothing else", async ({ page }) 
   await page.goto("/about");
   await page.getByRole("button", { name: "Turn analytics back on" }).click();
   await page.goto(MATCHUP);
-  await expect(page.locator(".winner-card__prob")).toContainText("73.8%");
+  await expect(page.locator(".winner-card__prob")).toContainText("64.4%");
   expect((await named(page, "matchup_completed")).length).toBe(1);
 });
 
@@ -125,7 +127,7 @@ test.describe("Global Privacy Control", () => {
   test("is honored without any action", async ({ page }) => {
     await page.addInitScript(() => Object.defineProperty(navigator, "globalPrivacyControl", { value: true }));
     await page.goto(MATCHUP);
-    await expect(page.locator(".winner-card__prob")).toContainText("73.8%");
+    await expect(page.locator(".winner-card__prob")).toContainText("64.4%");
     expect(await events(page)).toEqual([]);
     await page.goto("/about");
     await expect(page.getByText(/sends a privacy signal/)).toBeVisible();
@@ -171,7 +173,7 @@ test("a broken card route reports an error state instead of hanging", async ({ p
 test("the result page downloads a 1200x630 PNG share image", async ({ page }) => {
   await stubClipboard(page);
   await page.goto(MATCHUP);
-  await expect(page.locator(".winner-card__prob")).toContainText("73.8%");
+  await expect(page.locator(".winner-card__prob")).toContainText("64.4%");
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Share image" }).click();
   const download = await downloadPromise;
@@ -199,7 +201,7 @@ test("price intent is recorded, qualified only after a core job, and takes no pa
 
   // Complete a core job, then come back.
   await page.goto(MATCHUP);
-  await expect(page.locator(".winner-card__prob")).toContainText("73.8%");
+  await expect(page.locator(".winner-card__prob")).toContainText("64.4%");
   await page.goto("/plans");
   await page.getByRole("button", { name: "I'd buy this for $9.99" }).click();
   await page.getByRole("button", { name: "I'd pay $99 for this" }).click();

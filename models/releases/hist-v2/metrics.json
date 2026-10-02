@@ -1,0 +1,53 @@
+{
+  "publicAccuracyClaim": null,
+  "publicClaimNote": "Do not publish an accuracy number for this release without the owner's OK. The figures below are honest point-in-time results, recorded for review.",
+  "trainingFilter": "both_teams_20_games",
+  "featureSet": "era_adjusted_diff_only",
+  "pointInTime": {
+    "honest": true,
+    "note": "Every training feature is built only from games that tipped off earlier; z-scores use the previous season's league. Checked by src/models/test_pregame_leakage.py.",
+    "split": "train 1987-2018, validation 2019-2021, test 2022-2026",
+    "selection": "lowest log loss on one shared validation set: 2019-2021 games, both teams with 20+ regular-season games. Test scored once, for the chosen candidate only.",
+    "validation": {
+      "accuracy": 0.6442,
+      "roc_auc": 0.6941,
+      "log_loss": 0.6282,
+      "brier_score": 0.2193
+    },
+    "test": {
+      "accuracy": 0.6501,
+      "roc_auc": 0.7009,
+      "log_loss": 0.6275,
+      "brier_score": 0.219,
+      "n": 5053
+    },
+    "testByGameType": {
+      "regular_season": {
+        "accuracy": 0.6525,
+        "roc_auc": 0.7067,
+        "log_loss": 0.625,
+        "brier_score": 0.2179,
+        "n": 4601
+      },
+      "playoffs": {
+        "accuracy": 0.6256,
+        "roc_auc": 0.6303,
+        "log_loss": 0.6526,
+        "brier_score": 0.2302,
+        "n": 422
+      }
+    },
+    "testAllGames": {
+      "accuracy": 0.6459,
+      "roc_auc": 0.6885,
+      "log_loss": 0.6375,
+      "brier_score": 0.2222,
+      "n": 6453
+    },
+    "regressionTest": {
+      "mae": 11.411,
+      "rmse": 14.5343,
+      "r2": 0.1493
+    }
+  }
+}

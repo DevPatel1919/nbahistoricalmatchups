@@ -15,6 +15,7 @@ import {
   REAL_FIELD_16,
   REAL_FIELD_8,
   exactSeriesProbability,
+  goldenFieldTable,
   realTable,
   syntheticField,
   unwrap,
@@ -202,10 +203,11 @@ describe("determinism", () => {
   });
 });
 
-describe("golden results (fixed seeds on exported data)", () => {
+describe("golden results (fixed seeds on frozen hist-v1 data)", () => {
   // If one of these fails, every shared link made with this engine would
   // replay differently. Bump ENGINE_VERSION instead of editing the values.
-  const table = realTable(REAL_FIELD_16);
+  // The input is frozen (goldenFieldTable), so a model release cannot move it.
+  const table = goldenFieldTable(REAL_FIELD_16);
   const seeded = unwrap(seedByStrength(REAL_FIELD_16, table));
 
   it("seeds the real field by model strength", () => {
@@ -220,7 +222,7 @@ describe("golden results (fixed seeds on exported data)", () => {
   });
 
   it("an 8-team best-of-5 bracket", () => {
-    const table8 = realTable(REAL_FIELD_8);
+    const table8 = goldenFieldTable(REAL_FIELD_8);
     const result = unwrap(runBracket(def(REAL_FIELD_8, "golden-8", 5), table8));
     expect(result.champion).toBe(GOLDEN.bracket8.champion);
     expect(sha(result)).toBe(GOLDEN.bracket8.sha256);

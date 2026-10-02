@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import type { IndexTeam, OpponentResult } from "../types";
+import type { IndexTeam, OpponentResult, ReleaseInfo } from "../types";
 import { loadIndex, loadTeamFile } from "../lib/dataLoader";
+import { isExtrapolation } from "../lib/extrapolation";
 import { buildMatchupSlug, canonicalOrder, parseMatchupSlug } from "../lib/slug";
 import { track, type MatchupEntry, type ShareVariant } from "../lib/analytics";
 import { experimentVariant, markCoreJobDone } from "../lib/visitor";
@@ -35,6 +36,7 @@ export default function ResultPage() {
   const via = searchParams.get("via");
 
   const [teams, setTeams] = useState<IndexTeam[] | null>(null);
+  const [release, setRelease] = useState<ReleaseInfo | null>(null);
   // Keyed by the pair it belongs to, so a result for a previous matchup is
   // discarded during render rather than cleared by a setState in the effect.
   const [loaded, setLoaded] = useState<{ pair: string; result: OpponentResult } | null>(null);
@@ -51,7 +53,10 @@ export default function ResultPage() {
 
   useEffect(() => {
     loadIndex()
-      .then((data) => setTeams(data.teams))
+      .then((data) => {
+        setRelease(data.release);
+        setTeams(data.teams);
+      })
       .catch((e) => {
         track({ name: "app_error", surface: "matchup", code: "index-load-failed" });
         setError(String(e));
@@ -117,9 +122,9 @@ export default function ResultPage() {
       name: "matchup_completed",
       teamA: teamA.key,
       teamB: teamB.key,
-      extrapolationWarning: !teamA.madePlayoffs || !teamB.madePlayoffs,
+      extrapolationWarning: isExtrapolation(release, teamA, teamB),
     });
-  }, [shown, teamA, teamB, pair, location.key]);
+  }, [shown, teamA, teamB, pair, location.key, release]);
 
   if (error) {
     return <p className="center-note">{error}</p>;

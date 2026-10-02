@@ -26,12 +26,13 @@ from build_team_season_profiles_extended import (
     GAME_TYPE_REGULAR,
     MEAN_STATS,
     PCT_STATS,
+    assign_season_playoffs_by_year,
+    load_allowed_team_ids,
+    load_team_games,
 )
 
 REPO_ROOT         = Path(__file__).resolve().parents[2]
 GAMES_PATH        = REPO_ROOT / "data" / "raw" / "games.csv"
-STATS_PATH        = REPO_ROOT / "data" / "raw" / "TeamStatisticsExtended.csv"
-TEAM_HISTORY_PATH = REPO_ROOT / "data" / "processed" / "team_histories_cleaned.csv"
 PREGAME_PATH      = REPO_ROOT / "data" / "processed" / "pregame_team_features.csv"
 OUTPUT_PATH       = REPO_ROOT / "data" / "processed" / "matchup_training_data.csv"
 
@@ -144,8 +145,13 @@ def attach_pregame_profile(games: pd.DataFrame, profile: pd.DataFrame, side: str
     return merged.drop(columns="_profile_time")
 
 
-def main():
-    # Load and clean games
+def load_games(since_season: int, allowed_ids: set, playoffs_by_year: bool = False) -> pd.DataFrame:
+    """
+    Completed games of a tracked type from games.csv, seasons >= since_season,
+    both teams allowed. playoffs_by_year=True (hist-v2 only) gives playoff and
+    play-in games the season of the calendar year they were played in, as
+    load_team_games(..., fill_game_types=True) does for the stats.
+    """
     games = pd.read_csv(GAMES_PATH, low_memory=False)
 
     games = games.rename(columns={
@@ -172,29 +178,33 @@ def main():
     # Filter to valid game types
     games = games[games["game_type"].isin(VALID_GAME_TYPES)].copy()
 
-    # Assign season and filter to modern era
-    games["season"] = assign_season(games["game_date"])
-    games = games[games["season"] > MODERN_ERA_START].copy()
+    # Assign season and filter to the requested seasons
+    if playoffs_by_year:
+        games["season"] = assign_season_playoffs_by_year(games["game_date"], games["game_type"])
+    else:
+        games["season"] = assign_season(games["game_date"])
+    games = games[games["season"] >= since_season].copy()
 
     # Label
     games["home_win"] = (games["homeScore"] > games["awayScore"]).astype(int)
 
-    # Load per-team-game stats used to build point-in-time profiles
-    histories   = pd.read_csv(TEAM_HISTORY_PATH)
-    allowed_ids = set(pd.to_numeric(histories["team_id"], errors="coerce").dropna().astype(int))
+    return games[games["home_team_id"].isin(allowed_ids) & games["away_team_id"].isin(allowed_ids)].copy()
 
-    stats = pd.read_csv(STATS_PATH, low_memory=False)
-    stats["teamId"]    = pd.to_numeric(stats["teamId"], errors="coerce")
-    stats["win"]       = pd.to_numeric(stats["win"],    errors="coerce").fillna(0).astype(int)
-    stats              = stats[stats["teamId"].isin(allowed_ids)].copy()
-    stats["season"]    = assign_season(stats["gameDateTimeEst"])
-    stats              = stats[stats["season"] > MODERN_ERA_START].copy()
+
+def attach_point_in_time_profiles(games: pd.DataFrame, stats: pd.DataFrame) -> pd.DataFrame:
+    """
+    Attach each side's season-to-date regular_*, play_in_* and playoff_*
+    profile, built only from games that tipped off before this one, plus the
+    participation flags known at tip-off. stats is load_team_games() output.
+    Games where a team has no regular-season rows that season are dropped.
+    """
+    stats = stats.copy()
     stats["game_time"] = parse_game_time(stats["gameDateTimeEst"])
 
     # Use the stats file's timestamp for each game so a game's own stat row can
     # never sort before it (games.csv and the stats file disagree on a few dates).
     stats_time = stats.drop_duplicates("gameId").set_index("gameId")["game_time"]
-    games = games[games["home_team_id"].isin(allowed_ids) & games["away_team_id"].isin(allowed_ids)].copy()
+    games = games.copy()
     games["game_time"] = games["game_id"].map(stats_time).fillna(parse_game_time(games["game_date"]))
 
     out = games
@@ -231,6 +241,17 @@ def main():
         has_season = stats[stats["gameType"] == GAME_TYPE_REGULAR][["teamId", "season"]].drop_duplicates()
         has_season = has_season.rename(columns={"teamId": side + "_team_id"})
         out = out.merge(has_season, on=[side + "_team_id", "season"], how="inner")
+
+    return out
+
+
+def main():
+    # Real games and the per-team-game stats their point-in-time profiles come from
+    allowed_ids = load_allowed_team_ids()
+    games = load_games(MODERN_ERA_START + 1, allowed_ids)
+    stats = load_team_games(MODERN_ERA_START + 1, allowed_ids)
+
+    out = attach_point_in_time_profiles(games, stats)
 
     # Elo / form / rest / lineup features (from build_pregame_features.py)
     pregame = pd.read_csv(PREGAME_PATH)

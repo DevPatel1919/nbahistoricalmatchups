@@ -1,8 +1,10 @@
 """
 clean_team_histories.py
 
-Filters raw team histories to only NBA teams active from 1997 onward,
-excluding All-Star and exhibition entries.
+Filters raw team histories to only NBA teams active from 1985-86 onward,
+excluding All-Star and exhibition entries. Every franchise row active then
+shares its team_id with a franchise still playing (e.g. the Washington Bullets
+and Wizards), so the scripts reading this file see the same team ids.
 
 Run from repo root:
     python backend/scripts/clean_team_histories.py
@@ -20,7 +22,9 @@ OUTPUT_PATH = REPO_ROOT / "data" / "processed" / "team_histories_cleaned.csv"
 ALL_STAR_PATTERNS = ["all-star", "all star", "all-stars", "all stars", "nba all",
                      "team lebron", "team durant", "team giannis", "team stephen", "team curry"]
 
-MODERN_ERA_START = 1997
+# seasonActiveTill is the year a name's last season STARTED, so >= 1985
+# keeps every name still in use in the 1985-86 season.
+OLDER_ERA_START = 1985
 
 
 def main():
@@ -31,7 +35,7 @@ def main():
     print(f"Input rows: {len(df)}")
 
     is_nba = df["league"] == "NBA"
-    is_modern = pd.to_numeric(df["seasonActiveTill"], errors="coerce") > MODERN_ERA_START
+    is_modern = pd.to_numeric(df["seasonActiveTill"], errors="coerce") >= OLDER_ERA_START
 
     city_lower = df["teamCity"].fillna("").str.lower()
     name_lower = df["teamName"].fillna("").str.lower()

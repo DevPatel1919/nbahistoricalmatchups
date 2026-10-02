@@ -21,6 +21,7 @@ export const TEAM_COLORS: Record<string, TeamColors> = {
   "76ers": { primary: "#2b7fc4", secondary: "#ed174c" },
   Bobcats: { primary: "#ff8b3d", secondary: "#3a6ea5" },
   Bucks: { primary: "#35d07f", secondary: "#f0ebd2" },
+  Bullets: { primary: "#d4213d", secondary: "#3d5fa0" },
   Bulls: { primary: "#e0464f", secondary: "#c6c6c6" },
   Cavaliers: { primary: "#a23757", secondary: "#ffb81c" },
   Celtics: { primary: "#2fae66", secondary: "#c2a765" },

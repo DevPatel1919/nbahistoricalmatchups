@@ -8,7 +8,7 @@ each independently implementable feature to its own agent brief.
 
 ## What this software is
 
-An NBA game-outcome predictor built on public box-score data (1998 onward). It contains two models with different jobs:
+An NBA game-outcome predictor built on public box-score data: the historical simulator covers 1985–86 onward, the pre-game model and duel mode 1997–98 onward. It contains two models with different jobs:
 
 | Model | Question it answers | Inputs | Code | Artifacts |
 |---|---|---|---|---|
@@ -29,7 +29,7 @@ When you add or change a feature:
 
 - Build it with cumulative or rolling aggregates that are `shift()`-ed, or with `merge_asof(..., allow_exact_matches=False)`. Follow the existing code: `cumulative_profiles` / `attach_pregame_profile` in `backend/scripts/build_matchup_training_data.py`, and `prior_rolling_mean` in `backend/scripts/build_pregame_features.py`.
 - Order games by the timestamp in `TeamStatisticsExtended.csv`. `games.csv` disagrees with it for about 40 games, and mixing the two can put a game's own row before it.
-- Season-level normalisations (z-scores, percentiles) use the **previous** season's distribution (see `_build_pool` in `train_model_experiments.py`).
+- Season-level normalisations (z-scores, percentiles) use the **previous** season's distribution. The historical simulator's z-scores come from one definition, `league_reference` / `add_relative_columns` in `build_team_season_profiles_extended.py`: training rows against the previous season, served (completed) seasons against their own. `test_pregame_leakage.py` recomputes every `_z` training value from the previous season's raw rows.
 - `team_season_profiles_extended.csv` holds full-season aggregates. It is a valid **input** for the historical simulator and is **never** valid as a training feature.
 - Extend `src/models/test_pregame_leakage.py` to cover the new feature, then run it. It must exit 0. It works by recomputing features from raw files and comparing them with the built data. It correctly fails on the old leaky data, so a pass means something.
 
@@ -44,16 +44,19 @@ python backend/scripts/import_dataset.py                  # Kaggle download into
 python backend/scripts/clean_team_histories.py
 python backend/scripts/build_team_season_profiles_extended.py
 python backend/scripts/build_pregame_features.py          # ~2 min (player box scores)
-python backend/scripts/build_matchup_training_data.py
+python backend/scripts/build_matchup_training_data.py      # duel + pre-game training data (1998 on)
+python backend/scripts/build_historical_training_data.py   # historical simulator training data (1987 on, z-scores)
+python scripts/backtest_older_seasons.py                  # F11: 1986-97 evidence; writes older_seasons_matchups.csv
 python src/models/test_pregame_leakage.py                 # must pass before training
 python src/models/train_pregame_model.py                  # ~15 s
-python src/models/train_model_experiments.py              # historical simulator, 10+ min
+python src/models/train_model_experiments.py --data data/processed/historical_training_data.csv --out models/experiments/hist_v2   # historical simulator, 10+ min
+python scripts/evaluate_hist_v2.py                        # hist-v2 against hist-v1: reports/hist_v2_evaluation.md
 ```
 
 Training never changes what is served. To ship a historical-simulator run, build it into a release, activate it, then re-export and verify the static site data:
 
 ```
-python scripts/promote_release.py --build hist-vN --from models/experiments --info release_info.json
+python scripts/promote_release.py --build hist-vN --from models/experiments/hist_v2 --info models/experiments/hist_v2/release_info.json
 python scripts/promote_release.py --activate hist-vN      # --activate <previous> rolls back
 python scripts/export_static_site_data.py
 python scripts/verify_static_export.py                     # must pass before deploy
@@ -85,9 +88,11 @@ Match the surrounding code:
 
 ## Known gotchas
 
-- **2022 season is almost missing:** it has 4 games in the matchup data, because most of its rows in the raw files have no `gameType`. Walk-forward skips it, and the test split effectively covers 2023–2026.
+- **Seasons before 1996-97 have no `TeamStatisticsExtended.csv` rows.** `load_team_games` in `build_team_season_profiles_extended.py` reads them from `TeamStatistics.csv` and computes the advanced stats with `BOX_SCORE_FORMULAS`. The NBA's rebound percentages cannot be reproduced that way, so they are blank for those seasons (`UNMATCHED_FORMULA_COLS`), as are the situational-scoring stats. `TeamStatistics.csv` stores 0, not blank, for `plusMinusPoints` and situational points before 1996-97. Evidence: `reports/older_seasons_backtest.md`.
+- **Blank game types (2000–01 and 2021–22):** most 2021–22 rows and about half of 2000–01's in the raw team-game files have no `gameType`. The historical simulator fills them from `Games.csv` (`load_team_games(..., fill_game_types=True)`, F11), so its profiles and training data have both full seasons. `matchup_training_data.csv` (duel mode, pre-game model) deliberately does not: it still has 4 games from 2022 and half of 2001, so walk-forward skips 2022 and its test split effectively covers 2023–2026. Changing that would change the duel pool's puzzle ids.
+- **Season labels:** every script treats a game in October or later as the next season, which labels the 5 October 2020 bubble Finals games as 2021. The historical simulator gives playoff games the calendar year they were played in (`assign_season_playoffs_by_year`); the duel and pre-game scripts keep the old rule.
 - **Mixed date formats:** `gameDateTimeEst` omits the leading zero on some hours. Parse it with `pd.to_datetime(..., format="mixed")`.
 - **Releases are all-or-nothing:** `src/models/release.py` loads the active release as one unit and raises a single `ReleaseError` before inference if any file is missing, any hash differs, the column count or estimator feature names disagree with `columns.json`, or `models/production/` contains anything besides `ACTIVE_RELEASE`. There is no file-by-file fallback. Before Sep 2026 there was, and a retrain paired 196-feature weights with a stale 70-column list. Release files are marked `-text` in `.gitattributes` so line-ending conversion cannot change their hashes.
-- **No public accuracy for `hist-v1`:** the served simulator's recorded 71.04% came from leaky training features. Its `metrics.json` sets `publicAccuracyClaim` to null. Do not quote a number until an honest release replaces it.
-- **Some features can't be served:** `predict_matchup` builds features only from raw profile columns. A historical-simulator model that selects `_z` or `_pctile` features cannot be served until the prediction code computes them.
+- **No public accuracy figure:** `hist-v1`'s recorded 71.04% came from leaky training features and must never be quoted. The served `hist-v2` has honest point-in-time numbers in its `metrics.json` (`pointInTime`; 64.6% on 2022–26 test games), but the owner chose on 2026-10-01 not to publish one, so `publicAccuracyClaim` stays null. Do not quote a number without the owner's OK.
+- **Served features are computed in memory:** `predict_matchup` and the static export add the `_z` columns to the profile CSV when they load it (`add_own_season_relative_columns`), so the CSV's columns never change. `_pctile` features are still not servable. `_diff` columns are read from the two profiles, so a model may list `_diff` columns without their `home_`/`away_` parts.
 - **Long jobs on Windows:** a long training run started with the shell's background option can die silently when the session moves on. Launch it with PowerShell `Start-Process` and redirect output to a log file.

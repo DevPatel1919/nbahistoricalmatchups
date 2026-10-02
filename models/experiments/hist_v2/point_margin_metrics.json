@@ -1,0 +1,43 @@
+{
+  "feature_set_used": "era_adjusted_diff_only",
+  "dataset_filter_used": "both_teams_20_games",
+  "best_model": "Ridge",
+  "best_validation_mae": 10.6646,
+  "all_models": [
+    {
+      "model": "Ridge",
+      "validation_mae": 10.6646,
+      "validation_rmse": 13.5124,
+      "validation_r2": 0.144
+    },
+    {
+      "model": "RandomForestRegressor",
+      "validation_mae": 10.7094,
+      "validation_rmse": 13.5554,
+      "validation_r2": 0.1385
+    },
+    {
+      "model": "HistGradientBoostingRegressor",
+      "validation_mae": 10.6984,
+      "validation_rmse": 13.5545,
+      "validation_r2": 0.1387
+    }
+  ],
+  "best_metrics": {
+    "validation": {
+      "mae": 10.6646,
+      "rmse": 13.5124,
+      "r2": 0.144
+    },
+    "test": {
+      "mae": 11.411,
+      "rmse": 14.5343,
+      "r2": 0.1493
+    },
+    "test_all_games": {
+      "mae": 11.3984,
+      "rmse": 14.5349,
+      "r2": 0.1168
+    }
+  }
+}
