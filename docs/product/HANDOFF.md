@@ -273,6 +273,7 @@ stable.
 | F09 | [Duel mode and ranked ladder](features/F09-daily-duel.md) | F01 for the pre-game bundle | F02, F03, F04 |
 | F10 | [Usability pass and pricing removal](features/F10-usability-and-no-pricing.md) | F02, F04, F05 | Deployment phases 2–4 |
 | F11 | [Older seasons (1985–86 to 1996–97)](features/F11-older-seasons.md) | F01, F02 | Deployment phases 3–4 (it never touches duel mode). Coordinate with F10, which edits the same pages |
+| F12 | [Daily Three (daily pick'em)](features/F12-daily-three.md) | F02, F11 (reads the exported team files); deployment phase 2 for staging; phase 3 only for production crowd stats | Deployment phases 3–5. Coordinate with F10 on the home page and nav |
 
 Recommended sequence:
 
