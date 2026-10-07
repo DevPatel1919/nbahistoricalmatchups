@@ -1,7 +1,7 @@
 # F12: Daily Three (a daily pick'em with simulated games)
 
-Status: **Brief written 2026-10-05. No session started.** Decided with the
-owner on 2026-10-05.
+Status: **Session 1 built (2026-10-06, branch `f12-s1-pool`); its PR waits for
+the owner's review of the pool and Q2.** Decided with the owner on 2026-10-05.
 
 Read first, in order: `CONTRIBUTING.md`, `docs/product/HANDOFF.md`,
 `docs/product/DEPLOYMENT.md` (the staging setup and the "stop before going
@@ -265,7 +265,7 @@ All files are generated static data under `frontend/public/data/daily/`:
 
 | File | Contents |
 |---|---|
-| `teams.json` | `{ generated, release, teams: { <key>: { tier, reasons[], wins, losses, pace, offRating, defRating, threeRate?, benchPpg, starters: [{ name, short, ppg, sig: [{ stat, value }] }] } } }` for pool teams only |
+| `teams.json` | `{ generated, release, champions: { <season>: <key> }, teams: { <key>: { tier, reasons[], fiveFrom, wins, losses, pace, offRating, defRating, threeRate?, benchPpg, starters: [{ name, short, ppg, sig: [{ stat, value }] }] } } }` for pool teams only. `reasons` are `champion`, `very-high-win`, `high-win`, `notable-star`, `owner-pin`. `fiveFrom` is `starts`, `bench-points`, `minutes-proxy` or `override` (Session 1 record). `stat` is one of `RPG`, `APG`, `SPG`, `BPG`, `3PM`, `FG%`, `3P%`; percentages are fractions (0.574). Starters are in card order, guards to centers |
 | `meta.json` | `{ launchDate, lastDay, engine }` |
 | `days/<n>.json` | `{ n, date, engine, games: [{ a, b, p, m, featured }] }`. `a` and `b` are in canonical order, `p` is `a`'s neutral win probability, and `m` is `a`'s exported margin |
 
@@ -614,3 +614,131 @@ python scripts/verify_daily_data.py              # Session 2 on
 _(Each session adds its record here: what changed, the numbers, the owner's
 decisions, what was deployed where, and anything that differed from this
 plan.)_
+
+### Session 1: the pool and player data (2026-10-06)
+
+Branch `f12-s1-pool`. No UI, nothing deployed.
+
+**What was built**
+
+- `scripts/export_daily_data.py` writes `frontend/public/data/daily/teams.json`
+  (219 KB, compact JSON) and `reports/daily_pool.md`. It takes about 25
+  seconds and is deterministic: the rebuild test re-runs it and matches the
+  committed file.
+- `scripts/daily_pool_overrides.json` fixes three fives (below). It has no
+  pins and no exclusions.
+- `tests/test_daily_data.py` has 37 tests:
+  - unit tests on synthetic frames for every rule;
+  - artifact tests on the committed `teams.json`: the 5 fixtures, the pool
+    rules, champions, and signature stats;
+  - a rebuild test, skipped without `data/raw/`.
+
+**The pool:** 289 team-seasons.
+
+| Tier | Teams | Notes |
+|---|---|---|
+| Marquee | 67 | Every champion 1985–86 to 2025–26, plus win % ≥ .750 |
+| Known | 222 | 128 of these get in **only** through the notable-star rule |
+
+That gives 41,616 pairings, 2,211 of them marquee vs marquee (about 6 years of
+featured games). All 41 champions came out right against the known list for
+1985–86 to 2024–25, including the 2020 bubble. The data gives **2025–26 to the
+Knicks** (Finals Game 5, 94–90 at San Antonio). The owner should confirm that
+one.
+
+**Q2 evidence: the starter flag (step 1).** `PlayerStatistics.csv` has one
+starter column, `startingPosition` (G/F/C), and no other position column.
+`Players.csv` has guard/forward/center flags, which are used only to order the
+card. Every season 1985–86 to 2025–26 is present. The flag is reliable only
+for **2017–18 to 2025–26, minus 2021–22**: exactly 5 per team-game. Elsewhere:
+- **1996–97 to 2016–17:** the column is filled for about 9 players per
+  team-game (Shaq appears as "G"), so it is not a starter flag.
+- **Before 1996–97, and in 2021–22:** the column is blank.
+
+So most of the pool needs another rule, and the flagged seasons let us score
+any rule against the truth (240 team-seasons):
+
+| Rule | Exact five | 1 wrong | 2+ wrong |
+|---|---|---|---|
+| The brief's minutes proxy | 39% | 53% | 8% |
+| **Bench-points inference** (new) | **95%** | 5% | 0% |
+
+Bench-points inference uses `TeamStatisticsExtended.csv`, which records bench
+points per game. The starters' points must add up to team score minus bench
+points. Of the 5-player subsets that do, the rule takes the one with the most
+minutes. A second pass then prefers players the first pass usually started.
+
+A position-balance constraint (G/F/C flags) was also tried on the proxy. It
+did not help, so it was dropped.
+
+Bench points are usable only from **2003–04**: before that the column holds
+the whole team score. Each season uses the first rule it supports:
+
+| Rule | Seasons | Pool teams |
+|---|---|---|
+| Starter flag | 2017–18 on, except 2021–22 | 56 |
+| Bench-points inference | 2003–04 to 2016–17 | 99 |
+| Minutes proxy | 1985–86 to 2002–03, and 2021–22 | 134, **28 of them marquee** |
+
+The report lists every proxy five next to its 6th man, for checking by eye.
+
+**Differences from this brief**
+
+- **Three rules, not two.** Bench-points inference is new. It is driven by
+  the measurement above.
+- **The 1996 Bulls proxy drops Harper, not Longley.** Kukoč (51 games in the
+  top 5 by minutes) beats Ron Harper (38). The brief predicted Longley.
+- **The fixtures need three overrides:**
+  - **1996 Bulls:** Harper for Kukoč, because the proxy is wrong.
+  - **2004 Pistons:** Rasheed Wallace, as the brief expected. He played 22
+    games for Detroit.
+  - **2016 Cavaliers:** Tristan Thompson for Mozgov. Mozgov really did start
+    more regular-season games (about 48 to 34), but Thompson started the
+    playoffs.
+  - The 1986 Celtics and 2017 Warriors (Pachulia) come out right with no help.
+- **Names come as the source spells them.** It writes "JR Smith" without dots
+  and drops accents ("Toni Kukoc", "Manu Ginobili", "Nikola Jokic"). No pool
+  starter has a non-ASCII letter. The fixture test uses "JR Smith". Accents
+  could only be restored by hand.
+- **Interface additions** to `teams.json`, now in the data contract above:
+  - `release`, copied from `index.json`;
+  - a top-level `champions` map;
+  - `fiveFrom` per team, so Session 3 can label proxy cards differently if Q2
+    asks for that.
+
+  `threeRate` (team 3PA/FGA) is exported. `benchPpg` is the team's points per
+  game not scored by the five.
+- **Data handling the brief didn't anticipate:**
+  - Regular season is decided by game id (prefix 2). That includes NBA Cup
+    group and knockout games, which the player file labels "NBA Emirates Cup"
+    but which count in the standings.
+  - About half of 2000–01's player rows have no team id. They are matched by
+    the era-correct team name.
+  - About 2,000 rows give minutes as "MM:SS".
+  - 4 team-seasons are missing up to 2 games in the player file. None is in
+    the pool.
+- **Signature stats are league-relative.** A 1980s guard's 0.3 threes a game
+  can clear the 80th percentile (Danny Ainge, 1986). The brief's expectations
+  hold:
+  - Shaq: FG% and RPG;
+  - Curry: 3PM;
+  - Rodman: RPG;
+  - Jordan: SPG.
+
+**Verification:** see the PR description for the full "How to verify" run.
+
+**For the owner to decide (stop point)**
+
+1. **Q2: the 134 proxy fives.** Recommendation: a hybrid.
+   - Fix the **28 marquee** proxy fives in the overrides file first. Every
+     featured game draws from them.
+   - Have Session 3 label the remaining known-tier proxy cards "Top five" (by
+     minutes) through `fiveFrom` until they are fixed. Keep "Starting five"
+     for flag, bench-points and override cards.
+
+   The alternatives:
+   - fix all 134 by hand;
+   - label every proxy card "Top five".
+2. **The notable-star rule** adds 128 teams on its own, 44% of the pool.
+   Keep it, or tighten `STAR_PPG_RANK` / `STAR_TEAM_WIN_PCT`?
+3. **The 2025–26 Knicks** as champion, and any pins or exclusions.

@@ -1,0 +1,18 @@
+{
+  "pins": {},
+  "exclude": [],
+  "starters": {
+    "1996-bulls": {
+      "players": ["Ron Harper", "Michael Jordan", "Scottie Pippen", "Dennis Rodman", "Luc Longley"],
+      "note": "No starter data before 2003-04; the minutes proxy takes Toni Kukoc (51 games in the top 5 by minutes) over Ron Harper (38)."
+    },
+    "2004-pistons": {
+      "players": ["Chauncey Billups", "Richard Hamilton", "Tayshaun Prince", "Rasheed Wallace", "Ben Wallace"],
+      "note": "Rasheed Wallace arrived in a February trade: 21 inferred starts in 22 games for Detroit, against Mehmet Okur's 34 over the season."
+    },
+    "2016-cavaliers": {
+      "players": ["Kyrie Irving", "JR Smith", "LeBron James", "Kevin Love", "Tristan Thompson"],
+      "note": "Timofey Mozgov started more regular-season games (50 inferred, against Tristan Thompson's 35), but Thompson started the playoffs and the Finals: the five fans remember."
+    }
+  }
+}
