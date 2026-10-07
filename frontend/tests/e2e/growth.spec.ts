@@ -187,44 +187,14 @@ test("the result page downloads a 1200x630 PNG share image", async ({ page }) =>
   expect((await named(page, "matchup_shared"))[0]).toMatchObject({ shareMethod: "image" });
 });
 
-test("price intent is recorded, qualified only after a core job, and takes no payment", async ({ page }) => {
+test("the old /plans link lands on the home page", async ({ page }) => {
   await page.goto("/plans");
-  await expect(page.getByText("Not on sale yet", { exact: false }).first()).toBeVisible();
-  await expect(page.locator(".offer__price .scoreboard")).toHaveText(["$49", "$9.99", "$99"]);
-  expect(await named(page, "offer_viewed")).toEqual([
-    { name: "offer_viewed", surface: "plans", audience: "fan" },
-    { name: "offer_viewed", surface: "plans", audience: "creator" },
-  ]);
-
-  await page.getByRole("button", { name: "I'd buy this for $49" }).click();
-  await expect(page.getByText("Sign-ups aren't open yet")).toBeVisible();
-
-  // Complete a core job, then come back.
-  await page.goto(MATCHUP);
-  await expect(page.locator(".winner-card__prob")).toContainText("64.4%");
-  await page.goto("/plans");
-  await page.getByRole("button", { name: "I'd buy this for $9.99" }).click();
-  await page.getByRole("button", { name: "I'd pay $99 for this" }).click();
-
-  // Each page load has its own log; collect the intent from both visits.
-  const second = await named(page, "price_intent_clicked");
-  expect(second).toEqual([
-    { name: "price_intent_clicked", audience: "fan", offerId: "tournament-pass-999", displayedPrice: "$9.99", qualified: true },
-    { name: "price_intent_clicked", audience: "creator", offerId: "creator-pilot-99", displayedPrice: "$99", qualified: true },
-  ]);
-  // No form, card field, or checkout anywhere: no email endpoint is configured in dev.
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("link", { name: "Plans" })).toHaveCount(0);
   await expect(page.locator("input[type=email], input[autocomplete^=cc]")).toHaveCount(0);
 });
 
-test("the first price click on a fresh browser is unqualified", async ({ page }) => {
-  await page.goto("/plans");
-  await page.getByRole("button", { name: "I'd buy this for $49" }).click();
-  expect(await named(page, "price_intent_clicked")).toEqual([
-    { name: "price_intent_clicked", audience: "fan", offerId: "fan-annual-49", displayedPrice: "$49", qualified: false },
-  ]);
-});
-
-test("the tournament summary offers a share image and the fan plans", async ({ page }) => {
+test("the tournament summary offers a share image", async ({ page }) => {
   await stubClipboard(page);
   await page.goto("/tournament");
   await page.getByRole("button", { name: "Make my picks" }).click();
@@ -233,13 +203,11 @@ test("the tournament summary offers a share image and the fan plans", async ({ p
   }
   await page.getByRole("button", { name: "Reveal everything" }).click();
   await expect(page.locator(".tournament-summary")).toBeVisible();
-  await expect(page.getByRole("region", { name: "Run one for your group?" })).toBeVisible();
 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Share image" }).click();
   expect((await downloadPromise).suggestedFilename()).toBe("champions-v1.png");
-  await expect.poll(async () => named(page, "tournament_shared", "offer_viewed")).toEqual([
-    { name: "offer_viewed", surface: "tournament-summary", audience: "fan" },
+  await expect.poll(async () => named(page, "tournament_shared")).toEqual([
     { name: "tournament_shared", tournamentId: "champions-v1", shareMethod: "image" },
   ]);
 });

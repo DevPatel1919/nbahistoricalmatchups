@@ -608,10 +608,10 @@ HANDOFF.md.
 
 This is not part of the launch. When the owner wants it:
 
-- choose an event-analytics provider and an endpoint for the price-interest
-  email form (see `features/F05-growth-and-demand.md` and
-  `analytics/weekly-dashboard.md`);
-- set `VITE_INTEREST_ENDPOINT` and the provider settings in Pages;
+- choose an event-analytics provider (see `features/F05-growth-and-demand.md`
+  and `analytics/weekly-dashboard.md`); the price-interest form and its
+  `VITE_INTEREST_ENDPOINT` were removed with the pricing page;
+- set the provider settings in Pages;
 - confirm the About page's privacy text still matches what is collected.
 
 ## What each phase costs

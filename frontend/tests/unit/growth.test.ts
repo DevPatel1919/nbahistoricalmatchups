@@ -3,7 +3,6 @@ import { registerAnalyticsSink, resetAnalyticsSinks, track, type AnalyticsEvent 
 import { configuredProvider, plausiblePayload } from "../../src/lib/analyticsProviders";
 import { daysBucket, isoWeek, recordVisit, type KeyValueStore } from "../../src/lib/visitor";
 import { matchupCardData, tournamentCardData } from "../../src/share/cardData";
-import { CREATOR_OFFER, FAN_OFFERS } from "../../src/data/offers";
 import { runBracket, runTitleOdds, type TournamentDefinition } from "../../src/tournament";
 import type { IndexTeam } from "../../src/types";
 import { REAL_FIELD_8, readTeamFile, realTable, unwrap } from "./fixtures";
@@ -148,18 +147,6 @@ describe("share card data", () => {
   it("reads the real export", () => {
     // Sanity: the fixture files exist for the card's source data.
     expect(Object.keys(readTeamFile("1998-bulls").opponents).length).toBeGreaterThan(800);
-  });
-});
-
-describe("offers", () => {
-  it("shows the F05 test prices, with unique ids that carry the price", () => {
-    const all = [...FAN_OFFERS, CREATOR_OFFER];
-    expect(all.map((o) => [o.id, o.price])).toEqual([
-      ["fan-annual-49", "$49"],
-      ["tournament-pass-999", "$9.99"],
-      ["creator-pilot-99", "$99"],
-    ]);
-    expect(new Set(all.map((o) => o.id)).size).toBe(all.length);
   });
 });
 

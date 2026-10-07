@@ -1,6 +1,6 @@
 # F10: Usability pass and pricing removal
 
-Status: **not started. Decided 2026-09-26; the build is a later session.**
+Status: **pricing removal done (PR remove-pricing-page); usability pass not started. Decided 2026-09-26.**
 
 ## Outcome
 

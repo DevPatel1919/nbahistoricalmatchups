@@ -17,7 +17,6 @@ export default function Layout() {
           <nav className="site-nav" aria-label="Primary">
             <Link to="/tournament">Tournament</Link>
             {DUEL_API && <Link to="/duel">Duel</Link>}
-            <Link to="/plans">Plans</Link>
             <Link to="/about">About</Link>
             <ThemeToggle theme={theme} onToggle={toggleTheme} />
           </nav>

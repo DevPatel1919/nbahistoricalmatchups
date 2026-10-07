@@ -1,11 +1,10 @@
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
 import HomePage from "./pages/HomePage";
 import ResultPage from "./pages/ResultPage";
 import AboutPage from "./pages/AboutPage";
 import TournamentPage from "./pages/TournamentPage";
 import TournamentBuilderPage from "./pages/TournamentBuilderPage";
-import PlansPage from "./pages/PlansPage";
 import CardPage from "./pages/CardPage";
 import DuelHomePage from "./pages/DuelHomePage";
 import DuelJoinPage from "./pages/DuelJoinPage";
@@ -22,7 +21,7 @@ export default function App() {
       <Route element={<Layout />}>
         <Route index element={<HomePage />} />
         <Route path="about" element={<AboutPage />} />
-        <Route path="plans" element={<PlansPage />} />
+        <Route path="plans" element={<Navigate to="/" replace />} />
         <Route path="tournament" element={<TournamentPage />} />
         <Route path="tournament/new" element={<TournamentBuilderPage />} />
         <Route path="t/:code" element={<TournamentPage />} />

@@ -89,7 +89,7 @@ export function visitOncePerSession(now: Date = new Date()): VisitFacts | null {
 
 /**
  * Marks that this browser has completed a core job (a matchup result or a
- * revealed tournament). Price intent only counts as qualified after one.
+ * revealed tournament).
  */
 export function markCoreJobDone(): void {
   try {
