@@ -132,11 +132,13 @@ button {
 }
 
 .brand__mark {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--accent);
+  width: 1.2rem;
+  height: 1.2rem;
+  background: url("/basketball.png") center / contain no-repeat;
+  image-rendering: pixelated;
   display: inline-block;
+  align-self: center;
+  flex: none;
 }
 
 .brand__name {
