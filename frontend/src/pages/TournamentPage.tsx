@@ -30,8 +30,6 @@ import { track } from "../lib/analytics";
 import BracketView from "../components/tournament/BracketView";
 import TitleOddsTable from "../components/tournament/TitleOddsTable";
 import ShareImageButton from "../components/ShareImageButton";
-import OfferPanel from "../components/OfferPanel";
-import { FAN_OFFERS } from "../data/offers";
 import { markCoreJobDone } from "../lib/visitor";
 import { drawTournamentCard } from "../share/cards";
 import { tournamentCardData } from "../share/cardData";
@@ -407,14 +405,6 @@ function TournamentJourney({ code, definition, curated, entrants, table, bracket
                 "Run another story" plays the same field with a new seed and gives it a new link. Your picks come
                 with you.
               </p>
-
-              <OfferPanel
-                surface="tournament-summary"
-                audience="fan"
-                offers={FAN_OFFERS}
-                heading="Run one for your group?"
-                intro="Private tournaments with your own entrants and a shared leaderboard are next on the list."
-              />
             </>
           )}
         </section>

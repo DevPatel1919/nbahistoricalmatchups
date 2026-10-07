@@ -40,12 +40,8 @@ export type AnalyticsEvent =
   | { name: "bracket_predictions_completed"; tournamentId: string }
   | { name: "tournament_revealed"; tournamentId: string; revealMode: "round" | "all" }
   | { name: "tournament_shared"; tournamentId: string; shareMethod: ShareMethod }
-  | { name: "email_interest_submitted"; sourceSurface: string }
-  | { name: "price_intent_clicked"; audience: "fan" | "creator"; offerId: string; displayedPrice: string; qualified: boolean }
-  | { name: "creator_demo_requested"; sourceSurface: string }
   // F05 measurement additions (new actions, not alternate names).
   | { name: "visit_started"; visitKind: "first" | "return"; cohortWeek: string; daysSinceFirstVisit: DaysBucket; firstReturn: boolean }
-  | { name: "offer_viewed"; surface: string; audience: "fan" | "creator" }
   | { name: "challenge_answered"; agreedWithModel: boolean }
   | { name: "app_error"; surface: string; code: string }
   // F09 duel mode (new actions). `era` is the chosen bucket or "any"; no puzzle or pick data.

@@ -98,7 +98,7 @@ export default function AboutPage() {
       <h2>Privacy &amp; analytics</h2>
       <p>
         We count page views with Cloudflare Web Analytics and, when enabled, a handful of anonymous events (a matchup
-        finished, a bracket revealed, a price button clicked) with a cookie-free analytics service. No names, emails,
+        finished, a bracket revealed) with a cookie-free analytics service. No names, emails,
         or bracket picks are ever sent with them. To tell a new visit from a return one, this browser remembers the
         date of its first visit locally; only the week of that date is reported, never an identifier.
       </p>
