@@ -16,24 +16,40 @@ Pool rules (thresholds are the constants below):
 
 Win % always, never raw wins: 1999, 2012, 2020 and 2021 were short seasons.
 
-Starting five. PlayerStatistics.csv marks starters (startingPosition) only
-from 2017-18 on, and not in 2021-22; in 1996-97 to 2016-17 the column is
-filled for about 9 players per team-game, so it is not a starter flag there,
-and before that it is blank. Each season uses the first method it supports:
-  starts         the flag: at least FLAG_SEASON_SHARE of team-games flag
-                 exactly 5 players. The five with the most starts
-  bench-points   TeamStatisticsExtended.csv records bench points from
-                 2003-04 on (before that the column holds the whole team
-                 score), so in each game the starters' points must add
-                 up to teamScore - benchPoints. Of the 5-player subsets that
-                 do, take the one with the most minutes; then repeat,
-                 preferring players the first pass usually started. The five
-                 with the most inferred starts. Checked against the flag in
-                 2017-18 on (reports/daily_pool.md)
-  minutes-proxy  in each game the team's 5 highest-minute players stand in
-                 for its starters; the five with the most such games
-Ties go to total minutes. Only games played for that team count, and a player
-needs MIN_TEAM_GAMES of them. The overrides file can fix a five outright.
+Starting five: the 5 players with the most games started (GS) for the team
+that season, from Basketball-Reference's season totals (the Kaggle dataset
+sumitrodatta/nba-aba-baa-stats, downloaded by
+backend/scripts/import_bbref_dataset.py). Ties go to minutes. Only a traded
+player's rows for this team count, never the 2TM/3TM season totals, and a
+player needs MIN_TEAM_GAMES games for the team. The overrides file can fix a
+five outright.
+
+Each team-season is mapped to its Basketball-Reference abbreviation by its
+era-correct city and name (Team Abbrev.csv), falling back to the nickname
+alone. Players are matched to PlayerStatistics.csv within the team-season by
+normalize_name, then NAME_ALIASES; every starter must match exactly one
+player. Cards use Basketball-Reference's spelling (with accents); PPG and
+signature stats come from PlayerStatistics.csv.
+
+Cross-checks, reported only (reports/daily_pool.md): the rules this script
+used before games started, each scored against the GS five:
+  starts         PlayerStatistics.csv's starter flag (startingPosition), set
+                 for exactly 5 players a team-game only from 2017-18 on, and
+                 not in 2021-22
+  bench-points   TeamStatisticsExtended.csv records bench points from 2003-04
+                 on (before that the column holds the whole team score), so in
+                 each game the starters' points must add up to
+                 teamScore - benchPoints. Of the 5-player subsets that do, take
+                 the one with the most minutes; then repeat, preferring players
+                 the first pass usually started
+  minutes-proxy  in each game the team's 5 highest-minute players stand in for
+                 its starters
+Each ranks players by its count (ties: minutes) as above.
+
+Data rights: Basketball-Reference's data may not be scraped or used publicly
+or commercially without Sports Reference's written permission; Kaggle's CC0
+label does not clear that (reports/daily_pool.md, HANDOFF's commercial-data
+gate).
 
 Signature stats: PPG first, then the top SIG_MAX of RPG, APG, SPG, BPG, 3PM,
 FG% and 3P% at or above SIG_PERCENTILE of that season's league (qualified
@@ -49,20 +65,25 @@ Reads
   data/raw/PlayerStatistics.csv          player box scores (gitignored)
   data/raw/Players.csv                   guard / forward / center flags, for card order
   data/raw/Games.csv                     playoff games (champions), blank game types
-  data/raw/TeamStatisticsExtended.csv    team score and bench points per game (usable 2003-04 on)
+  data/raw/TeamStatisticsExtended.csv    team score and bench points per game (cross-check)
+  data/raw/bbref/Player Totals.csv       games started per player-team-season (gitignored)
+  data/raw/bbref/Team Abbrev.csv         Basketball-Reference team names and abbreviations
   scripts/daily_pool_overrides.json      owner pins, exclusions, fixed fives
 
 Writes
   frontend/public/data/daily/teams.json  the pool (pool teams only)
-  reports/daily_pool.md                  champions, pool by tier, every five, uncertain fives
+  reports/daily_pool.md                  champions, pool by tier, every five, cross-checks, close calls
 
 Run from repo root:
+    python backend/scripts/import_bbref_dataset.py    # once, into data/raw/bbref/
     python scripts/export_daily_data.py
 """
 
 import itertools
 import json
+import re
 import sys
+import unicodedata
 from datetime import date
 from pathlib import Path
 
@@ -81,15 +102,17 @@ from backend.scripts.build_team_season_profiles_extended import (
     game_id_prefix,
 )
 
-REPO_ROOT      = Path(__file__).resolve().parents[1]
-INDEX_PATH     = REPO_ROOT / "frontend" / "public" / "data" / "index.json"
-PLAYERS_PATH   = REPO_ROOT / "data" / "raw" / "PlayerStatistics.csv"
-PEOPLE_PATH    = REPO_ROOT / "data" / "raw" / "Players.csv"
-GAMES_PATH     = REPO_ROOT / "data" / "raw" / "Games.csv"
-TEAM_STATS_PATH = REPO_ROOT / "data" / "raw" / "TeamStatisticsExtended.csv"
-OVERRIDES_PATH = REPO_ROOT / "scripts" / "daily_pool_overrides.json"
-OUTPUT_PATH    = REPO_ROOT / "frontend" / "public" / "data" / "daily" / "teams.json"
-REPORT_PATH    = REPO_ROOT / "reports" / "daily_pool.md"
+REPO_ROOT         = Path(__file__).resolve().parents[1]
+INDEX_PATH        = REPO_ROOT / "frontend" / "public" / "data" / "index.json"
+PLAYERS_PATH      = REPO_ROOT / "data" / "raw" / "PlayerStatistics.csv"
+PEOPLE_PATH       = REPO_ROOT / "data" / "raw" / "Players.csv"
+GAMES_PATH        = REPO_ROOT / "data" / "raw" / "Games.csv"
+TEAM_STATS_PATH   = REPO_ROOT / "data" / "raw" / "TeamStatisticsExtended.csv"
+BBREF_TOTALS_PATH = REPO_ROOT / "data" / "raw" / "bbref" / "Player Totals.csv"
+BBREF_ABBREV_PATH = REPO_ROOT / "data" / "raw" / "bbref" / "Team Abbrev.csv"
+OVERRIDES_PATH    = REPO_ROOT / "scripts" / "daily_pool_overrides.json"
+OUTPUT_PATH       = REPO_ROOT / "frontend" / "public" / "data" / "daily" / "teams.json"
+REPORT_PATH       = REPO_ROOT / "reports" / "daily_pool.md"
 
 # Pool and tiers
 MARQUEE_WIN_PCT   = 0.750   # about 62 wins
@@ -99,12 +122,16 @@ STAR_BOARD_RANK   = 3       # RPG or APG
 STAR_TEAM_WIN_PCT = 0.550
 
 # Starting five
-MIN_TEAM_GAMES    = 20
+MIN_TEAM_GAMES     = 20
+UNCERTAIN_GAP      = 0.15    # close calls: 5th minus 6th by games started, as a share of team games
+MAX_MISSING_GAMES  = 2       # team games index.json counts that PlayerStatistics.csv lacks
+REPORT_UNMATCHED   = 8       # report unmatched Basketball-Reference players among each team's top N by GS
+REPORT_TOP_SCORERS = 3       # report a team's top N scorers who miss the five
+
+# Cross-checks (the rules used before games started)
 FLAG_SEASON_SHARE  = 0.99    # share of team-games flagging exactly 5 starters
 BENCH_SEASON_SHARE = 0.90    # share of team-games whose starters bench points can infer
 PRIOR_WEIGHT       = 1000.0  # bench-points second pass: usual starters before minutes
-UNCERTAIN_GAP     = 0.15    # proxy fives: 5th minus 6th place, as a share of team games
-MAX_MISSING_GAMES = 2       # team games index.json counts that PlayerStatistics.csv lacks
 
 # Signature stats
 QUALIFY_GAME_SHARE = 0.5    # of the season's games (median team)
@@ -115,6 +142,8 @@ FG_MIN_FGA         = 5.0    # per game, for FG%
 THREE_MIN_3PA      = 2.0    # per game, for 3P%
 
 REGULAR_SEASON_PREFIX = "2"   # NBA game ids: 2 regular season (Cup games included)
+BBREF_LEAGUE          = "NBA"
+BBREF_MULTI_TEAM      = r"^(\d+TM|TOT)$"   # a traded player's season totals across teams
 
 TIER_MARQUEE = "marquee"
 TIER_KNOWN   = "known"
@@ -126,13 +155,66 @@ REASON_HIGH      = "high-win"
 REASON_STAR      = "notable-star"
 REASON_PIN       = "owner-pin"
 
-METHOD_FLAG     = "starts"
-METHOD_BENCH    = "bench-points"
-METHOD_PROXY    = "minutes-proxy"
+METHOD_GS       = "games-started"
 METHOD_OVERRIDE = "override"
+FIVE_FROM       = (METHOD_GS, METHOD_OVERRIDE)
 
-# The player_team_seasons column each method ranks by.
-METHOD_SCORE = {METHOD_FLAG: "starts", METHOD_BENCH: "inferred", METHOD_PROXY: "top5"}
+CHECK_FLAG  = "starts"
+CHECK_BENCH = "bench-points"
+CHECK_PROXY = "minutes-proxy"
+
+# The player_team_seasons column each cross-check rule ranks by.
+CHECK_SCORE = {CHECK_FLAG: "starts", CHECK_BENCH: "inferred", CHECK_PROXY: "top5"}
+
+# Basketball-Reference spellings that normalize_name cannot reconcile with
+# PlayerStatistics.csv, both sides normalized. Used only when the exact name
+# finds nobody on the team.
+NAME_ALIASES = {
+    "charles davis":          "charlie davis",
+    "charles jones":          "charles r jones",
+    "charles pittman":        "charlie pittman",
+    "clarence weatherspoon":  "clar weatherspoon",
+    "cliff robinson":         "cliff t robinson",
+    "danny schayes":          "dan schayes",
+    "dave greenwood":         "david greenwood",
+    "eddie lee wilkins":      "eddielee wilkins",
+    "eugene jeter":           "pooh jeter",
+    "fat lever":              "lafayette lever",
+    "goga bitadze":           "ga bitadze",
+    "ha seung jin":           "seung jin ha",
+    "isaac austin":           "ike austin",
+    "jeenathan williams":     "nate williams",
+    "jeff taylor":            "jeffery taylor",
+    "jo jo english":          "jojo english",
+    "kiwane lemorris garris": "kiwane garris",
+    "kj martin":              "kenyon martin",
+    "maurice martin":         "mo martin",
+    "melvin turpin":          "mel turpin",
+    "michael phelps":         "mike phelps",
+    "michael ray richardson": "micheal ray richardson",
+    "mike sweetney":          "michael sweetney",
+    "nene":                   "nene hilario",
+    "pearl washington":       "dwayne washington",
+    "pete verhoeven":         "peter verhoeven",
+    "rich manning":           "richard manning",
+    "rob lock":               "robert lock",
+    "ron grandison":          "ronnie grandison",
+    "ron holland":            "ronald holland",
+    "ronald murray":          "flip murray",
+    "stanislav medvedenko":   "slava medvedenko",
+    "steve bardo":            "stephen bardo",
+    "steve smith":            "steven smith",
+    "vitor luiz faverani":    "vitor faverani",
+    "wang zhizhi":            "wang zhi zhi",
+    "world b free":           "world free",
+    "yang hansen":            "hansen yang",
+    "yi jianlian":            "jianlian yi",
+}
+
+# Letters NFKD does not decompose into ASCII.
+_NAME_LETTERS = str.maketrans({"ı": "i", "ð": "d", "Ð": "D", "đ": "d", "Đ": "D", "ø": "o", "Ø": "O",
+                               "ł": "l", "Ł": "L", "æ": "ae", "Æ": "AE", "ß": "ss", "ё": "e", "Ё": "E"})
+_NAME_SUFFIXES = {"jr", "sr", "ii", "iii", "iv"}
 
 # Raw box-score columns summed per player-team-season.
 BOX_COLS = {
@@ -244,6 +326,43 @@ def load_positions(path: Path = PEOPLE_PATH) -> pd.Series:
     return pd.Series(weight.to_numpy(), index=people["personId"]).groupby(level=0).first()
 
 
+def load_bbref_totals(seasons, path: Path = BBREF_TOTALS_PATH) -> pd.DataFrame:
+    """
+    Basketball-Reference's NBA player season totals for the given seasons
+    (season = the year it ends), one row per player per team: a traded
+    player's 2TM/3TM/... total rows are dropped.
+    """
+    cols = ["season", "lg", "player", "player_id", "team", "g", "gs", "mp"]
+    df = pd.read_csv(path, usecols=cols, encoding="utf-8")
+    df = df[(df["lg"] == BBREF_LEAGUE) & df["season"].isin(set(seasons))]
+    df = df[~df["team"].astype(str).str.match(BBREF_MULTI_TEAM)].drop(columns="lg").copy()
+    if df.empty:
+        raise ValueError("No Basketball-Reference NBA rows for the index seasons in " + str(path))
+    missing = sorted(set(seasons) - set(df["season"]))
+    if missing:
+        raise ValueError("Basketball-Reference totals have no rows for seasons " + str(missing))
+    for col in ("g", "gs", "mp"):
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    blank = df[df["gs"].isna() | df["g"].isna()]
+    if not blank.empty:
+        raise ValueError("Basketball-Reference rows without games or games started: "
+                         + str(blank[["season", "team", "player"]].head(10).values.tolist()))
+    df["mp"] = df["mp"].fillna(0.0)
+    if df.duplicated(subset=["season", "team", "player_id"]).any():
+        raise ValueError("Basketball-Reference totals list a player twice for one team-season.")
+    print("Basketball-Reference player-team-seasons: " + str(len(df)))
+    return df
+
+
+def load_team_abbrevs(path: Path = BBREF_ABBREV_PATH) -> pd.DataFrame:
+    """Basketball-Reference's NBA team names and abbreviations by season."""
+    df = pd.read_csv(path, usecols=["season", "lg", "team", "abbreviation"], encoding="utf-8")
+    df = df[df["lg"] == BBREF_LEAGUE].drop(columns="lg")
+    if df.empty:
+        raise ValueError("No NBA rows in " + str(path))
+    return df
+
+
 def load_overrides(path: Path = OVERRIDES_PATH) -> dict:
     with open(path, encoding="utf-8") as f:
         raw = json.load(f)
@@ -259,6 +378,57 @@ def load_overrides(path: Path = OVERRIDES_PATH) -> dict:
         if len(entry.get("players", [])) != 5 or len(set(entry["players"])) != 5:
             raise ValueError("Override for " + key + " must name 5 different players.")
     return out
+
+
+# ---------------------------------------------------------------------------
+# Names and team abbreviations
+# ---------------------------------------------------------------------------
+
+def normalize_name(name) -> str:
+    """
+    A spelling-proof key for one name: ASCII letters (NFKD, plus a few letters
+    it leaves alone), lowercase, hyphens as spaces, no punctuation, and no
+    trailing Jr./Sr./II-IV. "J.R. Smith" and "JR Smith" -> "jr smith";
+    "Toni Kukoč" -> "toni kukoc"; "Marcus Morris Sr." -> "marcus morris".
+    """
+    text = unicodedata.normalize("NFKD", str(name).translate(_NAME_LETTERS))
+    text = text.encode("ascii", "ignore").decode("ascii").lower().replace("-", " ")
+    words = re.sub(r"[^a-z0-9 ]", "", text).split()
+    while len(words) > 2 and words[-1] in _NAME_SUFFIXES:
+        words.pop()
+    return " ".join(words)
+
+
+def split_name(name: str) -> tuple:
+    """(first, last) from a full name: the first word, then the rest. "Nenê" -> ("", "Nenê")."""
+    parts = str(name).strip().split(" ", 1)
+    return ("", parts[0]) if len(parts) == 1 else (parts[0], parts[1].strip())
+
+
+def team_abbreviations(index: pd.DataFrame, abbrevs: pd.DataFrame) -> pd.Series:
+    """
+    key -> Basketball-Reference abbreviation, by the team's era-correct city
+    and name that season, then by its nickname alone (index.json's "Oklahoma
+    City Hornets" are Basketball-Reference's "New Orleans/Oklahoma City
+    Hornets"). Raises unless each team maps to exactly one abbreviation.
+    """
+    table = abbrevs.assign(full=abbrevs["team"].map(normalize_name))
+    by_season = {s: g for s, g in table.groupby("season")}
+    out, bad = {}, []
+    for team in index.to_dict("records"):
+        season = by_season.get(team["season"], table.iloc[0:0])
+        found = season[season["full"] == normalize_name(team["city"] + " " + team["name"])]
+        if len(found) != 1:
+            nickname = normalize_name(team["name"])
+            found = season[season["full"].map(lambda full: full == nickname or full.endswith(" " + nickname))]
+        abbrs = sorted(set(found["abbreviation"]))
+        if len(abbrs) != 1:
+            bad.append((team["key"], abbrs))
+            continue
+        out[team["key"]] = abbrs[0]
+    if bad:
+        raise ValueError("Teams that do not map to exactly one Basketball-Reference abbreviation: " + str(bad))
+    return pd.Series(out)
 
 
 # ---------------------------------------------------------------------------
@@ -431,22 +601,78 @@ def league_player_seasons(player_games: pd.DataFrame) -> pd.DataFrame:
 # Starting fives
 # ---------------------------------------------------------------------------
 
+def rank_by_games_started(bbref: pd.DataFrame, min_games: int = MIN_TEAM_GAMES) -> pd.DataFrame:
+    """
+    One team-season's Basketball-Reference rows (one per player for this
+    team), players with min_games or more first by games started; ties by
+    minutes, then player_id.
+    """
+    eligible = bbref[bbref["g"] >= min_games]
+    return eligible.sort_values(["gs", "mp", "player_id"], ascending=[False, False, True])
+
+
+def pick_gs_five(bbref: pd.DataFrame, games: int, min_games: int = MIN_TEAM_GAMES) -> dict:
+    """
+    The starting five for one team-season by games started. Returns
+    Basketball-Reference player_ids, and the 5th and 6th players (player_id,
+    name, GS); gap is (5th GS - 6th GS) / team games.
+    """
+    ranked = rank_by_games_started(bbref, min_games)
+    if len(ranked) < 5:
+        raise ValueError("Fewer than 5 players with " + str(min_games) + "+ games for "
+                         + str(bbref["team"].iloc[0] if len(bbref) else "an empty roster")
+                         + (" in " + str(int(bbref["season"].iloc[0])) if len(bbref) else ""))
+    fifth = ranked.iloc[4]
+    sixth = ranked.iloc[5] if len(ranked) > 5 else None
+    return {
+        "player_ids": ranked["player_id"].iloc[:5].tolist(),
+        "gap":        float((fifth["gs"] - (sixth["gs"] if sixth is not None else 0)) / games),
+        "fifth":      (fifth["player_id"], fifth["player"], int(fifth["gs"])),
+        "sixth":      (sixth["player_id"], sixth["player"], int(sixth["gs"])) if sixth is not None else None,
+    }
+
+
+def match_players(bbref: pd.DataFrame, roster: pd.DataFrame) -> pd.Series:
+    """
+    player_id -> personId for one team-season's Basketball-Reference rows
+    against its PlayerStatistics.csv players (player_team_seasons rows): by
+    normalize_name, then NAME_ALIASES. Two players with one name (the 1989
+    Bullets' two Charles Joneses) are told apart by games for the team. A row
+    that finds nobody, or no single player, or a player another row also
+    claims, maps to NaN.
+    """
+    ours = {}
+    for pid, first, last, games in zip(roster["personId"], roster["firstName"], roster["lastName"], roster["games"]):
+        ours.setdefault(normalize_name(first + " " + last), []).append((pid, games))
+    out = {}
+    for player_id, player, g in zip(bbref["player_id"], bbref["player"], bbref["g"]):
+        name = normalize_name(player)
+        found = ours.get(name) or ours.get(NAME_ALIASES.get(name), [])
+        if len(found) > 1:
+            found = [c for c in found if c[1] == g]
+        out[player_id] = float(found[0][0]) if len(found) == 1 else np.nan
+    matched = pd.Series(out, dtype=float)
+    claimed = matched.dropna()
+    matched[claimed[claimed.duplicated(keep=False)].index] = np.nan
+    return matched
+
+
 def rank_starters(roster: pd.DataFrame, method: str, min_games: int = MIN_TEAM_GAMES) -> pd.DataFrame:
     """
-    A team-season's eligible players (min_games or more), best starter
-    candidates first by the method's count (METHOD_SCORE); ties by total
+    Cross-checks: a team-season's eligible players (min_games or more), best
+    starter candidates first by the rule's count (CHECK_SCORE); ties by total
     minutes, then personId.
     """
     eligible = roster[roster["games"] >= min_games].copy()
-    eligible["score"] = eligible[METHOD_SCORE[method]]
+    eligible["score"] = eligible[CHECK_SCORE[method]]
     return eligible.sort_values(["score", "minutes", "personId"], ascending=[False, False, True])
 
 
 def pick_five(roster: pd.DataFrame, method: str, games: int, min_games: int = MIN_TEAM_GAMES) -> dict:
     """
-    The starting five for one team-season (rows of player_team_seasons).
-    Returns personIds, the method, and how close the 6th player came: gap is
-    (5th score - 6th score) / team games.
+    Cross-checks: the five one of the earlier rules gives for a team-season
+    (rows of player_team_seasons). Returns personIds and how close the 6th
+    player came: gap is (5th score - 6th score) / team games.
     """
     ranked = rank_starters(roster, method, min_games)
     if len(ranked) < 5:
@@ -477,11 +703,28 @@ def short_name(row) -> str:
 
 def override_five(roster: pd.DataFrame, names: list, key: str) -> dict:
     """Resolve an overrides-file five by full name against the team's players."""
-    by_name = {full_name(r): int(r["personId"]) for _, r in roster.iterrows()}
+    by_name = {full_name(r): r["personId"] for _, r in roster.iterrows()}
     unknown = [n for n in names if n not in by_name]
     if unknown:
         raise ValueError("Override for " + key + " names players who did not play for it: " + str(unknown))
-    return {"ids": [by_name[n] for n in names], "method": METHOD_OVERRIDE, "gap": None, "fifth": None, "sixth": None}
+    return {"ids": [by_name[n] for n in names], "method": METHOD_OVERRIDE}
+
+
+def gs_roster(roster: pd.DataFrame, bbref: pd.DataFrame, matched: pd.Series) -> pd.DataFrame:
+    """
+    The team's player_team_seasons rows with Basketball-Reference's spelling
+    (firstName, lastName) and games started (gs) for every matched player.
+    Unmatched players keep PlayerStatistics.csv's spelling and no gs.
+    """
+    pairs = matched.dropna()
+    by_person = bbref.set_index("player_id").loc[pairs.index].assign(personId=pairs.to_numpy()).set_index("personId")
+    out = roster.copy()
+    hit = out["personId"].isin(by_person.index)
+    names = out.loc[hit, "personId"].map(by_person["player"]).map(split_name)
+    out.loc[hit, "firstName"] = [first for first, _ in names]
+    out.loc[hit, "lastName"]  = [last for _, last in names]
+    out["gs"] = out["personId"].map(by_person["gs"])
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -546,8 +789,14 @@ def star_reasons(five_ids: list, season: int, leaders: pd.DataFrame) -> list:
         if r["APG_rank"] <= STAR_BOARD_RANK:
             bits.append("APG #" + str(int(r["APG_rank"])))
         if bits:
-            found.append((int(r["personId"]), bits))
+            found.append((r["personId"], bits))
     return found
+
+
+def describe_stars(stars: list, roster: pd.DataFrame) -> str:
+    """"Michael Jordan PPG #1; ..." for star_reasons' output, by the roster's spelling."""
+    people = roster.set_index("personId")
+    return "; ".join(full_name(people.loc[pid]) + " " + ", ".join(bits) for pid, bits in stars)
 
 
 def classify(team: dict, champion: bool, has_star: bool) -> tuple:
@@ -579,19 +828,23 @@ def apply_overrides(tier, reasons: list, key: str, overrides: dict) -> tuple:
 # ---------------------------------------------------------------------------
 
 def season_methods(flags: dict, bench: dict) -> dict:
-    """{season: the first starting-five method the season supports}."""
+    """
+    {season: the rule the first version of this script used for it}: the
+    flag, then bench points, then the minutes proxy. Kept for the report's
+    cross-checks.
+    """
     out = {}
     for season in sorted(set(flags) | set(bench)):
         if flags.get(season, 0) >= FLAG_SEASON_SHARE:
-            out[season] = METHOD_FLAG
+            out[season] = CHECK_FLAG
         elif bench.get(season, 0) >= BENCH_SEASON_SHARE:
-            out[season] = METHOD_BENCH
+            out[season] = CHECK_BENCH
         else:
-            out[season] = METHOD_PROXY
+            out[season] = CHECK_PROXY
     return out
 
 
-def build_pool(index, player_games, champions, overrides, positions) -> dict:
+def build_pool(index, player_games, bbref, abbrevs, champions, overrides, positions) -> dict:
     """player_games must carry add_bench_inferred_starts' columns."""
     flags     = flagged_seasons(player_games)
     bench     = bench_seasons(player_games)
@@ -600,20 +853,25 @@ def build_pool(index, player_games, champions, overrides, positions) -> dict:
     league    = league_player_seasons(player_games)
     leaders   = league_leaders(league)
     n_games   = team_games(player_games)
+    abbr      = team_abbreviations(index, abbrevs)
 
     unknown = (set(overrides["pins"]) | set(overrides["exclude"]) | set(overrides["starters"])) - set(index["key"])
     if unknown:
         raise ValueError("Overrides name keys that are not in index.json: " + str(sorted(unknown)))
 
     champion_keys = set(champions.values())
-    teams, details, checks, gaps = {}, {}, [], []
-    by_key = {k: g for k, g in rosters.groupby("key")}
+    teams, details, checks, gaps, unmatched = {}, {}, [], [], []
+    by_key   = {k: g for k, g in rosters.groupby("key")}
+    by_bbref = {k: g for k, g in bbref.groupby(["season", "team"])}
 
     for team in index.sort_values(["season", "key"]).to_dict("records"):
         key, season = team["key"], int(team["season"])
         roster = by_key.get(key)
         if roster is None:
             raise ValueError("No player rows for " + key)
+        rows = by_bbref.get((season, abbr[key]))
+        if rows is None:
+            raise ValueError("No Basketball-Reference rows for " + key + " (" + abbr[key] + ")")
         games = int(n_games[key])
         if games != team["games"]:
             if abs(games - team["games"]) > MAX_MISSING_GAMES:
@@ -621,22 +879,43 @@ def build_pool(index, player_games, champions, overrides, positions) -> dict:
                                  + str(team["games"]) + " in index.json.")
             gaps.append((key, games, int(team["games"])))
 
-        auto = pick_five(roster, methods[season], games)
-        if methods[season] == METHOD_FLAG:
-            # The flag is the truth here, so both other methods can be checked against it.
-            check = {"key": key, "season": season, "flag_ids": auto["ids"]}
-            for method in (METHOD_BENCH, METHOD_PROXY):
-                if method == METHOD_BENCH and bench.get(season, 0) < BENCH_SEASON_SHARE:
-                    continue
-                ids = pick_five(roster, method, games)["ids"]
-                check[method] = len(set(auto["ids"]) - set(ids))
-                check[method + "_ids"] = ids
-            checks.append(check)
+        matched = match_players(rows, roster)
+        top = rows.sort_values(["gs", "mp", "player_id"], ascending=[False, False, True]).head(REPORT_UNMATCHED)
+        for r in top[top["player_id"].map(matched).isna()].to_dict("records"):
+            unmatched.append((key, r["player"], int(r["g"]), int(r["gs"])))
+
+        gs_pick = pick_gs_five(rows, games)
+        lost = [p for p in gs_pick["player_ids"] if np.isnan(matched[p])]
+        if lost:
+            names = rows.set_index("player_id").loc[lost, "player"].tolist()
+            raise ValueError(key + ": starters " + str(names) + " match no single player in PlayerStatistics.csv; "
+                             "add them to NAME_ALIASES.")
+        auto = dict(gs_pick, ids=[matched[p] for p in gs_pick["player_ids"]], method=METHOD_GS)
+        roster = gs_roster(roster, rows, matched)
+
+        # The earlier rules, each scored against games started.
+        check = {"key": key, "season": season, "previous": methods[season], "gs_ids": auto["ids"]}
+        for method in (CHECK_FLAG, CHECK_BENCH, CHECK_PROXY):
+            if method == CHECK_FLAG and flags.get(season, 0) < FLAG_SEASON_SHARE:
+                continue
+            if method == CHECK_BENCH and bench.get(season, 0) < BENCH_SEASON_SHARE:
+                continue
+            ids = pick_five(roster, method, games)["ids"]
+            check[method] = len(set(auto["ids"]) - set(ids))
+            check[method + "_ids"] = ids
+        checks.append(check)
 
         five = override_five(roster, overrides["starters"][key]["players"], key) if key in overrides["starters"] else auto
         stars = star_reasons(five["ids"], season, leaders)
         tier, reasons = classify(team, key in champion_keys, bool(stars))
         tier, reasons = apply_overrides(tier, reasons, key, overrides)
+
+        # Pool membership under the first version's five: the star rule depends on the five.
+        prev_ids   = five["ids"] if key in overrides["starters"] else check[methods[season] + "_ids"]
+        prev_stars = star_reasons(prev_ids, season, leaders)
+        prev_tier  = apply_overrides(classify(team, key in champion_keys, bool(prev_stars))[0], [], key, overrides)[0]
+        check.update({"in_pool": tier is not None, "prev_in_pool": prev_tier is not None,
+                      "stars": describe_stars(stars, roster), "prev_stars": describe_stars(prev_stars, roster)})
         if tier is None:
             continue
 
@@ -647,7 +926,7 @@ def build_pool(index, player_games, champions, overrides, positions) -> dict:
     if missing:
         raise ValueError("Overrides fix fives for teams outside the pool: " + str(sorted(missing)))
     return {"teams": teams, "details": details, "flags": flags, "bench": bench, "methods": methods,
-            "checks": checks, "champions": champions, "gaps": gaps}
+            "checks": checks, "champions": champions, "gaps": gaps, "unmatched": unmatched}
 
 
 def build_team_entry(team, roster, five, games, league, positions, tier, reasons) -> tuple:
@@ -666,7 +945,7 @@ def build_team_entry(team, roster, five, games, league, positions, tier, reasons
             "sig":   [{"stat": s["stat"], "value": s["value"]} for s in sig],
             "_pctile": [s["pctile"] for s in sig],
             "_games":  int(p["games"]),
-            "_count":  {m: int(p[col]) for m, col in METHOD_SCORE.items()},
+            "_gs":     None if pd.isna(p["gs"]) else int(p["gs"]),
         })
 
     team_pts  = float(roster["pts"].sum())
@@ -687,7 +966,7 @@ def build_team_entry(team, roster, five, games, league, positions, tier, reasons
     }
     if entry["threeRate"] is None:
         del entry["threeRate"]
-    return entry, {"method": five["method"], "starters": starters, "team": team}
+    return entry, {"method": five["method"], "ids": list(rows["personId"]), "starters": starters, "team": team}
 
 
 def validate_pool(pool: dict, index: pd.DataFrame) -> None:
@@ -700,6 +979,8 @@ def validate_pool(pool: dict, index: pd.DataFrame) -> None:
     for key, t in teams.items():
         if t["tier"] not in TIERS:
             raise ValueError(key + " has tier " + str(t["tier"]))
+        if t["fiveFrom"] not in FIVE_FROM:
+            raise ValueError(key + " has fiveFrom " + str(t["fiveFrom"]))
         if len(t["starters"]) != 5 or len({s["name"] for s in t["starters"]}) != 5:
             raise ValueError(key + " does not have 5 different starters.")
         for s in t["starters"]:
@@ -737,6 +1018,23 @@ def fmt_sig(s: dict) -> str:
     return value + " " + s["stat"]
 
 
+def agreement_table(checks: pd.DataFrame, add) -> None:
+    """Rows: how many GS starters each earlier rule misses; columns: the rules."""
+    cols = [m for m in (CHECK_FLAG, CHECK_BENCH, CHECK_PROXY) if m in checks.columns]
+    n = {m: int(checks[m].notna().sum()) for m in cols}
+    add("| Starters different | " + " | ".join(
+        {CHECK_FLAG: "Starter flag", CHECK_BENCH: "Bench-points inference", CHECK_PROXY: "Minutes proxy"}[m]
+        + " (" + str(n[m]) + ")" for m in cols) + " |")
+    add("|---|" + "---|" * len(cols))
+    for wrong, label in ((0, "0 (same five)"), (1, "1"), (2, "2"), (3, "3 or more")):
+        cells = []
+        for m in cols:
+            k = int((checks[m] >= wrong).sum()) if wrong == 3 else int((checks[m] == wrong).sum())
+            cells.append(str(k) + " (" + "{:.0%}".format(k / n[m]) + ")" if n[m] else "—")
+        add("| " + label + " | " + " | ".join(cells) + " |")
+    add("")
+
+
 def write_report(pool: dict, index: pd.DataFrame, path: Path = REPORT_PATH) -> None:
     teams, details, methods = pool["teams"], pool["details"], pool["methods"]
     idx = index.set_index("key")
@@ -747,13 +1045,19 @@ def write_report(pool: dict, index: pd.DataFrame, path: Path = REPORT_PATH) -> N
         return str(season - 1) + "–" + str(season)[2:]
 
     def names(key, ids):
-        roster = details[key]["roster"].set_index("personId") if key in details else None
+        roster = details[key]["roster"].set_index("personId")
         return ", ".join(full_name(roster.loc[i]) for i in ids)
 
+    def with_gs(key, ids):
+        roster = details[key]["roster"].set_index("personId")
+        return ", ".join(full_name(roster.loc[i]) + " ("
+                         + ("—" if pd.isna(roster.loc[i, "gs"]) else str(int(roster.loc[i, "gs"]))) + ")" for i in ids)
+
     tier_counts = {t: sum(1 for v in teams.values() if v["tier"] == t) for t in TIERS}
-    by_method = {m: [k for k in teams if details[k]["auto"]["method"] == m] for m in METHOD_SCORE}
     checks = pd.DataFrame(pool["checks"])
+    pool_checks = checks[checks["key"].isin(teams)]
     marquee_pairs = tier_counts[TIER_MARQUEE] * (tier_counts[TIER_MARQUEE] - 1) // 2
+    overridden = [k for k in teams if details[k]["method"] == METHOD_OVERRIDE]
 
     add("# Daily Three: matchup pool (F12 Session 1)")
     add("")
@@ -770,30 +1074,71 @@ def write_report(pool: dict, index: pd.DataFrame, path: Path = REPORT_PATH) -> N
     add("| Known | " + str(tier_counts[TIER_KNOWN]) + " |")
     add("| Known through the notable-star rule alone | "
         + str(sum(1 for t in teams.values() if t["reasons"] == [REASON_STAR])) + " |")
-    add("| Five from the starter flag | " + str(len(by_method[METHOD_FLAG])) + " |")
-    add("| Five from bench-points inference | " + str(len(by_method[METHOD_BENCH])) + " |")
-    add("| Five from the minutes proxy | " + str(len(by_method[METHOD_PROXY])) + " |")
-    add("| Five fixed in the overrides file | " + str(sum(1 for k in teams if details[k]["method"] == METHOD_OVERRIDE)) + " |")
+    add("| Five from games started | " + str(sum(1 for k in teams if details[k]["method"] == METHOD_GS)) + " |")
+    add("| Five fixed in the overrides file | " + str(len(overridden)) + " |")
     add("")
     add("Possible pairings: " + "{:,}".format(len(teams) * (len(teams) - 1) // 2) + ". Featured (marquee vs marquee) "
         "pairings: " + "{:,}".format(marquee_pairs) + ", about " + str(marquee_pairs // 365)
         + " years of one featured game a day before any pairing would have to repeat.")
     add("")
 
-    # -- Starter evidence ----------------------------------------------------------
-    add("## Who started? The evidence (Q2)")
+    # -- Data rights -----------------------------------------------------------------
+    add("## Data rights: owner to accept before launch")
     add("")
-    add("`PlayerStatistics.csv` has one starter column, `startingPosition` (G, F or C). It has no other position "
-        "column; `Players.csv` has guard, forward and center flags, used here only to order each card. Every "
-        "season from 1985–86 to 2025–26 is present.")
+    add("The starting fives come from games started in the Kaggle dataset `sumitrodatta/nba-aba-baa-stats` "
+        "(\"NBA Stats (1947-present)\"), which is **scraped from Basketball-Reference**. Sports Reference's terms "
+        "of use forbid scraping its sites and any public or commercial use of the data without its written "
+        "permission. Kaggle's CC0 label is the uploader's and does not clear Sports Reference's rights.")
     add("")
-    add("- **Flag share**: team-games that flag exactly 5 starters. From 1996–97 to 2016–17 the column is filled "
-        "for about 9 players per team-game, so it is not a starter flag there.")
-    add("- **Bench share**: team-games where `TeamStatisticsExtended.csv` records bench points and a 5-player "
-        "subset's points add up to the team score minus them. From 1996–97 to 2002–03 the file's `benchPoints` "
-        "holds the team's whole score (a 108-point Lakers game records 108 bench points), so it cannot be used.")
+    add("- `teams.json` publishes no Basketball-Reference number. The choice of each five and the spelling of the "
+        "names (with accents) come from it; PPG and signature stats come from the existing `PlayerStatistics.csv`.")
+    add("- This joins the existing commercial-data question (`docs/product/HANDOFF.md`, \"Commercial-data gate\", "
+        "F00). It is stricter: the terms cover public use, not only commercial use, and Daily Three is public.")
+    add("- The owner must accept this, or get permission, before Daily Three launches (Session 5).")
     add("")
-    add("| Seasons | Flag share | Bench share | Five from |")
+
+    # -- Starter evidence ------------------------------------------------------------
+    add("## Who started? Games started (Q2)")
+    add("")
+    add("Each team's five is the 5 players with the most **games started** (GS) for it that season in "
+        "Basketball-Reference's season totals (`data/raw/bbref/Player Totals.csv`). Ties go to minutes, a player "
+        "needs " + str(MIN_TEAM_GAMES) + " games for the team, and a traded player counts only their rows for this "
+        "team, never the 2TM/3TM season totals. GS is recorded for every season in the pool, 1985–86 to 2025–26.")
+    add("")
+    add("- **Teams** map to Basketball-Reference abbreviations by era-correct city and name (`Team Abbrev.csv`), "
+        "or by nickname alone where the city differs (the 2005–06 and 2006–07 Oklahoma City Hornets, the 2025–26 "
+        "LA Clippers). All " + str(len(index)) + " team-seasons map to exactly one.")
+    add("- **Players** match `PlayerStatistics.csv` within the team-season by name: accents and punctuation "
+        "dropped, Jr./Sr./II–IV ignored, then " + str(len(NAME_ALIASES)) + " aliases in `NAME_ALIASES` for "
+        "nicknames and other spellings (\"Nenê\" / \"Nene Hilario\", \"Fat Lever\" / \"Lafayette Lever\", "
+        "\"Yi Jianlian\" / \"Jianlian Yi\"). Every starter must match exactly one player, or the script stops.")
+    unmatched = pool["unmatched"]
+    add("- **Unmatched players** among each team's top " + str(REPORT_UNMATCHED) + " by GS, over all "
+        + str(len(index)) + " team-seasons: " + (str(len(unmatched)) + ". None of them is a starter." if unmatched else "none.")
+        + " They are missing from `PlayerStatistics.csv`, so they cannot carry stats.")
+    if unmatched:
+        add("")
+        add("| Team | Player | Games | GS |")
+        add("|---|---|---|---|")
+        for key, player, g, gs in unmatched:
+            add("| `" + key + "` | " + player + " | " + str(g) + " | " + str(gs) + " |")
+    add("")
+
+    # -- Cross-checks ----------------------------------------------------------------
+    add("## Cross-checks: the earlier rules against games started")
+    add("")
+    add("The first version of this PR picked fives with three rules, each season taking the first it supported. "
+        "They now only check games started:")
+    add("")
+    add("- **Starter flag**: `PlayerStatistics.csv`'s `startingPosition`, set for exactly 5 players a team-game "
+        "only from 2017–18 on, and not in 2021–22 (from 1996–97 to 2016–17 it is filled for about 9 players a "
+        "team-game; before that and in 2021–22 it is blank).")
+    add("- **Bench-points inference**: in each game the starters' points must add up to the team's score less "
+        "its bench points (`TeamStatisticsExtended.csv`, usable from 2003–04; from 1996–97 to 2002–03 its "
+        "`benchPoints` holds the whole team score).")
+    add("- **Minutes proxy**: the 5 highest-minute players in each game stand in for the starters.")
+    add("")
+    add("| Seasons | Flag share | Bench share | First version's rule |")
     add("|---|---|---|---|")
     for run in season_runs(methods):
         def share(d):
@@ -803,92 +1148,110 @@ def write_report(pool: dict, index: pd.DataFrame, path: Path = REPORT_PATH) -> N
         span = label(run[0]) if len(run) == 1 else label(run[0]) + " to " + label(run[-1])
         add("| " + span + " | " + share(pool["flags"]) + " | " + share(pool["bench"]) + " | " + methods[run[0]] + " |")
     add("")
-    add("Each season uses the first method it supports: the flag (at least " + "{:.0%}".format(FLAG_SEASON_SHARE)
-        + " flag share), then bench points (at least " + "{:.0%}".format(BENCH_SEASON_SHARE)
-        + " bench share), then the minutes proxy.")
+    add("**Every team-season** (" + str(len(checks)) + "), wherever each rule can run:")
     add("")
-    add("**Bench-points inference.** In each game the starters' points must add up to the team's score less "
-        "its bench points. Usually several 5-player subsets do; the first pass takes the one with the most "
-        "minutes, the second prefers players the first pass usually started (then minutes). The season's five "
-        "are the five with the most inferred starts.")
+    agreement_table(checks, add)
+    add("**Pool teams** (" + str(len(pool_checks)) + "):")
     add("")
-    if not checks.empty:
-        add("**Checked against the real flag.** In the flagged seasons every method can run, so each one can be "
-            "scored against the real starters, over every team (not only the pool):")
-        add("")
-        add("| Starters wrong | Bench-points inference | Minutes proxy (the brief's rule) |")
-        add("|---|---|---|")
-        cols = [m for m in (METHOD_BENCH, METHOD_PROXY) if m in checks.columns]
-        n = {m: int(checks[m].notna().sum()) for m in cols}
-        for wrong in range(0, int(max(checks[c].max() for c in cols)) + 1):
-            cells = []
-            for m in (METHOD_BENCH, METHOD_PROXY):
-                if m not in cols:
-                    cells.append("—")
-                    continue
-                k = int((checks[m] == wrong).sum())
-                cells.append(str(k) + " (" + "{:.0%}".format(k / n[m]) + ")")
-            add("| " + str(wrong) + " | " + " | ".join(cells) + " |")
-        add("")
-        if METHOD_BENCH in cols:
-            exact = {m: (checks[m] == 0).mean() for m in cols}
-            add("Bench points get the whole five right for " + "{:.0%}".format(exact[METHOD_BENCH])
-                + " of team-seasons, the minutes proxy for " + "{:.0%}".format(exact[METHOD_PROXY])
-                + ". The proxy's misses are what the brief predicted: a heavy-minute sixth man in place of a "
-                "low-minute starter.")
-            add("")
-        wrong_pool = checks[checks["key"].isin(teams)]
-        if METHOD_BENCH in cols:
-            wrong_pool = wrong_pool[wrong_pool[METHOD_BENCH] > 0]
-            if not wrong_pool.empty:
-                add("Pool teams in flagged seasons where bench points would have been wrong (they use the flag):")
-                add("")
-                for _, r in wrong_pool.iterrows():
-                    add("- `" + r["key"] + "`: " + names(r["key"], [i for i in r[METHOD_BENCH + "_ids"] if i not in r["flag_ids"]])
-                        + " instead of " + names(r["key"], [i for i in r["flag_ids"] if i not in r[METHOD_BENCH + "_ids"]]))
-                add("")
+    agreement_table(pool_checks, add)
 
-    # -- The proxy seasons -----------------------------------------------------------
-    add("## Proxy fives to check by eye (the owner decides Q2)")
+    add("**Against the first version's own fives.** Pool teams by the rule the first version used for them, "
+        "before overrides:")
     add("")
-    proxy_spans = ", ".join(label(r[0]) if len(r) == 1 else label(r[0]) + " to " + label(r[-1])
-                            for r in season_runs(methods) if methods[r[0]] == METHOD_PROXY)
-    add("These pool teams play in seasons with neither a flag nor usable bench points (" + proxy_spans + "), "
-        "so their five come from the minutes proxy, which picks the real five about "
-        + ("{:.0%}".format((checks[METHOD_PROXY] == 0).mean()) if not checks.empty else "?")
-        + " of the time. The 6th column is the next player by games in the team's top 5 for minutes. ✔ marks a "
-        "five fixed in the overrides file.")
+    add("| First version's rule | Pool teams | Same five as games started |")
+    add("|---|---|---|")
+    for m in (CHECK_FLAG, CHECK_BENCH, CHECK_PROXY):
+        sub = pool_checks[pool_checks["previous"] == m]
+        same = int((sub[m] == 0).sum())
+        add("| " + m + " | " + str(len(sub)) + " | " + str(same) + " (" + ("{:.0%}".format(same / len(sub)) if len(sub) else "—") + ") |")
     add("")
-    add("| Team | Proxy five | 6th | Fixed |")
-    add("|---|---|---|---|")
-    for key in by_method[METHOD_PROXY]:
-        auto = details[key]["auto"]
-        sixth = names(key, [auto["sixth"]]) if auto["sixth"] is not None else "—"
-        add("| `" + key + "` | " + names(key, auto["ids"]) + " | " + sixth + " | "
-            + ("✔ " + names(key, [i for i in teams_ids(teams[key], details[key])]) if details[key]["method"] == METHOD_OVERRIDE else "")
-            + " |")
-    add("")
+    for m in (CHECK_FLAG, CHECK_BENCH):
+        diff = pool_checks[(pool_checks["previous"] == m) & (pool_checks[m] > 0)]
+        if diff.empty:
+            continue
+        add("Pool teams where the " + {CHECK_FLAG: "starter flag", CHECK_BENCH: "bench-points inference"}[m]
+            + " and games started disagree (GS in brackets):")
+        add("")
+        for _, r in diff.iterrows():
+            add("- `" + r["key"] + "`: games started take " + with_gs(r["key"], [i for i in r["gs_ids"] if i not in r[m + "_ids"]])
+                + "; the " + m + " rule took " + with_gs(r["key"], [i for i in r[m + "_ids"] if i not in r["gs_ids"]]) + ".")
+        add("")
 
-    uncertain = [k for k in by_method[METHOD_BENCH] if details[k]["auto"]["gap"] < UNCERTAIN_GAP]
-    add("## Close calls among the bench-points fives")
+    # -- Changed fives ---------------------------------------------------------------
+    changed = pool_checks[pool_checks.apply(lambda r: r[r["previous"]] > 0, axis=1)]
+    add("## Fives that changed from the first version")
     add("")
-    add("Bench-points pool teams where the 6th player's inferred starts came within " + "{:.0%}".format(UNCERTAIN_GAP)
-        + " of the team's games of the 5th: usually a mid-season lineup change. " + str(len(uncertain)) + " of "
-        + str(len(by_method[METHOD_BENCH])) + ".")
+    add("Pool teams whose games-started five differs from the five the first version's rule gave: "
+        + str(len(changed)) + " teams, compared by player, not spelling. GS in brackets. ✔ marks a five the "
+        "overrides file fixes, so its card did not change.")
+    if "1996-bulls" in set(changed["key"]):
+        add("")
+        add("The first version fixed `1996-bulls` in the overrides file to Harper, Jordan, Pippen, Rodman and "
+            "Longley. Games started give that five, so the override is gone and the card is unchanged.")
     add("")
-    add("| Team | 5th (inferred starts) | 6th | Gap | Fixed |")
+    add("| Team | First version's rule | In | Out | Fixed |")
     add("|---|---|---|---|---|")
-    for key in uncertain:
-        auto = details[key]["auto"]
-        roster = details[key]["roster"].set_index("personId")
-        fifth = roster.loc[auto["fifth"]]
-        sixth = roster.loc[auto["sixth"]] if auto["sixth"] is not None else None
-        add("| `" + key + "` | " + full_name(fifth) + " (" + str(int(fifth["inferred"])) + ") | "
-            + (full_name(sixth) + " (" + str(int(sixth["inferred"])) + ")" if sixth is not None else "—") + " | "
-            + "{:.0%}".format(auto["gap"]) + " | " + ("✔" if details[key]["method"] == METHOD_OVERRIDE else "") + " |")
+    for _, r in changed.iterrows():
+        m = r["previous"]
+        add("| `" + r["key"] + "` | " + m + " | " + with_gs(r["key"], [i for i in r["gs_ids"] if i not in r[m + "_ids"]])
+            + " | " + with_gs(r["key"], [i for i in r[m + "_ids"] if i not in r["gs_ids"]])
+            + " | " + ("✔" if r["key"] in overridden else "") + " |")
+    add("")
+    moved = checks[checks["in_pool"] != checks["prev_in_pool"]]
+    add(("**The pool.** The notable-star rule looks at the five, so a new five can move a team in or out. "
+        + ("Left the pool: " + "; ".join("`" + r["key"] + "` (its old five's " + r["prev_stars"] + ")"
+                                         for _, r in moved[moved["prev_in_pool"]].iterrows()) + ". "
+           if moved["prev_in_pool"].any() else "")
+        + ("Joined: " + "; ".join("`" + r["key"] + "` (" + r["stars"] + ")"
+                                  for _, r in moved[moved["in_pool"]].iterrows()) + ". "
+           if moved["in_pool"].any() else "")
+        + ("No team moved." if moved.empty else "")).rstrip())
     add("")
 
-    # -- Overrides -----------------------------------------------------------------
+    # -- Close calls -----------------------------------------------------------------
+    close = [k for k in teams if details[k]["auto"]["gap"] < UNCERTAIN_GAP]
+    add("## Close calls")
+    add("")
+    add("Pool teams where the 6th player's games started came within " + "{:.0%}".format(UNCERTAIN_GAP)
+        + " of the team's games of the 5th's: usually a mid-season lineup change or an injury. " + str(len(close))
+        + " of " + str(len(teams)) + ". A 0% gap is a tie in games started, broken by minutes.")
+    add("")
+    add("| Team | 5th (GS) | 6th (GS) | Gap | Fixed |")
+    add("|---|---|---|---|---|")
+    for key in close:
+        auto = details[key]["auto"]
+        fifth, sixth = auto["fifth"], auto["sixth"]
+        add("| `" + key + "` | " + fifth[1] + " (" + str(fifth[2]) + ") | "
+            + (sixth[1] + " (" + str(sixth[2]) + ")" if sixth is not None else "—") + " | "
+            + "{:.0%}".format(auto["gap"]) + " | " + ("✔" if key in overridden else "") + " |")
+    add("")
+
+    # -- Scorers outside the five ----------------------------------------------------
+    add("## Leading scorers outside the five")
+    add("")
+    add("Pool teams where one of the team's top " + str(REPORT_TOP_SCORERS) + " scorers (PPG, " + str(MIN_TEAM_GAMES)
+        + "+ games) is not in the five. Usually injuries or a bench scorer; the five stays as games started give it "
+        "unless the owner fixes it. The 1997–98 Bulls are the famous case: Toni Kukoč started more games than an "
+        "injured Scottie Pippen.")
+    add("")
+    add("| Team | Scorer: PPG, games, GS | Fewest GS in the five |")
+    add("|---|---|---|")
+    for key in teams:
+        d = details[key]
+        roster = d["roster"]
+        eligible = roster[roster["games"] >= MIN_TEAM_GAMES].assign(ppg=lambda r: r["pts"] / r["games"])
+        top = eligible.sort_values(["ppg", "personId"], ascending=[False, True]).head(REPORT_TOP_SCORERS)
+        out = top[~top["personId"].isin(d["ids"])]
+        if out.empty:
+            continue
+        five = roster[roster["personId"].isin(d["ids"])]
+        low = five.sort_values(["gs", "personId"]).iloc[0]
+        add("| `" + key + "` | " + "; ".join(full_name(p) + ": " + "%.1f" % p["ppg"] + ", " + str(int(p["games"])) + " g, "
+                                            + ("—" if pd.isna(p["gs"]) else str(int(p["gs"]))) + " GS" for _, p in out.iterrows())
+            + " | " + full_name(low) + " (" + ("—" if pd.isna(low["gs"]) else str(int(low["gs"]))) + ") |")
+    add("")
+
+    # -- Overrides -------------------------------------------------------------------
     add("## Overrides in use")
     add("")
     used = False
@@ -897,8 +1260,8 @@ def write_report(pool: dict, index: pd.DataFrame, path: Path = REPORT_PATH) -> N
         if d["method"] == METHOD_OVERRIDE:
             used = True
             note = pool_override_note(key)
-            add("- `" + key + "`: five fixed to " + names(key, teams_ids(teams[key], d)) + ". The "
-                + d["auto"]["method"] + " rule gave " + names(key, d["auto"]["ids"]) + "." + (" " + note if note else ""))
+            add("- `" + key + "`: five fixed to " + names(key, d["ids"]) + ". Games started gave "
+                + with_gs(key, d["auto"]["ids"]) + "." + (" " + note if note else ""))
         if REASON_PIN in teams[key]["reasons"]:
             used = True
             add("- `" + key + "`: pinned to " + teams[key]["tier"] + ".")
@@ -915,8 +1278,7 @@ def write_report(pool: dict, index: pd.DataFrame, path: Path = REPORT_PATH) -> N
         + " fewer games in the player file than `index.json` counts, " + str(len(pool_gaps)) + " of them in the pool"
         + (": " + ", ".join("`" + k + "` (" + str(a) + " of " + str(b) + ")" for k, a, b in pool_gaps) if pool_gaps else "")
         + ". Per-game stats use the games the player file has.")
-    add("- **Names** are written as the source spells them, in UTF-8. The source mostly drops accents (\"Toni Kukoc\", "
-        "\"Manu Ginobili\", \"Nikola Jokic\") and writes some initials without dots (\"JR Smith\"). Pool starters "
+    add("- **Names** use Basketball-Reference's spelling, in UTF-8 (\"J.R. Smith\", \"Toni Kukoč\"). Pool starters "
         "with non-ASCII letters: " + (", ".join(accented) if accented else "none") + ".")
     add("- **Regular season** is every game whose id starts with 2, including NBA Cup group and knockout games "
         "(they count in the standings) and not the Cup final. About half of 2000–01's player rows have no team "
@@ -962,21 +1324,18 @@ def write_report(pool: dict, index: pd.DataFrame, path: Path = REPORT_PATH) -> N
     add("## Every starting five")
     add("")
     add("Ordered guards to centers (`Players.csv` flags), then by PPG. Each starter shows PPG and up to "
-        + str(SIG_MAX) + " signature stats with their league percentile, games for the team, and the count the "
-        "five was chosen by (starts, inferred starts, or games in the team's top 5 by minutes). Bench is the "
-        "team's points per game not scored by these five; 3PA rate is the team's threes per shot.")
+        + str(SIG_MAX) + " signature stats with their league percentile, games for the team, and games started "
+        "(GS). Bench is the team's points per game not scored by these five; 3PA rate is the team's threes per shot.")
     add("")
-    count_word = {METHOD_FLAG: "starts", METHOD_BENCH: "inferred starts", METHOD_PROXY: "top-5 games"}
     for key in sorted(teams, key=lambda k: (idx.loc[k, "season"], k)):
         t, d = teams[key], details[key]
-        method = d["auto"]["method"]
         add("### " + era_name(d["team"]) + " · " + str(t["wins"]) + "–" + str(t["losses"]) + " · " + t["tier"]
             + " · five from " + d["method"])
         add("")
         for s in d["starters"]:
             sig = ", ".join(fmt_sig(x) + " (" + "{:.0%}".format(p) + ")" for x, p in zip(s["sig"], s["_pctile"]))
             add("- " + s["name"] + ": " + "%.1f" % s["ppg"] + " PPG, " + sig + " · " + str(s["_games"]) + " g, "
-                + str(s["_count"][method]) + " " + count_word[method])
+                + ("—" if s["_gs"] is None else str(s["_gs"])) + " GS")
         add("- Bench: " + "%.1f" % t["benchPpg"] + " PPG"
             + (" · 3PA rate " + ("%.3f" % t["threeRate"]).lstrip("0") if "threeRate" in t else ""))
         add("")
@@ -984,13 +1343,6 @@ def write_report(pool: dict, index: pd.DataFrame, path: Path = REPORT_PATH) -> N
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(lines))
-
-
-def teams_ids(team: dict, detail: dict) -> list:
-    """personIds of a pool team's exported five, in card order."""
-    roster = detail["roster"]
-    by_name = {full_name(r): int(r["personId"]) for _, r in roster.iterrows()}
-    return [by_name[s["name"]] for s in team["starters"]]
 
 
 def pool_override_note(key: str) -> str:
@@ -1001,7 +1353,7 @@ def pool_override_note(key: str) -> str:
 
 
 def season_runs(methods: dict) -> list:
-    """Consecutive seasons that share a starting-five method."""
+    """Consecutive seasons that share a rule."""
     runs = []
     for season in sorted(methods):
         if runs and methods[runs[-1][-1]] == methods[season] and runs[-1][-1] == season - 1:
@@ -1026,8 +1378,10 @@ def main():
     champions = derive_champions(games, index)
     print("Champions: " + str(len(champions)))
 
+    bbref   = load_bbref_totals(sorted(set(index["season"])))
+    abbrevs = load_team_abbrevs()
     player_games = add_bench_inferred_starts(load_player_games(index), load_bench_targets(), index)
-    pool = build_pool(index, player_games, champions, overrides, load_positions())
+    pool = build_pool(index, player_games, bbref, abbrevs, champions, overrides, load_positions())
     validate_pool(pool, index)
 
     write_teams_json(pool, release, OUTPUT_PATH)
@@ -1035,9 +1389,13 @@ def main():
 
     tiers = pd.Series([t["tier"] for t in pool["teams"].values()]).value_counts().to_dict()
     print("Pool: " + str(len(pool["teams"])) + " teams " + str(tiers))
-    for method in (METHOD_FLAG, METHOD_BENCH, METHOD_PROXY):
-        seasons = sorted(s for s, m in pool["methods"].items() if m == method)
-        print("Seasons using " + method + ": " + str(seasons))
+    checks = pd.DataFrame(pool["checks"])
+    checks = checks[checks["key"].isin(pool["teams"])]
+    for method in (CHECK_FLAG, CHECK_BENCH, CHECK_PROXY):
+        sub = checks[checks["previous"] == method]
+        print("Pool teams the first version gave to " + method + ": " + str(len(sub))
+              + ", same five as games started: " + str(int((sub[method] == 0).sum())))
+    print("Unmatched players in a top " + str(REPORT_UNMATCHED) + " by GS: " + str(len(pool["unmatched"])))
     print("Saved: " + str(OUTPUT_PATH))
     print("Saved: " + str(REPORT_PATH))
 

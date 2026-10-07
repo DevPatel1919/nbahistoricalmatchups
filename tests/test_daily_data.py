@@ -7,9 +7,11 @@ the matchup pool and player data).
 The unit tests run each rule on small synthetic frames. The artifact tests
 read the committed frontend/public/data/daily/teams.json and index.json, so
 they run without data/raw/. The rebuild test re-runs the export and is
-skipped when the gitignored raw files are missing.
+skipped when the gitignored raw files (data/raw/, data/raw/bbref/) are
+missing.
 
 Run from repo root:
+    python backend/scripts/import_bbref_dataset.py    # once
     python scripts/export_daily_data.py
     python -m pytest tests/test_daily_data.py -v
 """
@@ -25,8 +27,9 @@ from scripts import export_daily_data as daily
 TEAMS_PATH = daily.OUTPUT_PATH
 needs_pool = pytest.mark.skipif(not TEAMS_PATH.exists(), reason="daily teams.json not exported")
 needs_raw  = pytest.mark.skipif(not (daily.PLAYERS_PATH.exists() and daily.GAMES_PATH.exists()
-                                     and daily.TEAM_STATS_PATH.exists() and daily.PEOPLE_PATH.exists()),
-                                reason="data/raw/ not present")
+                                     and daily.TEAM_STATS_PATH.exists() and daily.PEOPLE_PATH.exists()
+                                     and daily.BBREF_TOTALS_PATH.exists() and daily.BBREF_ABBREV_PATH.exists()),
+                                reason="data/raw/ or data/raw/bbref/ not present")
 
 # Finals winners, 1985-86 to 2024-25 (2025-26 is checked from the data by eye
 # in reports/daily_pool.md).
@@ -41,12 +44,12 @@ KNOWN_CHAMPIONS = {
     2021: "bucks", 2022: "warriors", 2023: "nuggets", 2024: "celtics", 2025: "thunder",
 }
 
-# The brief's starting-five fixtures, spelled as the source data spells them
-# (it writes "JR Smith" without dots).
+# The brief's starting-five fixtures, spelled as Basketball-Reference spells
+# them ("J.R. Smith").
 FIXTURE_FIVES = {
     "1986-celtics":   {"Danny Ainge", "Dennis Johnson", "Larry Bird", "Kevin McHale", "Robert Parish"},
     "1996-bulls":     {"Ron Harper", "Michael Jordan", "Scottie Pippen", "Dennis Rodman", "Luc Longley"},
-    "2016-cavaliers": {"Kyrie Irving", "JR Smith", "LeBron James", "Kevin Love", "Tristan Thompson"},
+    "2016-cavaliers": {"Kyrie Irving", "J.R. Smith", "LeBron James", "Kevin Love", "Tristan Thompson"},
     "2017-warriors":  {"Stephen Curry", "Klay Thompson", "Kevin Durant", "Draymond Green", "Zaza Pachulia"},
     "2004-pistons":   {"Chauncey Billups", "Richard Hamilton", "Tayshaun Prince", "Rasheed Wallace", "Ben Wallace"},
 }
@@ -132,7 +135,7 @@ def test_flag_five_is_most_starts_with_minutes_breaking_ties():
     r = roster([(1, 80, 80, 0, 0, 2800), (2, 80, 78, 0, 0, 2500), (3, 80, 70, 0, 0, 2400),
                 (4, 80, 60, 0, 0, 2300), (5, 80, 50, 0, 0, 1500), (6, 80, 50, 0, 0, 1900),
                 (7, 80, 2, 0, 0, 2600)])
-    five = daily.pick_five(r, daily.METHOD_FLAG, games=82)
+    five = daily.pick_five(r, daily.CHECK_FLAG, games=82)
     assert set(five["ids"]) == {1, 2, 3, 4, 6}
     assert five["sixth"] == 5 and five["gap"] == 0
 
@@ -141,17 +144,17 @@ def test_proxy_five_takes_the_heavy_minute_sixth_man_over_a_low_minute_starter()
     # The proxy's known weakness (1995-96 Kukoc): ranked by games in the team's top 5 for minutes.
     r = roster([(1, 82, 0, 0, 80, 3000), (2, 82, 0, 0, 78, 2900), (3, 82, 0, 0, 75, 2700),
                 (4, 82, 0, 0, 60, 2300), (5, 82, 0, 0, 30, 1600), (6, 82, 0, 0, 55, 2100)])
-    five = daily.pick_five(r, daily.METHOD_PROXY, games=82)
+    five = daily.pick_five(r, daily.CHECK_PROXY, games=82)
     assert 6 in five["ids"] and 5 not in five["ids"]
-    assert five["method"] == daily.METHOD_PROXY
+    assert five["method"] == daily.CHECK_PROXY
 
 
 def test_five_needs_min_team_games_and_raises_without_five_eligible():
     r = roster([(1, 82, 82, 0, 0, 3000), (2, 82, 82, 0, 0, 2900), (3, 82, 82, 0, 0, 2700),
                 (4, 82, 82, 0, 0, 2300), (5, daily.MIN_TEAM_GAMES - 1, 19, 0, 0, 700), (6, 60, 10, 0, 0, 1000)])
-    assert 5 not in daily.pick_five(r, daily.METHOD_FLAG, games=82)["ids"]
+    assert 5 not in daily.pick_five(r, daily.CHECK_FLAG, games=82)["ids"]
     with pytest.raises(ValueError, match="Fewer than 5"):
-        daily.pick_five(r[r["personId"] != 6], daily.METHOD_FLAG, games=82)
+        daily.pick_five(r[r["personId"] != 6], daily.CHECK_FLAG, games=82)
 
 
 def test_infer_starters_finds_the_subset_that_scores_team_minus_bench():
@@ -176,7 +179,133 @@ def test_season_methods_prefer_flag_then_bench_then_proxy():
     flags = {2000: 0.0, 2010: 0.0, 2020: 1.0, 2022: 0.0}
     bench = {2000: 0.02, 2010: 1.0, 2020: 1.0, 2022: 0.0}
     assert daily.season_methods(flags, bench) == {
-        2000: daily.METHOD_PROXY, 2010: daily.METHOD_BENCH, 2020: daily.METHOD_FLAG, 2022: daily.METHOD_PROXY}
+        2000: daily.CHECK_PROXY, 2010: daily.CHECK_BENCH, 2020: daily.CHECK_FLAG, 2022: daily.CHECK_PROXY}
+
+
+# ---------------------------------------------------------------------------
+# Games started (Basketball-Reference)
+# ---------------------------------------------------------------------------
+
+def bbref(rows, season=2000, team="TST") -> pd.DataFrame:
+    """Basketball-Reference-shaped rows from (player_id, player, g, gs, mp)."""
+    out = pd.DataFrame(rows, columns=["player_id", "player", "g", "gs", "mp"])
+    out["season"], out["team"] = season, team
+    return out
+
+
+def test_gs_five_is_most_games_started_with_minutes_breaking_ties():
+    rows = bbref([("a", "A", 82, 82, 3000), ("b", "B", 82, 80, 2900), ("c", "C", 82, 75, 2500),
+                  ("d", "D", 82, 60, 2000), ("e", "E", 82, 40, 1500), ("f", "F", 82, 40, 1900),
+                  ("g", "G", 82, 2, 2600)])
+    five = daily.pick_gs_five(rows, games=82)
+    assert five["player_ids"] == ["a", "b", "c", "d", "f"]
+    assert five["fifth"] == ("f", "F", 40) and five["sixth"] == ("e", "E", 40) and five["gap"] == 0
+
+
+def test_gs_five_needs_min_team_games_and_raises_without_five_eligible():
+    rows = bbref([("a", "A", 82, 82, 3000), ("b", "B", 82, 82, 2900), ("c", "C", 82, 82, 2700),
+                  ("d", "D", 82, 82, 2300), ("e", "E", daily.MIN_TEAM_GAMES - 1, 19, 700), ("f", "F", 60, 10, 1000)])
+    five = daily.pick_gs_five(rows, games=82)
+    assert "e" not in five["player_ids"] and five["sixth"] is None
+    assert round(five["gap"], 3) == round(10 / 82, 3)
+    with pytest.raises(ValueError, match="Fewer than 5"):
+        daily.pick_gs_five(rows[rows["player_id"] != "f"], games=82)
+
+
+def test_bbref_totals_keep_per_team_rows_and_drop_multi_team_totals(tmp_path):
+    path = tmp_path / "Player Totals.csv"
+    pd.DataFrame({
+        "season":    [1998, 1998, 1998, 1998, 1998, 1997],
+        "lg":        ["NBA", "NBA", "NBA", "NBA", "ABA", "NBA"],
+        "player":    ["Ron Harper", "Rasheed Wallace", "Rasheed Wallace", "Rasheed Wallace", "Someone", "Ron Harper"],
+        "player_id": ["harpero01", "wallara01", "wallara01", "wallara01", "someo01", "harpero01"],
+        "team":      ["CHI", "2TM", "POR", "DET", "XXX", "CHI"],
+        "g": [82, 68, 46, 22, 10, 76], "gs": [82, 66, 45, 21, 0, 74], "mp": [2000, 2500, 1700, 800, 100, 2000],
+    }).to_csv(path, index=False, encoding="utf-8")
+    out = daily.load_bbref_totals([1998], path)
+    assert sorted(zip(out["player_id"], out["team"])) == [("harpero01", "CHI"), ("wallara01", "DET"), ("wallara01", "POR")]
+    with pytest.raises(ValueError, match="no rows for seasons"):
+        daily.load_bbref_totals([1998, 1999], path)
+
+
+def test_normalize_name_drops_accents_punctuation_and_suffixes():
+    assert daily.normalize_name("J.R. Smith") == daily.normalize_name("JR Smith") == "jr smith"
+    assert daily.normalize_name("Toni Kukoč") == daily.normalize_name("Toni Kukoc") == "toni kukoc"
+    assert daily.normalize_name("Ömer Aşık") == "omer asik"
+    assert daily.normalize_name("Egor Dёmin") == "egor demin"
+    assert daily.normalize_name("Pétur Guðmundsson") == "petur gudmundsson"
+    assert daily.normalize_name("Marcus Morris Sr.") == daily.normalize_name("Marcus Morris") == "marcus morris"
+    assert daily.normalize_name("Shai Gilgeous-Alexander") == "shai gilgeous alexander"
+    assert daily.normalize_name("Amar'e Stoudemire") == "amare stoudemire"
+
+
+def test_name_aliases_are_normalized_on_both_sides():
+    for bbref_name, ours in daily.NAME_ALIASES.items():
+        assert daily.normalize_name(bbref_name) == bbref_name and daily.normalize_name(ours) == ours
+        assert bbref_name != ours
+
+
+def test_split_name_takes_the_first_word_as_the_first_name():
+    assert daily.split_name("J.R. Smith") == ("J.R.", "Smith")
+    assert daily.split_name("Nick Van Exel") == ("Nick", "Van Exel")
+    assert daily.split_name("Nenê") == ("", "Nenê")
+    assert daily.short_name(dict(zip(("firstName", "lastName"), daily.split_name("Gary Payton II")))) == "G. Payton II"
+
+
+def ours(rows) -> pd.DataFrame:
+    """player_team_seasons-shaped rows from (personId, firstName, lastName, games)."""
+    return pd.DataFrame(rows, columns=["personId", "firstName", "lastName", "games"])
+
+
+def test_match_players_by_name_then_alias_then_games():
+    rows = bbref([("smithjr01", "J.R. Smith", 77, 77, 2500), ("hilarne01", "Nenê", 70, 70, 2000),
+                  ("kukocto01", "Toni Kukoč", 80, 20, 2100), ("jonesch01", "Charles Jones", 53, 45, 1154),
+                  ("jonesch02", "Charles Jones", 43, 0, 516), ("ghost01", "Nobody Here", 30, 0, 300)])
+    roster = ours([(1, "JR", "Smith", 77), (2, "Nene", "Hilario", 70), (3, "Toni", "Kukoc", 80),
+                   (4, "Charles", "Jones", 53), (5, "Charles", "Jones", 43)])
+    matched = daily.match_players(rows, roster)
+    assert matched.drop("ghost01").to_dict() == {
+        "smithjr01": 1, "hilarne01": 2, "kukocto01": 3, "jonesch01": 4, "jonesch02": 5}
+    assert np.isnan(matched["ghost01"])
+
+
+def test_match_players_leaves_ambiguous_and_doubly_claimed_players_unmatched():
+    # Two of ours share a name and neither games count fits; two Basketball-Reference rows claim one player.
+    rows = bbref([("a1", "Sam Same", 50, 40, 1500), ("b1", "Steve Smith", 60, 60, 2000), ("b2", "Steven Smith", 60, 0, 300)])
+    roster = ours([(1, "Sam", "Same", 30), (2, "Sam", "Same", 20), (3, "Steven", "Smith", 60)])
+    matched = daily.match_players(rows, roster)
+    assert matched.isna().all()
+
+
+def test_gs_roster_uses_bbref_spelling_and_games_started():
+    rows = bbref([("kukocto01", "Toni Kukoč", 80, 20, 2100), ("smithjr01", "J.R. Smith", 77, 77, 2500)])
+    roster = ours([(3, "Toni", "Kukoc", 80), (1, "JR", "Smith", 77), (9, "Not", "Matched", 25)])
+    out = daily.gs_roster(roster, rows, daily.match_players(rows, roster)).set_index("personId")
+    assert [daily.full_name(out.loc[i]) for i in (3, 1, 9)] == ["Toni Kukoč", "J.R. Smith", "Not Matched"]
+    assert out.loc[3, "gs"] == 20 and out.loc[1, "gs"] == 77 and np.isnan(out.loc[9, "gs"])
+
+
+def test_team_abbreviations_by_city_and_name_then_nickname():
+    index = pd.DataFrame({"key": ["2006-hornets", "1986-bullets", "2026-clippers"], "season": [2006, 1986, 2026],
+                          "city": ["Oklahoma City", "Washington", "LA"], "name": ["Hornets", "Bullets", "Clippers"]})
+    abbrevs = pd.DataFrame({
+        "season": [2006, 2006, 1986, 1986, 2026, 2026],
+        "team": ["New Orleans/Oklahoma City Hornets", "Charlotte Bobcats", "Washington Bullets", "Los Angeles Lakers",
+                 "Los Angeles Clippers", "Los Angeles Lakers"],
+        "abbreviation": ["NOK", "CHA", "WSB", "LAL", "LAC", "LAL"],
+    })
+    assert daily.team_abbreviations(index, abbrevs).to_dict() == {
+        "2006-hornets": "NOK", "1986-bullets": "WSB", "2026-clippers": "LAC"}
+
+
+def test_team_abbreviations_raise_on_no_or_several_matches():
+    index = pd.DataFrame({"key": ["2000-ghosts"], "season": [2000], "city": ["Nowhere"], "name": ["Ghosts"]})
+    abbrevs = pd.DataFrame({"season": [2000], "team": ["Boston Celtics"], "abbreviation": ["BOS"]})
+    with pytest.raises(ValueError, match="exactly one"):
+        daily.team_abbreviations(index, abbrevs)
+    two = pd.DataFrame({"season": [2000, 2000], "team": ["North Ghosts", "South Ghosts"], "abbreviation": ["NGH", "SGH"]})
+    with pytest.raises(ValueError, match="exactly one"):
+        daily.team_abbreviations(index, two)
 
 
 def test_override_five_resolves_names_and_rejects_strangers():
@@ -313,7 +442,7 @@ def test_every_pool_team_follows_the_rules(pool, index):
         if daily.REASON_PIN not in t["reasons"]:
             marquee = bool({daily.REASON_CHAMPION, daily.REASON_VERY_HIGH} & set(t["reasons"]))
             assert t["tier"] == (daily.TIER_MARQUEE if marquee else daily.TIER_KNOWN), key
-        assert t["fiveFrom"] in list(daily.METHOD_SCORE) + [daily.METHOD_OVERRIDE], key
+        assert t["fiveFrom"] in daily.FIVE_FROM, key
         for field in ("pace", "offRating", "defRating"):
             assert t[field] == row[field], key
         assert t["benchPpg"] >= 0 and 0 < t.get("threeRate", 0.1) < 1, key
@@ -340,6 +469,25 @@ def test_champions_match_the_record(pool):
 @pytest.mark.parametrize("key,five", sorted(FIXTURE_FIVES.items()))
 def test_starting_five_fixtures(pool, key, five):
     assert {s["name"] for s in pool["teams"][key]["starters"]} == five
+
+
+@needs_pool
+@pytest.mark.parametrize("key,name", [
+    ("1998-bulls",     "Toni Kukoč"),
+    ("2005-spurs",     "Manu Ginóbili"),
+    ("2023-nuggets",   "Nikola Jokić"),
+    ("2016-cavaliers", "J.R. Smith"),
+])
+def test_names_keep_basketball_reference_spelling(pool, key, name):
+    starter = next(s for s in pool["teams"][key]["starters"] if s["name"] == name)
+    assert starter["short"] == name[0] + ". " + name.split(" ", 1)[1]
+
+
+@needs_pool
+def test_every_five_is_games_started_or_an_override(pool):
+    overrides = daily.load_overrides()["starters"]
+    for key, t in pool["teams"].items():
+        assert t["fiveFrom"] == (daily.METHOD_OVERRIDE if key in overrides else daily.METHOD_GS), key
 
 
 @needs_pool

@@ -41,6 +41,7 @@ Run from the repo root, in this order:
 
 ```
 python backend/scripts/import_dataset.py                  # Kaggle download into data/raw/ (needs KAGGLE_USERNAME / KAGGLE_KEY in .env)
+python backend/scripts/import_bbref_dataset.py            # F12 Daily Three only: Basketball-Reference totals into data/raw/bbref/ (rights caveat: HANDOFF commercial-data gate)
 python backend/scripts/clean_team_histories.py
 python backend/scripts/build_team_season_profiles_extended.py
 python backend/scripts/build_pregame_features.py          # ~2 min (player box scores)

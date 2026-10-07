@@ -1,7 +1,10 @@
 # F12: Daily Three (a daily pick'em with simulated games)
 
-Status: **Session 1 built (2026-10-06, branch `f12-s1-pool`); its PR waits for
-the owner's review of the pool and Q2.** Decided with the owner on 2026-10-05.
+Status: **Session 1 built (2026-10-06) and reworked to games started
+(2026-10-07, branch `f12-s1-pool`, PR #18). Not merged: it waits for the
+owner's calls on the Basketball-Reference data rights, the 1997–98 Bulls, the
+notable-star rule and the 2025–26 champion.** Decided with the owner on
+2026-10-05.
 
 Read first, in order: `CONTRIBUTING.md`, `docs/product/HANDOFF.md`,
 `docs/product/DEPLOYMENT.md` (the staging setup and the "stop before going
@@ -71,7 +74,7 @@ code, not hard rules:
 | # | Question | Recommendation | Decide by |
 |---|---|---|---|
 | Q1 | After the reveal, show the simulator's odds ("Upset! The simulator gave them 31%")? Never before the pick | Yes, after the reveal only. It explains upsets, so the luck feels fair | Session 3 |
-| Q2 | If the player data has no starter flag, how should the starting five be defined? | Decide from Session 1's evidence (see "Starting five") | Session 1 |
+| Q2 | If the player data has no starter flag, how should the starting five be defined? | **Mostly answered by the data (owner, 2026-10-06):** games started from Basketball-Reference (`sumitrodatta/nba-aba-baa-stats`) for every season. Still open: accepting that source's rights, and the 1997–98 Bulls (Kukoč over an injured Pippen). See Session 1's record | Session 1 |
 | Q3 | Does missing a day reset the hot streak? | No. Only a wrong pick resets it; a missed day resets only the play streak | Session 2 |
 | Q4 | Launch date (puzzle #1) | Set in Session 5, after the staging play-test | Session 5 |
 | Q5 | The share text names the matchups, not the winners (spoiler-free, see "Share text"). The 2026-10-05 mock-up showed winners | Spoiler-free. Everyone gets the same simulated games, so naming winners spoils them for friends | Session 3 |
@@ -175,6 +178,11 @@ gitignored, so Session 1 must run on a machine with `data/raw/`. Only the
 
 ### Starting five
 
+> **Superseded (2026-10-07).** The owner chose games started from
+> Basketball-Reference for every season: the 5 players with the most games
+> started for the team (ties by minutes, `MIN_TEAM_GAMES` still applies).
+> See Session 1's record. The plan as first written follows.
+
 **Session 1 first checks whether the file marks starters.** Then:
 
 - **If there is a starter flag:** the starting five is the 5 players with the
@@ -265,7 +273,7 @@ All files are generated static data under `frontend/public/data/daily/`:
 
 | File | Contents |
 |---|---|
-| `teams.json` | `{ generated, release, champions: { <season>: <key> }, teams: { <key>: { tier, reasons[], fiveFrom, wins, losses, pace, offRating, defRating, threeRate?, benchPpg, starters: [{ name, short, ppg, sig: [{ stat, value }] }] } } }` for pool teams only. `reasons` are `champion`, `very-high-win`, `high-win`, `notable-star`, `owner-pin`. `fiveFrom` is `starts`, `bench-points`, `minutes-proxy` or `override` (Session 1 record). `stat` is one of `RPG`, `APG`, `SPG`, `BPG`, `3PM`, `FG%`, `3P%`; percentages are fractions (0.574). Starters are in card order, guards to centers |
+| `teams.json` | `{ generated, release, champions: { <season>: <key> }, teams: { <key>: { tier, reasons[], fiveFrom, wins, losses, pace, offRating, defRating, threeRate?, benchPpg, starters: [{ name, short, ppg, sig: [{ stat, value }] }] } } }` for pool teams only. `reasons` are `champion`, `very-high-win`, `high-win`, `notable-star`, `owner-pin`. `fiveFrom` is `games-started` or `override` (Session 1 record). Names use Basketball-Reference's spelling, with accents. `stat` is one of `RPG`, `APG`, `SPG`, `BPG`, `3PM`, `FG%`, `3P%`; percentages are fractions (0.574). Starters are in card order, guards to centers |
 | `meta.json` | `{ launchDate, lastDay, engine }` |
 | `days/<n>.json` | `{ n, date, engine, games: [{ a, b, p, m, featured }] }`. `a` and `b` are in canonical order, `p` is `a`'s neutral win probability, and `m` is `a`'s exported margin |
 
@@ -615,130 +623,178 @@ _(Each session adds its record here: what changed, the numbers, the owner's
 decisions, what was deployed where, and anything that differed from this
 plan.)_
 
-### Session 1: the pool and player data (2026-10-06)
+### Session 1: the pool and player data (2026-10-06, reworked 2026-10-07)
 
-Branch `f12-s1-pool`. No UI, nothing deployed.
+Branch `f12-s1-pool`, PR #18 (not merged). No UI, nothing deployed.
+
+The first version (2026-10-06) picked starting fives with three rules, because
+`PlayerStatistics.csv` marks starters only in some seasons. On 2026-10-06 the
+owner looked at the evidence and chose to take **games started (GS) from
+Basketball-Reference** for every season instead, through the Kaggle dataset
+`sumitrodatta/nba-aba-baa-stats`. The rework (2026-10-07) is below; the first
+version's evidence follows it, because it is now the cross-check.
 
 **What was built**
 
+- `backend/scripts/import_bbref_dataset.py` downloads
+  `sumitrodatta/nba-aba-baa-stats` ("NBA Stats (1947-present)") into the
+  gitignored `data/raw/bbref/`, with the same Kaggle credentials as
+  `import_dataset.py`. The export reads two files from it: `Player Totals.csv`
+  (games, GS and minutes per player per team-season) and `Team Abbrev.csv`.
 - `scripts/export_daily_data.py` writes `frontend/public/data/daily/teams.json`
-  (219 KB, compact JSON) and `reports/daily_pool.md`. It takes about 25
+  (219 KB, compact JSON) and `reports/daily_pool.md`. It takes about 30
   seconds and is deterministic: the rebuild test re-runs it and matches the
   committed file.
-- `scripts/daily_pool_overrides.json` fixes three fives (below). It has no
-  pins and no exclusions.
-- `tests/test_daily_data.py` has 37 tests:
-  - unit tests on synthetic frames for every rule;
+- `scripts/daily_pool_overrides.json` fixes two fives (below). It has no pins
+  and no exclusions.
+- `tests/test_daily_data.py` has 53 tests:
+  - unit tests on synthetic frames for every rule, including the GS pick,
+    name matching and the team mapping;
   - artifact tests on the committed `teams.json`: the 5 fixtures, the pool
-    rules, champions, and signature stats;
-  - a rebuild test, skipped without `data/raw/`.
+    rules, champions, signature stats and name spelling;
+  - a rebuild test, skipped without `data/raw/` or `data/raw/bbref/`.
 
-**The pool:** 289 team-seasons.
+**The starting-five rule (Q2, rework).** A team's five is its 5 players with
+the most games started that season (ties by minutes). A player needs
+`MIN_TEAM_GAMES` (20) games for the team, and a traded player's
+Basketball-Reference rows count per team; the 2TM/3TM season totals are
+ignored. `fiveFrom` is `games-started`, or `override` for the overrides file.
+
+- **Teams** map to Basketball-Reference abbreviations by era-correct city and
+  name, falling back to the nickname (the 2006 and 2007 Oklahoma City Hornets,
+  the 2026 LA Clippers). All 1,177 team-seasons map to exactly one; anything
+  else raises.
+- **Players** match `PlayerStatistics.csv` within the team-season by a
+  normalised name: accents (NFKD) and punctuation dropped, Jr./Sr./II–IV
+  ignored. That covers "J.R. Smith" / "JR Smith" and "Kukoč" / "Kukoc". The
+  rest go through `NAME_ALIASES`, which has **39** entries, more than the
+  "small table" expected. Most are 1980s–90s spellings: "Fat Lever" /
+  "Lafayette Lever", "Steve Smith" / "Steven Smith", "Clarence Weatherspoon" /
+  "Clar. Weatherspoon", "Nenê" / "Nene Hilario", and reversed Chinese names.
+  When two players share a name (the 1989 Bullets' two Charles Joneses), games
+  played tells them apart. Every starter must match exactly one player, or the
+  script raises. No player in any team's top 8 by GS is unmatched.
+- **Cards** use Basketball-Reference's spelling, so names now carry their
+  accents: Kukoč, Ginóbili, Jokić, Dončić, Porziņģis and 13 more pool
+  starters. PPG and signature stats still come from `PlayerStatistics.csv`.
+
+**Agreement with the first version.** These are pool teams, compared with the
+five the first version's rule gave them, before overrides:
+
+| First version's rule | Pool teams | Same five as GS |
+|---|---|---|
+| Starter flag (2017–18 on, not 2021–22) | 56 | **56** |
+| Bench-points inference (2003–04 to 2016–17) | 99 | **98**. The one difference is the 2016 Raptors: James Johnson (32 GS) over Norman Powell (24) |
+| Minutes proxy (1985–86 to 2002–03, 2021–22) | 133 | **60** |
+
+Across all 1,177 team-seasons, GS agrees with the flag in 239 of 240, with
+bench points in 614 of 659, and with the proxy in 481 of 1,177. The probe
+before the rework counted 93/97 and 57/133. It compared names without the
+alias table, so Nenê (three teams), Fat Lever and Steve Smith (two teams)
+counted as changes. The real numbers are 96/97 (98/99 including the two
+override teams) and 60/133.
+
+So **74 pool fives change** from the first version's rule: 73 proxy fives and
+the 2016 Raptors. That includes `1996-bulls`, whose card was already fixed by
+override to the GS five, so **73 cards change**. One team leaves the pool:
+`1990-mavericks` was in only for Roy Tarpley's RPG rank. Its GS five doesn't
+include him, so the notable-star rule no longer applies.
+
+**The pool:** 288 team-seasons (was 289).
 
 | Tier | Teams | Notes |
 |---|---|---|
 | Marquee | 67 | Every champion 1985–86 to 2025–26, plus win % ≥ .750 |
-| Known | 222 | 128 of these get in **only** through the notable-star rule |
+| Known | 221 | 127 of these get in **only** through the notable-star rule |
 
-That gives 41,616 pairings, 2,211 of them marquee vs marquee (about 6 years of
+That gives 41,328 pairings, 2,211 of them marquee vs marquee (about 6 years of
 featured games). All 41 champions came out right against the known list for
 1985–86 to 2024–25, including the 2020 bubble. The data gives **2025–26 to the
 Knicks** (Finals Game 5, 94–90 at San Antonio). The owner should confirm that
 one.
 
-**Q2 evidence: the starter flag (step 1).** `PlayerStatistics.csv` has one
-starter column, `startingPosition` (G/F/C), and no other position column.
-`Players.csv` has guard/forward/center flags, which are used only to order the
-card. Every season 1985–86 to 2025–26 is present. The flag is reliable only
-for **2017–18 to 2025–26, minus 2021–22**: exactly 5 per team-game. Elsewhere:
-- **1996–97 to 2016–17:** the column is filled for about 9 players per
-  team-game (Shaq appears as "G"), so it is not a starter flag.
-- **Before 1996–97, and in 2021–22:** the column is blank.
+**Overrides**
 
-So most of the pool needs another rule, and the flagged seasons let us score
-any rule against the truth (240 team-seasons):
+- **1996 Bulls: removed.** GS gives Harper 80, Jordan 82, Pippen 77, Longley 62
+  and Rodman 57, against Kukoč's 20.
+- **2004 Pistons: kept.** Rasheed Wallace started 21 of his 22 games for
+  Detroit, against Mehmet Okur's 33 over the season.
+- **2016 Cavaliers: kept, as a deliberate playoff-five choice.** Mozgov
+  started 48 games to Tristan Thompson's 34, but Thompson started the playoffs
+  and the Finals. The fixture now spells "J.R. Smith".
+- **1997–98 Bulls: not overridden.** GS takes Kukoč (52) over Scottie Pippen
+  (44, injured for the first half). This is listed for the owner.
 
-| Rule | Exact five | 1 wrong | 2+ wrong |
-|---|---|---|---|
-| The brief's minutes proxy | 39% | 53% | 8% |
-| **Bench-points inference** (new) | **95%** | 5% | 0% |
+The famous fives were checked by eye in the report:
+- 1986 Celtics: Johnson, Ainge, Bird, McHale, Parish.
+- 1996 Bulls: as above.
+- 2000 Lakers: Harper, Bryant, Rice, Green, O'Neal.
+- 1989 Pistons: Thomas, Dumars, Dantley, Mahorn, Laimbeer. Dantley started 42
+  games before the Aguirre trade, and Aguirre has 32 GS.
+- 2017 Warriors: Pachulia at center.
+- 2022 Warriors: Curry, Poole, Wiggins, Green, Looney. Klay Thompson came back
+  in January, so he has 32 GS to Green's 44.
 
-Bench-points inference uses `TeamStatisticsExtended.csv`, which records bench
-points per game. The starters' points must add up to team score minus bench
-points. Of the 5-player subsets that do, the rule takes the one with the most
-minutes. A second pass then prefers players the first pass usually started.
+The report lists:
+- 86 GS close calls, where the 5th and 6th are within 15% of team games. Three
+  are exact ties broken by minutes: the 2022 Grizzlies, 2024 Mavericks and
+  2025 Celtics.
+- Every pool team where a top-3 scorer misses the five.
 
-A position-balance constraint (G/F/C flags) was also tried on the proxy. It
-did not help, so it was dropped.
+**Data rights (owner to accept before launch).** The GS data is scraped from
+Basketball-Reference. Sports Reference's terms forbid scraping and any public
+or commercial use of its data without written permission. Kaggle's CC0 label
+is the uploader's and does not clear that.
+- `teams.json` carries no Basketball-Reference number. The choice of each five
+  and the name spelling come from it.
+- This joins the F00 commercial-data question (HANDOFF "Commercial-data gate",
+  now noted there). It is stricter than that gate, because it covers public,
+  non-commercial use too.
 
-Bench points are usable only from **2003–04**: before that the column holds
-the whole team score. Each season uses the first rule it supports:
+**First version's evidence (now the cross-check).** `PlayerStatistics.csv`
+has one starter column, `startingPosition` (G/F/C), and no other position
+column. `Players.csv` has guard/forward/center flags, which are used only to
+order the card. The flag is reliable only for **2017–18 to 2025–26, minus
+2021–22**: exactly 5 per team-game. From 1996–97 to 2016–17 it is filled for
+about 9 players per team-game, and before that it is blank. Scored against
+the flag (240 team-seasons):
+- the minutes proxy picked the exact five 39% of the time;
+- bench-points inference picked it 95% of the time.
 
-| Rule | Seasons | Pool teams |
-|---|---|---|
-| Starter flag | 2017–18 on, except 2021–22 | 56 |
-| Bench-points inference | 2003–04 to 2016–17 | 99 |
-| Minutes proxy | 1985–86 to 2002–03, and 2021–22 | 134, **28 of them marquee** |
+Bench-points inference uses `TeamStatisticsExtended.csv`. A team's starters'
+points must add up to its score minus its bench points. That works from
+2003–04; from 1996–97 to 2002–03 the column holds the whole team score. Both
+rules are still computed, only for the report's cross-check tables.
 
-The report lists every proxy five next to its 6th man, for checking by eye.
+**Interface additions** to `teams.json`, in the data contract above:
+- `release`, copied from `index.json`;
+- a top-level `champions` map;
+- `fiveFrom` per team.
 
-**Differences from this brief**
+`threeRate` (team 3PA/FGA) is exported. `benchPpg` is the team's points per
+game not scored by the five.
 
-- **Three rules, not two.** Bench-points inference is new. It is driven by
-  the measurement above.
-- **The 1996 Bulls proxy drops Harper, not Longley.** Kukoč (51 games in the
-  top 5 by minutes) beats Ron Harper (38). The brief predicted Longley.
-- **The fixtures need three overrides:**
-  - **1996 Bulls:** Harper for Kukoč, because the proxy is wrong.
-  - **2004 Pistons:** Rasheed Wallace, as the brief expected. He played 22
-    games for Detroit.
-  - **2016 Cavaliers:** Tristan Thompson for Mozgov. Mozgov really did start
-    more regular-season games (about 48 to 34), but Thompson started the
-    playoffs.
-  - The 1986 Celtics and 2017 Warriors (Pachulia) come out right with no help.
-- **Names come as the source spells them.** It writes "JR Smith" without dots
-  and drops accents ("Toni Kukoc", "Manu Ginobili", "Nikola Jokic"). No pool
-  starter has a non-ASCII letter. The fixture test uses "JR Smith". Accents
-  could only be restored by hand.
-- **Interface additions** to `teams.json`, now in the data contract above:
-  - `release`, copied from `index.json`;
-  - a top-level `champions` map;
-  - `fiveFrom` per team, so Session 3 can label proxy cards differently if Q2
-    asks for that.
-
-  `threeRate` (team 3PA/FGA) is exported. `benchPpg` is the team's points per
-  game not scored by the five.
-- **Data handling the brief didn't anticipate:**
-  - Regular season is decided by game id (prefix 2). That includes NBA Cup
-    group and knockout games, which the player file labels "NBA Emirates Cup"
-    but which count in the standings.
-  - About half of 2000–01's player rows have no team id. They are matched by
-    the era-correct team name.
-  - About 2,000 rows give minutes as "MM:SS".
-  - 4 team-seasons are missing up to 2 games in the player file. None is in
-    the pool.
-- **Signature stats are league-relative.** A 1980s guard's 0.3 threes a game
-  can clear the 80th percentile (Danny Ainge, 1986). The brief's expectations
-  hold:
-  - Shaq: FG% and RPG;
-  - Curry: 3PM;
-  - Rodman: RPG;
-  - Jordan: SPG.
+**Data handling the brief didn't anticipate**
+- Regular season is decided by game id (prefix 2). That includes NBA Cup
+  group and knockout games, which the player file labels "NBA Emirates Cup"
+  but which count in the standings.
+- About half of 2000–01's player rows have no team id. They are matched by
+  the era-correct team name.
+- About 2,000 rows give minutes as "MM:SS".
+- 4 team-seasons are missing up to 2 games in the player file. None is in the
+  pool.
+- Signature stats are league-relative. A 1980s guard's 0.3 threes a game can
+  clear the 80th percentile (Danny Ainge, 1986). The brief's expectations
+  hold: Shaq gets FG% and RPG, Curry 3PM, Rodman RPG, and Jordan SPG.
 
 **Verification:** see the PR description for the full "How to verify" run.
 
 **For the owner to decide (stop point)**
 
-1. **Q2: the 134 proxy fives.** Recommendation: a hybrid.
-   - Fix the **28 marquee** proxy fives in the overrides file first. Every
-     featured game draws from them.
-   - Have Session 3 label the remaining known-tier proxy cards "Top five" (by
-     minutes) through `fiveFrom` until they are fixed. Keep "Starting five"
-     for flag, bench-points and override cards.
-
-   The alternatives:
-   - fix all 134 by hand;
-   - label every proxy card "Top five".
-2. **The notable-star rule** adds 128 teams on its own, 44% of the pool.
-   Keep it, or tighten `STAR_PPG_RANK` / `STAR_TEAM_WIN_PCT`?
-3. **The 2025–26 Knicks** as champion, and any pins or exclusions.
+1. **The data rights.** Accept Basketball-Reference-derived fives and spelling
+   for a public launch, or get permission from Sports Reference. This joins
+   F00.
+2. **The 1997–98 Bulls.** Keep Kukoč (GS), or override to Pippen?
+3. **The notable-star rule** adds 127 teams on its own, 44% of the pool. Keep
+   it, or tighten `STAR_PPG_RANK` / `STAR_TEAM_WIN_PCT`?
+4. **The 2025–26 Knicks** as champion, and any pins or exclusions.
