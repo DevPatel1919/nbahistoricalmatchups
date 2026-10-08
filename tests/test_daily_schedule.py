@@ -242,6 +242,27 @@ def test_verifier_catches_order_flags_dates_and_engines(small, tmp_path):
         assert any(pattern in e for e in errors), pattern
 
 
+def test_no_game_pairs_two_teams_from_the_same_season(small):
+    seasons = build.load_seasons()
+    for n in range(1, SMALL_DAYS + 1):
+        for g in read(small / "days" / (str(n) + ".json"))["games"]:
+            assert abs(seasons[g["a"]] - seasons[g["b"]]) >= build.MIN_SEASON_GAP
+    pairings = build.load_pairings(build.load_pool().keys(), seasons)
+    assert all(seasons[a] != seasons[b] for a, b in pairings)
+
+
+def test_verifier_catches_a_same_season_game(small, tmp_path):
+    d = tampered(small, tmp_path)
+    pool = read(d / "teams.json")["teams"]
+    seasons = build.load_seasons()
+    by_season = {}
+    for k in sorted(pool):
+        by_season.setdefault(seasons[k], []).append(k)
+    a, b = next(keys[:2] for keys in by_season.values() if len(keys) >= 2)
+    edit_day(d, 12, lambda day: day["games"][0].update(a=a, b=b))
+    assert_fails(d, "season(s) apart")
+
+
 def test_verifier_catches_missing_and_extra_day_files(small, tmp_path):
     d = tampered(small, tmp_path)
     (d / "days" / "17.json").unlink()

@@ -293,6 +293,8 @@ them before lock-in.
 - No unordered pairing may appear twice anywhere in the schedule's history.
 - No team-season key may appear twice within any 7 consecutive days,
   including twice on the same day.
+- No game pairs two teams from the same season (`MIN_SEASON_GAP` = 1;
+  owner, 2026-10-07). Every matchup is cross-era.
 - Choices are seeded and deterministic (`--seed`), so a rebuild with the same
   inputs is byte-identical.
 - **Released days are frozen.** The builder refuses to rewrite any day dated
@@ -840,12 +842,13 @@ deployed. Merging changes nothing visible: it adds data files under
     the band;
   - canonical order, and keys in `index.json` and the pool;
   - no pairing repeats, and no key appears twice in any 7 days;
+  - no game pairs two teams from the same season;
   - `p`/`m` match `teams/<a>.json` for unreleased days (every day while not
     launched);
   - `lastDay` is at least `MIN_DAYS_AHEAD` (60) days out.
 
   It imports the builder's constants, so the two can't drift.
-- `tests/test_daily_schedule.py` (21 tests) covers:
+- `tests/test_daily_schedule.py` (23 tests) covers:
   - the committed schedule passes, and is a byte-identical rebuild;
   - extending, shrinking, another seed, frozen days after launch, and a
     locked launch date;
@@ -901,16 +904,16 @@ deployed. Merging changes nothing visible: it adds data files under
 | Measure | Value |
 |---|---|
 | Days generated | 365 (#1 2026-10-01 to #365 2027-09-30, placeholder dates) |
-| Games / distinct pairings | 1,095 / 1,095. Of 41,328 possible, 2,211 of them marquee vs marquee: 365 used |
+| Games / distinct pairings | 1,095 / 1,095. Of 40,426 cross-season pairings, 2,180 of them marquee vs marquee: 365 used |
 | Pool use | All 288 teams. Marquee teams 11–12 times a year (10–12 as featured), known teams 6–7 |
-| Games 1–2 favourite | Mean 0.575: 624 of 730 at 0.55–0.60, 100 at 0.60–0.65, 6 at 0.65–0.70 |
-| Featured favourite | Median 0.547, max 0.666 (no odds rule needed: famous teams land close) |
-| Marquee teams in games 1–2 | 16 of 1,460 slots (least-used picking keeps them for the featured game) |
-| Same-season games | 23 of 1,095 (no rule forbids them; see below) |
+| Games 1–2 favourite | Mean 0.575: 634 of 730 at 0.55–0.60, 89 at 0.60–0.65, 7 at 0.65–0.70 |
+| Featured favourite | Median 0.545, max 0.697 (no odds rule needed: famous teams land close) |
+| Marquee teams in games 1–2 | 17 of 1,460 slots (least-used picking keeps them for the featured game) |
+| Same-season games | 0 (forbidden since the owner's 2026-10-07 decision; the first build had 23) |
 | Calibration | Over 10,000 seeds each, the winner rate is within 1.5 points of `p` at 0.31, 0.55, 0.62, 0.70 and 0.90 |
-| Upsets in the schedule | 42.8% of the 1,095 games, as the odds imply (favourites average about 57%) |
-| Simulated scores, all 1,095 games | Combined mean 205 (156–251). Margin median 8, 90th percentile 20, max 35 |
-| Game flow | 6.6 lead changes a game. Biggest run: median 9 points, 95th percentile 13. The loser led by 10+ in 19% of games |
+| Upsets in the schedule | 44.4% of the 1,095 games, about what the odds imply (favourites average about 57%) |
+| Simulated scores, all 1,095 games | Combined mean 205 (158–251). Margin median 8, 90th percentile 20, max 38 |
+| Game flow | 7.1 lead changes a game. Biggest run: median 9 points, 95th percentile 13. The loser led by 10+ in 21% of games |
 
 The flow was tuned once before the golden values were pinned. The first draft
 placed plays at random times, which gave one 46–0 run, and the eventual loser
@@ -922,6 +925,10 @@ tilted one above.
 - **Q3, decided by the owner on 2026-10-07: a missed day does not reset the
   🎯 hot streak.** Only a wrong pick does. A missed day resets only the 🔥
   play streak.
+- **No same-season games, decided by the owner on 2026-10-07.** The first
+  build had 23, such as two 1996 teams: real-world matchups, not cross-era.
+  `MIN_SEASON_GAP` (1) in the builder removes them, the verifier checks it,
+  and the schedule was rebuilt.
 - **Play streak display.** The current play streak counts through today if
   today is played. Otherwise it counts through yesterday, and it is 0 once
   yesterday was missed too. A missed number therefore shows as a reset on the
@@ -951,19 +958,16 @@ tilted one above.
   `account.spec.ts` passed in about 5 seconds each; this session touches no
   UI.
 - Worker: `tsc` passes and 123 tests pass.
-- `python -m pytest tests`: 174 tests.
+- `python -m pytest tests`: 174 tests (176 after the same-season rule).
 - `test_pregame_leakage.py` exits 0.
 - `verify_static_export.py`: 200 of 200 pairs match.
 - `verify_daily_data.py`: OK.
 
 **For the owner to decide (none blocks the merge)**
 
-1. **Same-season pairings.** The rules allow them, and 23 games are
-   same-season, for example two 1996 teams. They are real-world matchups, not
-   cross-era. Recommendation: forbid them with a season-gap constant. It is a
-   few lines in the builder and the verifier, and costs a rebuild before
-   launch.
-2. **Games 1–2 lean to the low end of the band.** 85% have a 0.55–0.60
+1. ~~**Same-season pairings.**~~ **Decided 2026-10-07: forbidden.** The
+   schedule was rebuilt without them (above).
+2. **Games 1–2 lean to the low end of the band.** 87% have a 0.55–0.60
    favourite, because the pool's in-band pairings are mostly close.
    Recommendation: keep it for the play-test and tune in Session 3 if the
    games feel like coin flips. One option is to draw the target favourite

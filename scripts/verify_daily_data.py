@@ -14,6 +14,7 @@ Checks
                   a and b are different and in canonical order (lib/slug.ts)
   pairings        no unordered pairing appears twice in the whole history
   team-seasons    no key appears twice within any WINDOW_DAYS consecutive days
+  cross-era       the two seasons are at least MIN_SEASON_GAP apart (no same-season games)
   p and m         match a's team file for every unreleased day (all days before
                   launch; after launch, days dated today + FROZEN_LEAD_DAYS on)
   horizon         lastDay's date is at least MIN_DAYS_AHEAD days after today.
@@ -43,6 +44,7 @@ from build_daily_schedule import (  # noqa: E402
     FROZEN_LEAD_DAYS,
     GAMES_PER_DAY,
     INDEX_PATH,
+    MIN_SEASON_GAP,
     TEAMS_DIR,
     TIER_MARQUEE,
     WINDOW_DAYS,
@@ -134,6 +136,9 @@ def check_schedule(daily_dir: Path, today: date, index_path: Path = INDEX_PATH,
                 continue
             if (a, b) != canonical_order(a, seasons[a], b, seasons[b]):
                 errors.append(gw + ": " + a + " vs " + b + " is not in canonical order")
+            if abs(seasons[a] - seasons[b]) < MIN_SEASON_GAP:
+                errors.append(gw + ": " + a + " vs " + b + " are less than " + str(MIN_SEASON_GAP)
+                              + " season(s) apart")
             if not isinstance(p, (int, float)) or not 0 < p < 1 or not isinstance(m, (int, float)):
                 errors.append(gw + ": p must be in (0, 1) and m a number")
                 continue

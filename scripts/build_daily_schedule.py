@@ -12,6 +12,9 @@ Schedule rules:
   pairings        an unordered pairing never appears twice in the history
   team-seasons    a key appears at most once in any WINDOW_DAYS consecutive
                   days (so never twice on the same day)
+  cross-era       the two teams' seasons are at least MIN_SEASON_GAP apart, so
+                  no game pairs two teams from the same season (owner,
+                  2026-10-07)
 
 a and b are in the site's canonical order (frontend/src/lib/slug.ts: lower
 season first, then alphabetical key). p is a's exported neutral win
@@ -78,6 +81,7 @@ GAMES_PER_DAY     = 3
 FEATURED_INDEX    = 2                    # game 3 is the headliner
 FORGIVING_BAND    = (0.55, 0.70)         # favourite's neutral win probability, games 1-2
 WINDOW_DAYS       = 7                    # a key at most once in any 7 consecutive days
+MIN_SEASON_GAP    = 1                    # seasons apart: no same-season games
 FROZEN_LEAD_DAYS  = 2                    # once launched, days dated before today + 2 are frozen
 
 TIER_MARQUEE = "marquee"
@@ -121,7 +125,8 @@ def canonical_order(key_a: str, season_a: int, key_b: str, season_b: int):
 
 
 def load_pairings(keys, seasons: dict, teams_dir: Path = TEAMS_DIR) -> dict:
-    """{ (a, b): (p, m) } for every unordered pool pairing, a and b canonical."""
+    """{ (a, b): (p, m) } for every schedulable pool pairing (seasons at least
+    MIN_SEASON_GAP apart), a and b canonical."""
     files = {}
     for key in keys:
         if key not in seasons:
@@ -131,6 +136,8 @@ def load_pairings(keys, seasons: dict, teams_dir: Path = TEAMS_DIR) -> dict:
     ordered = sorted(keys)
     for i, x in enumerate(ordered):
         for y in ordered[i + 1:]:
+            if abs(seasons[x] - seasons[y]) < MIN_SEASON_GAP:
+                continue
             a, b = canonical_order(x, seasons[x], y, seasons[y])
             entry = files[a].get(b)
             if entry is None:
