@@ -81,6 +81,15 @@ sponsorships, providing paid API/widget access, or delivering paid content:
 Record the evidence and permitted uses in the commercial-rights brief. The
 full source research is in `reports/monetization_research.md`.
 
+F12 Daily Three adds a second source: its starting fives come from games
+started in the Kaggle dataset `sumitrodatta/nba-aba-baa-stats`, which is
+scraped from Basketball-Reference. Sports Reference's terms forbid scraping
+and any public or commercial use without written permission, and the dataset's
+CC0 label does not clear that. This is stricter than the gate above because it
+covers public, non-commercial use too. The owner must accept it or get
+permission before Daily Three launches (`reports/daily_pool.md`, F12 Session 1
+record).
+
 ### Model-integrity gate
 
 The code must load one coherent release bundle: classifier, regressor, columns,
