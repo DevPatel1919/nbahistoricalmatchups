@@ -78,9 +78,7 @@ def test_committed_schedule_is_a_byte_identical_rebuild(tmp_path):
     build.main(["--out", str(out), "--days", str(meta["lastDay"]), "--launch-date", meta["launchDate"]])
     # Line endings aside: git's autocrlf may check the committed files out with CRLF.
     for name in ["meta.json"] + ["days/" + str(n) + ".json" for n in range(1, meta["lastDay"] + 1)]:
-        committed = (COMMITTED / name).read_bytes().replace(b"
-", b"
-")
+        committed = (COMMITTED / name).read_bytes().replace(b"\r\n", b"\n")
         assert (out / name).read_bytes() == committed, name
     assert len(list((COMMITTED / "days").glob("*.json"))) == meta["lastDay"]
 
