@@ -1,10 +1,9 @@
 # F12: Daily Three (a daily pick'em with simulated games)
 
-Status: **Session 1 built (2026-10-06) and reworked to games started
-(2026-10-07, branch `f12-s1-pool`, PR #18). Not merged: it waits for the
-owner's calls on the Basketball-Reference data rights, the 1997–98 Bulls and
-the 2025–26 champion. The notable-star rule stays as is (owner, 2026-10-07).** Decided with the owner on
-2026-10-05.
+Status: **Session 1 done: built 2026-10-06, reworked to games started and
+merged 2026-10-07 (PR #18). Session 2 is next. Before launch (Session 5) the
+owner still has to accept the Basketball-Reference data rights.** Decided with
+the owner on 2026-10-05.
 
 Read first, in order: `CONTRIBUTING.md`, `docs/product/HANDOFF.md`,
 `docs/product/DEPLOYMENT.md` (the staging setup and the "stop before going
@@ -794,10 +793,15 @@ game not scored by the five.
 1. **The data rights.** Accept Basketball-Reference-derived fives and spelling
    for a public launch, or get permission from Sports Reference. This joins
    F00.
-2. **The 1997–98 Bulls.** Keep Kukoč (GS), or override to Pippen?
+2. ~~**The 1997–98 Bulls.** Keep Kukoč (GS), or override to Pippen?~~
+   **Decided 2026-10-07: keep Kukoč**, the games-started five. No override.
 3. ~~**The notable-star rule** adds 127 teams on its own, 44% of the pool. Keep
    it, or tighten `STAR_PPG_RANK` / `STAR_TEAM_WIN_PCT`?~~ **Decided
    2026-10-07: keep it as is.** The owner chose the deeper pool with
    famous-player teams (young Jordan, early Shaq, Iverson, Westbrook) over
    tightening it.
-4. **The 2025–26 Knicks** as champion, and any pins or exclusions.
+4. ~~**The 2025–26 Knicks** as champion, and any pins or exclusions.~~
+   **Decided 2026-10-07: the Knicks are confirmed.** No pins or exclusions.
+
+Still open: decision 1, the data rights. It blocks the launch (Session 5),
+not the merge.
