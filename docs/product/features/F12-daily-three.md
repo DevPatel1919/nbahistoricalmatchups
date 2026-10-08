@@ -1,9 +1,9 @@
 # F12: Daily Three (a daily pick'em with simulated games)
 
-Status: **Session 1 done: built 2026-10-06, reworked to games started and
-merged 2026-10-07 (PR #18). Session 2 is next. Before launch (Session 5) the
-owner still has to accept the Basketball-Reference data rights.** Decided with
-the owner on 2026-10-05.
+Status: **Session 1 merged 2026-10-07 (PR #18). Session 2 (schedule and
+engine) built 2026-10-07 on `f12-s2-engine`, PR open, not merged. Session 3
+is next. Before launch (Session 5) the owner still has to accept the
+Basketball-Reference data rights.** Decided with the owner on 2026-10-05.
 
 Read first, in order: `CONTRIBUTING.md`, `docs/product/HANDOFF.md`,
 `docs/product/DEPLOYMENT.md` (the staging setup and the "stop before going
@@ -74,7 +74,7 @@ code, not hard rules:
 |---|---|---|---|
 | Q1 | After the reveal, show the simulator's odds ("Upset! The simulator gave them 31%")? Never before the pick | Yes, after the reveal only. It explains upsets, so the luck feels fair | Session 3 |
 | Q2 | If the player data has no starter flag, how should the starting five be defined? | **Mostly answered by the data (owner, 2026-10-06):** games started from Basketball-Reference (`sumitrodatta/nba-aba-baa-stats`) for every season. Still open: accepting that source's rights, and the 1997–98 Bulls (Kukoč over an injured Pippen). See Session 1's record | Session 1 |
-| Q3 | Does missing a day reset the hot streak? | No. Only a wrong pick resets it; a missed day resets only the play streak | Session 2 |
+| Q3 | Does missing a day reset the hot streak? | **Decided 2026-10-07: no.** Only a wrong pick resets it; a missed day resets only the play streak (`MISSED_DAY_RESETS_HOT_STREAK = false` in `daily/stats.ts`) | Session 2 |
 | Q4 | Launch date (puzzle #1) | Set in Session 5, after the staging play-test | Session 5 |
 | Q5 | The share text names the matchups, not the winners (spoiler-free, see "Share text"). The 2026-10-05 mock-up showed winners | Spoiler-free. Everyone gets the same simulated games, so naming winners spoils them for friends | Session 3 |
 
@@ -120,8 +120,8 @@ Spoiler-free (Q5). The squares say whether the sharer was right, not who won:
 ```
 Daily Three #12 · 2/3
 🟩 '96 Bulls vs '89 Pistons
-🟥 '14 Spurs vs '01 Lakers
-🟩 '17 Warriors vs '96 Bulls ⭐
+🟥 '01 Lakers vs '14 Spurs
+🟩 '96 Bulls vs '17 Warriors ⭐
 🔥 12  🎯 5
 courtofalltime.win/daily
 ```
@@ -143,7 +143,7 @@ number:
   in. A missed number resets it to 0 when the next one is played.
 - **🎯 Hot streak** (current and best): consecutive correct picks in play
   order (day, then game 1 to 3). A wrong pick resets it to 0. A missed day
-  does not reset it (Q3).
+  does not reset it (Q3, decided by the owner on 2026-10-07).
 
 A streak counts when the player locks in, not when they watch the reveal.
 
@@ -273,7 +273,7 @@ All files are generated static data under `frontend/public/data/daily/`:
 | File | Contents |
 |---|---|
 | `teams.json` | `{ generated, release, champions: { <season>: <key> }, teams: { <key>: { tier, reasons[], fiveFrom, wins, losses, pace, offRating, defRating, threeRate?, benchPpg, starters: [{ name, short, ppg, sig: [{ stat, value }] }] } } }` for pool teams only. `reasons` are `champion`, `very-high-win`, `high-win`, `notable-star`, `owner-pin`. `fiveFrom` is `games-started` or `override` (Session 1 record). Names use Basketball-Reference's spelling, with accents. `stat` is one of `RPG`, `APG`, `SPG`, `BPG`, `3PM`, `FG%`, `3P%`; percentages are fractions (0.574). Starters are in card order, guards to centers |
-| `meta.json` | `{ launchDate, lastDay, engine }` |
+| `meta.json` | `{ launchDate, lastDay, engine, launched }`. `launched` (added in Session 2) is `false` until Session 5. While it is false, every day may be regenerated; once true, released days are frozen and the launch date is fixed |
 | `days/<n>.json` | `{ n, date, engine, games: [{ a, b, p, m, featured }] }`. `a` and `b` are in canonical order, `p` is `a`'s neutral win probability, and `m` is `a`'s exported margin |
 
 Puzzle number for the player's local date `d`: `n = calendarDaysBetween(launchDate, d) + 1`.
@@ -624,7 +624,7 @@ plan.)_
 
 ### Session 1: the pool and player data (2026-10-06, reworked 2026-10-07)
 
-Branch `f12-s1-pool`, PR #18 (not merged). No UI, nothing deployed.
+Branch `f12-s1-pool`, PR #18 (merged 2026-10-07). No UI, nothing deployed.
 
 The first version (2026-10-06) picked starting fives with three rules, because
 `PlayerStatistics.csv` marks starters only in some seasons. On 2026-10-06 the
@@ -805,3 +805,167 @@ game not scored by the five.
 
 Still open: decision 1, the data rights. It blocks the launch (Session 5),
 not the merge.
+
+### Session 2: the schedule and the game engine (2026-10-07)
+
+Branch `f12-s2-engine`, PR open against `main` (not merged). No UI, nothing
+deployed. Merging changes nothing visible: it adds data files under
+`public/data/daily/` and code that no page imports yet.
+
+**What was built**
+
+- `scripts/build_daily_schedule.py` writes `daily/meta.json` and
+  `daily/days/1.json` .. `365.json` (525 KB in all) in about 3 seconds:
+  - **Placeholder launch date `2026-10-01`** (`PLACEHOLDER_LAUNCH_DATE`), so
+    today's puzzle exists on the Session 3 preview. 365 days run to
+    2027-09-30. Q4 replaces the date in Session 5.
+  - **Seeded per day** (`"daily-three:<seed>:<n>"`, default seed `20261007`).
+    A day depends only on the seed, the pool, the team files and the days
+    before it. So a rebuild is byte-identical, extending keeps every earlier
+    day, and re-running after days are frozen reproduces the rest.
+  - The featured game is drawn first, from marquee teams. Games 1 and 2
+    then come from teams whose favourite is inside `FORGIVING_BAND`.
+  - Within each draw, the **least-used teams come first**, so the pool is
+    used evenly.
+  - **Released days.** `meta.json` gained `launched` (data contract above).
+    While it is false, any day may be regenerated. `--launch` sets it in
+    Session 5. From then on the builder keeps every existing day dated before
+    *today + 2* exactly as stored (tested with a hand-edited day). It also
+    refuses to change the launch date or drop a released day.
+- `scripts/verify_daily_data.py` checks every rule in "Schedule rules" over the
+  whole history:
+  - the file set is exactly days 1..`lastDay`, with each day's `n`, date and
+    engine;
+  - only game 3 is featured, and it is marquee vs marquee; games 1–2 are in
+    the band;
+  - canonical order, and keys in `index.json` and the pool;
+  - no pairing repeats, and no key appears twice in any 7 days;
+  - `p`/`m` match `teams/<a>.json` for unreleased days (every day while not
+    launched);
+  - `lastDay` is at least `MIN_DAYS_AHEAD` (60) days out.
+
+  It imports the builder's constants, so the two can't drift.
+- `tests/test_daily_schedule.py` (21 tests) covers:
+  - the committed schedule passes, and is a byte-identical rebuild;
+  - extending, shrinking, another seed, frozen days after launch, and a
+    locked launch date;
+  - one tampered copy per rule, each caught by the verifier, plus its exit
+    codes.
+- `frontend/src/daily/` is pure TypeScript with no React, network or storage.
+  `index.ts` exports all of it, and `tsconfig.test.json` now includes it:
+  - `types.ts`: the data contract.
+  - `day.ts`:
+    - puzzle numbers from calendar dates, using integer civil-date
+      arithmetic (Hinnant's `days_from_civil`), never milliseconds;
+    - `localDate` reads the runtime's local date;
+    - `puzzleStatus` returns `ready`, `before-launch` or `not-ready`;
+    - `msUntilNextPuzzle` gives the countdown to local midnight.
+  - `sim.ts`: `sim-v1`. Below.
+  - `stats.ts`:
+    - `parseStore` / `serializeStore` for `ct:daily:v1`;
+    - `recordDay` stores picks and the simulated winners at lock-in. Picks
+      are final, so a second lock-in changes nothing;
+    - `computeStats` gives played, accuracy, perfect days, the distribution
+      and both streaks;
+    - an optional `clientId` is kept for Session 4.
+  - `share.ts`: the share text, plus `shortTeamLabel` ("'96 Bulls").
+- `frontend/tests/unit/daily-engine.test.ts` (36 tests) covers every case the
+  brief lists, plus a run of every scheduled game from the real pool.
+
+**`sim-v1` as built** (the order of draws is part of the engine):
+
+1. Seed `daily-three:sim-v1:<n>:<gameIndex>`. `gameIndex` counts from 0, so
+   the featured game is 2.
+2. **Winner.** The first draw: `rng() < p`. The tests show that changing `m`,
+   or swapping the team data, never changes the winner.
+3. **Final score.**
+   - Possessions are the teams' average pace ± 2 (sd).
+   - Each team's expected points use its offensive rating averaged with the
+     other's defensive rating. The total gets ± 9 (sd).
+   - The margin is drawn as `m + 12·z`, redrawn until it lands on the
+     winner's side, and is at least 1. After 64 failed draws it falls back to
+     1 point.
+   - The loser scores at least 60.
+4. **Scoring plays.**
+   - Threes are `threeRate × 0.85` of the points (`threeRate` 0.2 if
+     missing). Free throws are 18% of the points, as trips of 2 plus a single
+     one. The rest are twos.
+   - Each team's plays are spread evenly through the 48 minutes, jittered,
+     with a hot/cold tilt (0.3×–1.7×) in each of 16 three-minute stretches.
+   - Scorers are starters in proportion to PPG and the bench by `benchPpg`.
+5. **Determinism.** Normal draws are Irwin–Hall (12 uniforms − 6), so no
+   transcendental `Math` function is called, following `prng.ts`'s rule.
+
+**Numbers**
+
+| Measure | Value |
+|---|---|
+| Days generated | 365 (#1 2026-10-01 to #365 2027-09-30, placeholder dates) |
+| Games / distinct pairings | 1,095 / 1,095. Of 41,328 possible, 2,211 of them marquee vs marquee: 365 used |
+| Pool use | All 288 teams. Marquee teams 11–12 times a year (10–12 as featured), known teams 6–7 |
+| Games 1–2 favourite | Mean 0.575: 624 of 730 at 0.55–0.60, 100 at 0.60–0.65, 6 at 0.65–0.70 |
+| Featured favourite | Median 0.547, max 0.666 (no odds rule needed: famous teams land close) |
+| Marquee teams in games 1–2 | 16 of 1,460 slots (least-used picking keeps them for the featured game) |
+| Same-season games | 23 of 1,095 (no rule forbids them; see below) |
+| Calibration | Over 10,000 seeds each, the winner rate is within 1.5 points of `p` at 0.31, 0.55, 0.62, 0.70 and 0.90 |
+| Upsets in the schedule | 42.8% of the 1,095 games, as the odds imply (favourites average about 57%) |
+| Simulated scores, all 1,095 games | Combined mean 205 (156–251). Margin median 8, 90th percentile 20, max 35 |
+| Game flow | 6.6 lead changes a game. Biggest run: median 9 points, 95th percentile 13. The loser led by 10+ in 19% of games |
+
+The flow was tuned once before the golden values were pinned. The first draft
+placed plays at random times, which gave one 46–0 run, and the eventual loser
+led by 10 or more in 48% of games. The final placement is the stratified,
+tilted one above.
+
+**Decisions**
+
+- **Q3, decided by the owner on 2026-10-07: a missed day does not reset the
+  🎯 hot streak.** Only a wrong pick does. A missed day resets only the 🔥
+  play streak.
+- **Play streak display.** The current play streak counts through today if
+  today is played. Otherwise it counts through yesterday, and it is 0 once
+  yesterday was missed too. A missed number therefore shows as a reset on the
+  first day after it.
+
+**Interface notes for Session 3**
+
+- **The winner never changes once a day is released.** It depends only on
+  the seed and the day file's `p`. The score, plays and box line also read
+  `teams.json`, so an annual re-export changes how an old game is narrated,
+  but never who won. Stored stats keep the winners from lock-in, so they are
+  unaffected. Watch for this if a past game is ever replayed (there is no
+  archive).
+- The page should call `simulateGame` with `engine` from the day file, never
+  from `meta.json`.
+- `BENCH` (−1) marks bench scorers. `clockAt(t)` turns elapsed seconds into
+  a quarter and the time left in it.
+- `msUntilNextPuzzle` drives the countdown.
+- The brief's share example listed '17 Warriors before '96 Bulls, against its
+  own canonical-order rule. It is corrected above.
+
+**Verification:** all of "How to verify" passed on 2026-10-07:
+- `npm run build` and `npm run lint` are clean.
+- `npm test`: 198 unit tests.
+- `npx playwright test`: 49 tests. Two duel-account specs timed out at
+  30 seconds while the worker suite ran in parallel. Re-run alone, all 5 in
+  `account.spec.ts` passed in about 5 seconds each; this session touches no
+  UI.
+- Worker: `tsc` passes and 123 tests pass.
+- `python -m pytest tests`: 174 tests.
+- `test_pregame_leakage.py` exits 0.
+- `verify_static_export.py`: 200 of 200 pairs match.
+- `verify_daily_data.py`: OK.
+
+**For the owner to decide (none blocks the merge)**
+
+1. **Same-season pairings.** The rules allow them, and 23 games are
+   same-season, for example two 1996 teams. They are real-world matchups, not
+   cross-era. Recommendation: forbid them with a season-gap constant. It is a
+   few lines in the builder and the verifier, and costs a rebuild before
+   launch.
+2. **Games 1–2 lean to the low end of the band.** 85% have a 0.55–0.60
+   favourite, because the pool's in-band pairings are mostly close.
+   Recommendation: keep it for the play-test and tune in Session 3 if the
+   games feel like coin flips. One option is to draw the target favourite
+   probability uniformly inside the band.
+3. **Data rights** (Session 1, decision 1). Still open until Session 5.
