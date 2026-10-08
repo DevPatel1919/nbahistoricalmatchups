@@ -2,8 +2,8 @@
 
 Status: **Session 1 built (2026-10-06) and reworked to games started
 (2026-10-07, branch `f12-s1-pool`, PR #18). Not merged: it waits for the
-owner's calls on the Basketball-Reference data rights, the 1997–98 Bulls, the
-notable-star rule and the 2025–26 champion.** Decided with the owner on
+owner's calls on the Basketball-Reference data rights, the 1997–98 Bulls and
+the 2025–26 champion. The notable-star rule stays as is (owner, 2026-10-07).** Decided with the owner on
 2026-10-05.
 
 Read first, in order: `CONTRIBUTING.md`, `docs/product/HANDOFF.md`,
@@ -795,6 +795,9 @@ game not scored by the five.
    for a public launch, or get permission from Sports Reference. This joins
    F00.
 2. **The 1997–98 Bulls.** Keep Kukoč (GS), or override to Pippen?
-3. **The notable-star rule** adds 127 teams on its own, 44% of the pool. Keep
-   it, or tighten `STAR_PPG_RANK` / `STAR_TEAM_WIN_PCT`?
+3. ~~**The notable-star rule** adds 127 teams on its own, 44% of the pool. Keep
+   it, or tighten `STAR_PPG_RANK` / `STAR_TEAM_WIN_PCT`?~~ **Decided
+   2026-10-07: keep it as is.** The owner chose the deeper pool with
+   famous-player teams (young Jordan, early Shaq, Iverson, Westbrook) over
+   tightening it.
 4. **The 2025–26 Knicks** as champion, and any pins or exclusions.
