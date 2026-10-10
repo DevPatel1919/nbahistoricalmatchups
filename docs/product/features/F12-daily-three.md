@@ -1,8 +1,8 @@
 # F12: Daily Three (a daily pick'em with simulated games)
 
-Status: **Session 1 merged 2026-10-07 (PR #18). Session 2 (schedule and
-engine) built 2026-10-07 on `f12-s2-engine`, PR open, not merged. Session 3
-is next. Before launch (Session 5) the owner still has to accept the
+Status: **Sessions 1 and 2 merged 2026-10-07 (PR #18, PR #19), and staging
+brought up to date with `main` the same day. Session 3 (the `/daily` page) is
+next. Before launch (Session 5) the owner still has to accept the
 Basketball-Reference data rights.** Decided with the owner on 2026-10-05.
 
 Read first, in order: `CONTRIBUTING.md`, `docs/product/HANDOFF.md`,
@@ -810,9 +810,21 @@ not the merge.
 
 ### Session 2: the schedule and the game engine (2026-10-07)
 
-Branch `f12-s2-engine`, PR open against `main` (not merged). No UI, nothing
-deployed. Merging changes nothing visible: it adds data files under
+Branch `f12-s2-engine`, PR #19, merged to `main` on 2026-10-07 (merge commit
+`ed07d5c`). No UI. Merging changed nothing visible: it adds data files under
 `public/data/daily/` and code that no page imports yet.
+
+**Staging (2026-10-07).** At the owner's request, the `staging` branch was
+brought up to date with `main` through a PR into `staging` (branch
+`f12-s2-staging`: `main` plus this record).
+- Before that, staging stopped at PR #13. The update also brought F11 (older
+  seasons), the logo, the pricing-page removal (F10), the F12 brief, and F12
+  Sessions 1–2.
+- The only `worker/` change in that range is `scripts/load-test.mjs`, so the
+  staging Worker needed no redeploy.
+- On `staging.courtofalltime.win`, F12 adds only static files under
+  `/data/daily/` (for example `/data/daily/meta.json`). There is no page yet.
+- The owner checks staging, then carries the result into `HANDOFF.md`.
 
 **What was built**
 
