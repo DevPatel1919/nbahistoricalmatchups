@@ -2,9 +2,9 @@
 
 Status: **Sessions 1–3 merged (PR #18 and PR #19 on 2026-10-07, PR #22 on
 2026-10-10). The `/daily` page is built behind `VITE_DAILY_THREE`, which is
-off in production. Session 4 (crowd stats) is in review: its staging Worker
-and D1 migration are deployed, and the PR waits for the owner before the
-merge and the staging play-test. Before launch (Session 5) the owner still has to
+off in production. Session 4 (crowd stats) is merged (PR #24, 2026-10-10)
+and play-tested on staging, which is up to date with `main`. Session 5
+(launch) is next. Before launch (Session 5) the owner still has to
 accept the Basketball-Reference data rights.** Decided with the owner on
 2026-10-05.
 
@@ -1145,7 +1145,9 @@ until Session 5. The Settings page's environment box defaults to Production
 
 ### Session 4: crowd stats on staging (2026-10-10)
 
-Branch `f12-s4-crowd`, PR #24. Production is untouched: no production
+Branch `f12-s4-crowd`, PR #24, merged to `main` on 2026-10-10 (merge commit
+`d92b6a5`) with the owner's OK. `git push origin main:staging` then
+fast-forwarded staging from `34d6895` to `d92b6a5`. Production is untouched: no production
 Worker, D1 or Pages variable was changed. The page still exists only in builds
 with `VITE_DAILY_THREE=1`, and crowd stats need `VITE_DUEL_API` as well.
 
@@ -1287,4 +1289,45 @@ with `VITE_DAILY_THREE=1`, and crowd stats need `VITE_DUEL_API` as well.
 - `verify_static_export.py`: 200 of 200 pairs match.
 - `verify_daily_data.py`: OK.
 
-**Staging play-test:** after the merge (record by a docs PR).
+**Pages variables (checked through the API before the merge).** The owner
+set `VITE_DAILY_THREE` = `1` (Text) in **Preview**. Preview now has
+`NODE_VERSION`, `VITE_DAILY_THREE` and `VITE_DUEL_API`; Production still has
+only `NODE_VERSION`. The `staging` build from `d92b6a5` is deployment
+`9d43b41a`.
+
+**Staging play-test (2026-10-10).** The agent played puzzle #10 on
+`staging.courtofalltime.win/daily` in three separate Chromium browser
+contexts (Playwright, `America/New_York`), then checked staging D1:
+
+| Browser | Picks | Result |
+|---|---|---|
+| A | all team a | 0/3. The panel read "1 player so far." |
+| B, after the 60-second cache | all team b | 3/3. The panel read "2 players so far.", every game split evenly, "50% went 3/3." |
+| C, `api-staging.*` blocked | mixed | 1/3. The whole game, the results, the stats and a reload worked, with no crowd panel and no page error. The explorer (`/1998-bulls-vs-2017-warriors`) also loaded |
+
+- **Each browser counts once.** D1 held exactly two rows for #10 (A `000`,
+  score 0; B `111`, score 3), and `daily_tallies` matched them. Reloading A
+  and B sent no second result. Re-posting A's id with different picks
+  answered `{ ok: true }` and changed neither the row nor the tally.
+- **Crowd lines only after lock-in.** No browser made a stats request or
+  showed a crowd word before lock-in or during the reveal. Each posted once
+  at lock-in and fetched the stats only on the results.
+- **Production unchanged.** On `courtofalltime.win`, `/daily` still says
+  "We couldn't find that matchup.", with no nav link, and the About page has
+  no Daily Three paragraph. The staging About page has it.
+
+The two play-test rows stay in staging D1.
+
+**For the owner (Session 5)**
+
+1. **The data rights** (Session 1, decision 1). They still block the launch.
+2. **The launch date (Q4).** After rebuilding the schedule, redeploy the
+   Worker to staging and production, because it reads the launch date from
+   `meta.json`.
+3. **Production crowd stats need deployment phase 3** (the production Worker
+   and D1, then `0001`–`0007`). Without it, launch without crowd stats; the
+   page hides them.
+4. **Open from this session:** whether to widen the ±1 window for UTC+13
+   and +14, and a retention limit for `daily_results`.
+5. **Games 1–2 closeness** (Session 2, item 2) can now be judged on
+   staging.
