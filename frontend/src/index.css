@@ -1828,3 +1828,581 @@ button {
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* --- Daily Three (F12) ----------------------------------------------------*/
+
+.daily__header {
+  text-align: center;
+  padding: 12px 0 4px;
+}
+
+.daily__header h1 {
+  font-family: var(--font-score);
+  font-size: clamp(1.8rem, 6vw, 2.5rem);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin: 0;
+}
+
+.daily__number {
+  color: var(--accent);
+}
+
+.daily__date {
+  margin: 2px 0 0;
+  color: var(--text-dim);
+  font-size: 0.95rem;
+}
+
+.daily__lede {
+  color: var(--text-dim);
+  max-width: 52ch;
+  margin: 10px auto 0;
+  font-size: 0.92rem;
+}
+
+.daily__streaks {
+  text-align: center;
+  color: var(--text-dim);
+  margin: 12px 0 0;
+}
+
+.daily__streaks strong {
+  color: var(--text);
+}
+
+.daily__fine,
+.daily__note {
+  color: var(--text-faint);
+  font-size: 0.82rem;
+  margin: 8px 0 0;
+}
+
+.daily__note {
+  color: var(--text-dim);
+}
+
+.daily__games {
+  display: grid;
+  gap: 18px;
+  margin-top: 20px;
+}
+
+.daily-game,
+.daily-reveal,
+.daily-final,
+.daily-stats {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  padding: 14px;
+  min-width: 0;
+}
+
+.daily-game__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.daily-game__header h2,
+.daily-game__header h3 {
+  font-family: var(--font-score);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 1.1rem;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.daily-game__header h2:focus,
+.daily-results h2:focus {
+  outline: none;
+}
+
+.daily-game__badge {
+  font-family: var(--font-body);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+
+.daily-game__teams {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+/* A team card is the label of a visually hidden radio. */
+.daily-team {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 12px 10px 10px;
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--side-a);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  cursor: pointer;
+}
+
+.daily-team--b {
+  border-top-color: var(--side-b);
+}
+
+.daily-team:hover {
+  border-color: var(--border-strong);
+  border-top-color: var(--side-a);
+}
+
+.daily-team--b:hover {
+  border-top-color: var(--side-b);
+}
+
+.daily-team.is-picked {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.daily-team:has(.daily-team__radio:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.daily-team__radio {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  pointer-events: none;
+}
+
+.daily-team__season {
+  font-family: var(--font-score);
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.daily-team__name {
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.daily-team__record {
+  font-size: 1.35rem;
+  margin: 2px 0 8px;
+}
+
+.daily-team__five-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  margin-bottom: 4px;
+}
+
+.daily-team__five {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.daily-starter {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.daily-starter__name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.daily-starter__short {
+  display: none;
+}
+
+.daily-starter__stats {
+  font-size: 0.74rem;
+  color: var(--text-dim);
+  line-height: 1.3;
+}
+
+.daily-team__pick {
+  margin-top: 10px;
+  align-self: stretch;
+  text-align: center;
+  padding: 6px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  font-size: 0.85rem;
+}
+
+.daily-team.is-picked .daily-team__pick {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.daily-lock {
+  text-align: center;
+  margin-top: 22px;
+}
+
+.daily-lock__status {
+  margin: 0 0 10px;
+  color: var(--text-dim);
+}
+
+/* Reveal and finals */
+
+.daily-reveal {
+  margin-top: 20px;
+}
+
+.daily-board,
+.daily-final__score {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.daily-board__row,
+.daily-final__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  padding-left: 10px;
+  border-left: 3px solid var(--side-a);
+  color: var(--text-dim);
+}
+
+.daily-board__row--b,
+.daily-final__row--b {
+  border-left-color: var(--side-b);
+}
+
+.daily-board__row.is-winner,
+.daily-final__row.is-winner {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.daily-board__team,
+.daily-final__team {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.daily-board__picked,
+.daily-final__picked {
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: var(--text-faint);
+}
+
+.daily-board__points {
+  font-size: 2.2rem;
+  line-height: 1;
+}
+
+.daily-final__points {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.daily-board__clock,
+.daily-final__clock {
+  text-align: center;
+  color: var(--accent);
+  font-size: 1rem;
+  letter-spacing: 0.06em;
+}
+
+.daily-final__clock {
+  font-family: var(--font-score);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+
+.daily-ticker {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  min-height: 6.4em;
+  font-size: 0.85rem;
+}
+
+.daily-ticker__play {
+  padding: 3px 0 3px 8px;
+  border-left: 2px solid var(--side-a);
+  color: var(--text-dim);
+}
+
+.daily-ticker__play:first-child {
+  color: var(--text);
+}
+
+.daily-ticker__play--b {
+  border-left-color: var(--side-b);
+}
+
+.daily-ticker__clock {
+  color: var(--text-faint);
+}
+
+.daily-ticker__team {
+  font-weight: 600;
+}
+
+.daily-reveal__final {
+  margin-top: 10px;
+}
+
+.daily-reveal__verdict {
+  margin: 0;
+  font-weight: 700;
+}
+
+.daily-reveal__verdict.is-right {
+  color: var(--win);
+}
+
+.daily-reveal__verdict.is-wrong {
+  color: var(--loss);
+}
+
+.daily-final__verdict {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.daily-final--right .daily-final__verdict {
+  color: var(--win);
+}
+
+.daily-final--wrong .daily-final__verdict {
+  color: var(--loss);
+}
+
+.daily-final__odds {
+  margin: 8px 0 0;
+  font-size: 0.92rem;
+}
+
+.daily-final__box {
+  margin-top: 8px;
+}
+
+.daily-final__box-label {
+  margin: 0;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+.daily-final__box-line {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.daily-final__box-team {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.daily-final__label {
+  margin: 10px 0 0;
+  font-size: 0.78rem;
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.daily-final__explore {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: var(--accent);
+}
+
+/* Results */
+
+.daily-results {
+  display: grid;
+  gap: 18px;
+  margin-top: 20px;
+}
+
+.daily-results__summary {
+  text-align: center;
+}
+
+.daily-results__summary h2 {
+  font-family: var(--font-score);
+  text-transform: uppercase;
+  font-size: 1.6rem;
+  margin: 0;
+}
+
+.daily-results__score {
+  color: var(--accent);
+  font-size: 2.2rem;
+}
+
+.daily-results__streaks {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin: 6px 0 0;
+  color: var(--text-dim);
+}
+
+.daily-results__streaks strong {
+  color: var(--text);
+  font-size: 1.1rem;
+}
+
+.daily-results__finals {
+  display: grid;
+  gap: 14px;
+}
+
+.daily-stats h2 {
+  font-family: var(--font-score);
+  text-transform: uppercase;
+  font-size: 1.1rem;
+  margin: 0 0 10px;
+}
+
+.daily-stats__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.daily-stats__facts div {
+  text-align: center;
+}
+
+.daily-stats__facts dt {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.daily-stats__facts dd {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.daily-stats__dist-heading {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  margin: 14px 0 6px;
+}
+
+.daily-stats__dist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.daily-stats__bar-row {
+  display: grid;
+  grid-template-columns: 2.4em minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.daily-stats__bar {
+  display: block;
+  min-width: 1.8em;
+  padding: 1px 6px;
+  text-align: right;
+  border-radius: 4px;
+  background: var(--border-strong);
+  color: var(--text);
+}
+
+.daily-stats__bar-row.is-today .daily-stats__bar {
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 700;
+}
+
+.daily-countdown {
+  text-align: center;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+.daily-countdown__time {
+  font-size: 1.4rem;
+  color: var(--text);
+}
+
+@media (max-width: 480px) {
+  .daily-game,
+  .daily-reveal,
+  .daily-final,
+  .daily-stats {
+    padding: 12px;
+  }
+
+  .daily-game__teams {
+    gap: 8px;
+  }
+
+  .daily-team {
+    padding: 10px 8px 8px;
+  }
+
+  /* Starters' names shorten to an initial; the full name stays for screen readers. */
+  .daily-starter__full {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .daily-starter__short {
+    display: inline;
+  }
+}

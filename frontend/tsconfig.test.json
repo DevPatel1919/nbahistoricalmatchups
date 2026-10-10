@@ -20,5 +20,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["tests/unit", "src/tournament", "src/duel", "src/daily", "src/types.ts", "src/lib/bracket.ts", "src/lib/series.ts", "src/data/curated-tournaments.ts", "src/data/offers.ts", "src/lib/analytics.ts", "src/lib/analyticsProviders.ts", "src/lib/visitor.ts", "src/lib/margin.ts", "src/lib/duelFormat.ts", "src/lib/duelStorage.ts", "src/lib/duelApi.ts", "src/env.d.ts", "src/share/cards.ts", "src/share/cardData.ts", "buildEnv.ts", "vitest.config.ts"]
+  "include": ["tests/unit", "src/tournament", "src/duel", "src/daily", "src/types.ts", "src/lib/bracket.ts", "src/lib/series.ts", "src/data/curated-tournaments.ts", "src/data/offers.ts", "src/lib/analytics.ts", "src/lib/analyticsProviders.ts", "src/lib/visitor.ts", "src/lib/margin.ts", "src/lib/duelFormat.ts", "src/lib/duelStorage.ts", "src/lib/duelApi.ts", "src/lib/dailyFormat.ts", "src/lib/dailyPuzzle.ts", "src/env.d.ts", "src/share/cards.ts", "src/share/cardData.ts", "buildEnv.ts", "vitest.config.ts"]
 }

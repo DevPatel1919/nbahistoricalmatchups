@@ -2,6 +2,7 @@ import { Link, Outlet } from "react-router-dom";
 import ThemeToggle from "./ThemeToggle";
 import { useTheme } from "../hooks/useTheme";
 import { DUEL_API } from "../lib/duelApi";
+import { DAILY_THREE } from "../lib/dailyFlag";
 
 export default function Layout() {
   const [theme, toggleTheme] = useTheme();
@@ -15,6 +16,7 @@ export default function Layout() {
             <span className="brand__name">Court of All Time</span>
           </Link>
           <nav className="site-nav" aria-label="Primary">
+            {DAILY_THREE && <Link to="/daily">Daily Three</Link>}
             <Link to="/tournament">Tournament</Link>
             {DUEL_API && <Link to="/duel">Duel</Link>}
             <Link to="/about">About</Link>

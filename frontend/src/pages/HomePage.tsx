@@ -8,6 +8,7 @@ import SearchPicker from "../components/SearchPicker";
 import BrowseGrid from "../components/BrowseGrid";
 import RandomMatchupButton from "../components/RandomMatchupButton";
 import { DUEL_API } from "../lib/duelApi";
+import { DAILY_THREE } from "../lib/dailyFlag";
 
 const SUGGESTIONS: [string, string][] = [
   ["1996-bulls", "2017-warriors"],
@@ -117,6 +118,21 @@ export default function HomePage() {
           <RandomMatchupButton teams={teams} className="btn btn--primary" />
         </div>
       </section>
+
+      {DAILY_THREE && (
+        <section className="tournament-cta daily-cta" aria-labelledby="daily-cta-heading">
+          <h2 id="daily-cta-heading">Daily Three</h2>
+          <p>
+            Three cross-era matchups a day, the same for everyone. Pick the winners, then watch each one play out as a
+            simulated game. Keep your streak going.
+          </p>
+          <div className="picker-actions">
+            <Link className="btn btn--primary" to="/daily">
+              Play today's three
+            </Link>
+          </div>
+        </section>
+      )}
 
       <section className="tournament-cta" aria-labelledby="tournament-cta-heading">
         <h2 id="tournament-cta-heading">The Champions Bracket</h2>
