@@ -1,9 +1,9 @@
 # F12: Daily Three (a daily pick'em with simulated games)
 
-Status: **Sessions 1 and 2 merged 2026-10-07 (PR #18, PR #19), and staging
-brought up to date with `main` the same day. Session 3 (the `/daily` page,
-branch `f12-s3-page`) is built and waits for the owner's play-test on its
-Pages preview (2026-10-10). Before launch (Session 5) the owner still has to
+Status: **Sessions 1–3 merged (PR #18 and PR #19 on 2026-10-07, PR #22 on
+2026-10-10), and staging is up to date with `main`. The `/daily` page is
+built behind `VITE_DAILY_THREE`, which is off in production. Session 4 (crowd
+stats on staging) is next. Before launch (Session 5) the owner still has to
 accept the Basketball-Reference data rights.** Decided with the owner on
 2026-10-05.
 
@@ -994,9 +994,17 @@ tilted one above.
 
 ### Session 3: the `/daily` page (2026-10-10)
 
-Branch `f12-s3-page`. PR open, waiting for the owner's play-test on its Pages
-preview. Nothing reaches production: the page exists only in builds with
-`VITE_DAILY_THREE=1`.
+Branch `f12-s3-page`, PR #22, merged to `main` on 2026-10-10 (merge commit
+`c7e6228`). The owner chose to merge before playing the PR preview and to
+play-test on staging instead. `git push origin main:staging` then
+fast-forwarded staging from `a2197e3` to `c7e6228`. Nothing reaches
+production: the page exists only in builds with `VITE_DAILY_THREE=1`.
+
+- Checked before the merge, through the Pages API (variable names only): the
+  Production variables are only `NODE_VERSION`. Preview has `NODE_VERSION`
+  and `VITE_DUEL_API`.
+- `VITE_DAILY_THREE` was **not yet set in Preview**, so staging has no
+  `/daily` until the owner sets it and retries the `staging` build.
 
 **Owner step.** Set `VITE_DAILY_THREE` = `1` in the Pages **Preview**
 environment (PR previews and the `staging` branch). Leave Production unset
@@ -1120,10 +1128,16 @@ until Session 5. The Settings page's environment box defaults to Production
 - `verify_static_export.py`: 200 of 200 pairs match.
 - `verify_daily_data.py`: OK.
 
-**For the owner (play-test on the preview)**
+**For the owner (play-test on staging)**
 
-1. **Games 1–2 closeness** (Session 2, item 2): judge it while playing. 87% of
-   games 1–2 have a 0.55–0.60 favourite, so about 4 in 10 of those games end
-   as upsets.
-2. Approve the merge. Then `git push origin main:staging` brings the page to
-   `staging.courtofalltime.win`.
+1. Set `VITE_DAILY_THREE` = `1` in the Pages **Preview** environment, then
+   retry the latest `staging` deployment. Play
+   `staging.courtofalltime.win/daily`.
+2. **Games 1–2 closeness** (Session 2, item 2), still open: judge it while
+   playing. 87% of games 1–2 have a 0.55–0.60 favourite (mean about 0.575),
+   so about 4 in 10 of those games end as upsets. That rate is the odds,
+   honestly drawn, not a bias in the simulator. If they feel like coin
+   flips, the fix is in `scripts/build_daily_schedule.py`, not the
+   simulator: draw each game's target favourite evenly inside
+   `FORGIVING_BAND`, or raise the band's floor. Then rebuild the schedule,
+   which is allowed until launch.
