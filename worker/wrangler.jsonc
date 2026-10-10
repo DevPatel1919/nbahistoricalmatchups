@@ -36,7 +36,9 @@
     // Boards are computed by the scheduled handler every 15 minutes and stored
     // (src/leaderboard.ts). A request recomputes one only when the stored board
     // is older than this, i.e. the schedule has stalled. "0" computes every request.
-    "LEADERBOARD_REFRESH_SECONDS": "1200"
+    "LEADERBOARD_REFRESH_SECONDS": "1200",
+    // Seconds a Daily Three crowd-stats response is cached at the edge (src/daily.ts). "0" turns caching off.
+    "DAILY_STATS_CACHE_SECONDS": "60"
   },
   "d1_databases": [
     // Phase 3: `wrangler d1 create court-of-all-time-duel` and paste the id.
@@ -60,7 +62,8 @@
         // Raised to "100" only for a load run (DEPLOYMENT.md phase 2), then restored.
         "RATE_LIMIT_SCALE": "1",
         "LEADERBOARD_CACHE_SECONDS": "60",
-        "LEADERBOARD_REFRESH_SECONDS": "1200"
+        "LEADERBOARD_REFRESH_SECONDS": "1200",
+        "DAILY_STATS_CACHE_SECONDS": "60"
       },
       "d1_databases": [
         { "binding": "DB", "database_name": "court-of-all-time-duel-staging", "database_id": "5e7c6705-01e9-4679-82ae-ded466c52deb", "migrations_dir": "migrations" }

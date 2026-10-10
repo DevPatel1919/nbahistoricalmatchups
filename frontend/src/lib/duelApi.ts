@@ -14,6 +14,7 @@ import type {
   PlayMode,
   SignInResult,
 } from "../duel";
+import type { DailyCrowdStats, DailyResultBody } from "../daily/types";
 import {
   clearGuestToken,
   clearSessionToken,
@@ -39,7 +40,14 @@ export class DuelApiError extends Error {
   }
 }
 
-type RequestOptions = { method?: "GET" | "POST"; body?: unknown; token?: string; idempotencyKey?: string };
+type RequestOptions = {
+  method?: "GET" | "POST";
+  body?: unknown;
+  token?: string;
+  idempotencyKey?: string;
+  /** Lets the request finish if the page is closed straight after. */
+  keepalive?: boolean;
+};
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   if (!DUEL_API) throw new DuelApiError("not_configured", 0);
@@ -53,6 +61,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       method: options.method ?? "GET",
       headers,
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      keepalive: options.keepalive,
     });
   } catch {
     throw new DuelApiError("network", 0);
@@ -144,6 +153,21 @@ export function stopWaiting(duelId: string): Promise<DuelState> {
 /** A public leaderboard. Needs no token: it carries display names and rated results only. */
 export function fetchLeaderboard(board: LeaderboardKind): Promise<LeaderboardView> {
   return request<LeaderboardView>("/v1/leaderboard?board=" + board);
+}
+
+// ---------------------------------------------------------------------------
+// Daily Three crowd stats (F12 Session 4). No token: a result carries only a
+// random browser id (DailyStore.clientId), the picks, and the day's score.
+// ---------------------------------------------------------------------------
+
+/** Sends a locked-in day once. A repeat for the same puzzle is ignored by the server. */
+export async function postDailyResult(n: number, body: DailyResultBody): Promise<void> {
+  await request<{ ok: true }>("/v1/daily/" + n + "/result", { method: "POST", body, keepalive: true });
+}
+
+/** How everyone picked puzzle n so far. Cached at the edge for about a minute. */
+export function fetchDailyStats(n: number): Promise<DailyCrowdStats> {
+  return request<DailyCrowdStats>("/v1/daily/" + n + "/stats");
 }
 
 // ---------------------------------------------------------------------------

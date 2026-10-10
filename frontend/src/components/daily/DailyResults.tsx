@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { msUntilNextPuzzle } from "../../daily/day";
 import { buildShareText } from "../../daily/share";
 import { dayScore, type DailyStats, type DayRecord } from "../../daily/stats";
-import { countdownWords, formatAccuracy, formatCountdown } from "../../lib/dailyFormat";
+import type { DailyCrowdStats } from "../../daily/types";
+import { crowdPerfectLine, crowdPickLine, crowdPlayers } from "../../lib/dailyCrowd";
+import { countdownWords, formatAccuracy, formatCountdown, seasonTeamName } from "../../lib/dailyFormat";
 import { shareTeams, type Puzzle } from "../../lib/dailyPuzzle";
 import DailyFinal from "./DailyFinal";
 
@@ -12,6 +14,8 @@ interface Props {
   stats: DailyStats;
   /** False when the browser would not save the day. */
   saved: boolean;
+  /** Everyone's picks so far (Session 4), or null to show no crowd lines: no API, an error, or no answer yet. */
+  crowd: DailyCrowdStats | null;
   /** Move focus to the score (after lock-in or the reveal), not on a plain page load. */
   focusOnMount: boolean;
   onWatchAgain: () => void;
@@ -19,7 +23,7 @@ interface Props {
   onNextPuzzle: () => void;
 }
 
-export default function DailyResults({ puzzle, record, stats, saved, focusOnMount, onWatchAgain, onNextPuzzle }: Props) {
+export default function DailyResults({ puzzle, record, stats, saved, crowd, focusOnMount, onWatchAgain, onNextPuzzle }: Props) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const score = dayScore(record);
   const total = puzzle.games.length;
@@ -72,6 +76,7 @@ export default function DailyResults({ puzzle, record, stats, saved, focusOnMoun
         ))}
       </div>
 
+      {crowd && <CrowdPanel puzzle={puzzle} crowd={crowd} />}
       <StatsPanel stats={stats} today={score} />
       <Countdown onNextPuzzle={onNextPuzzle} />
     </section>
@@ -105,6 +110,29 @@ function ShareButton({ text }: { text: string }) {
         {status === "copied" ? "Copied to the clipboard" : status === "failed" ? "Couldn't share or copy" : ""}
       </span>
     </>
+  );
+}
+
+/** How everyone picked today. Only ever rendered after lock-in, so it is never a hint. */
+function CrowdPanel({ puzzle, crowd }: { puzzle: Puzzle; crowd: DailyCrowdStats }) {
+  return (
+    <section className="daily-crowd" aria-labelledby="daily-crowd-heading">
+      <h2 id="daily-crowd-heading">Today's crowd</h2>
+      <p className="daily-crowd__players">{crowdPlayers(crowd.players)} so far.</p>
+      <ul className="daily-crowd__lines">
+        {puzzle.games.map((g) => (
+          <li key={g.index}>
+            <span className="daily-crowd__game">
+              Game {g.index + 1}
+              {g.game.featured && <span aria-hidden="true"> ⭐</span>}:
+            </span>{" "}
+            {crowdPickLine(crowd.picks[g.index], crowd.players, [seasonTeamName(g.teams[0]), seasonTeamName(g.teams[1])])}
+          </li>
+        ))}
+        <li>{crowdPerfectLine(crowd)}</li>
+      </ul>
+      <p className="daily__fine">Each browser counts once a day. Scores are self-reported.</p>
+    </section>
   );
 }
 

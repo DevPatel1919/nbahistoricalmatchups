@@ -19,6 +19,8 @@ export const LIMITS = {
   accountCreatePerAsn: { name: "acct-asn", max: 50, windowSeconds: 3600 },
   renamePerAccount: { name: "rename-acct", max: 10, windowSeconds: 3600 },
   adminPerIp: { name: "admin-ip", max: 120, windowSeconds: 3600 },
+  // Daily Three (F12): one result per browser a day; this caps new ids from one network.
+  dailyResultPerIp: { name: "daily-ip", max: 60, windowSeconds: 3600 },
 } as const satisfies Record<string, Limit>;
 
 /** `scale` multiplies every limit; production uses 1 (wrangler.jsonc), local e2e runs raise it. */

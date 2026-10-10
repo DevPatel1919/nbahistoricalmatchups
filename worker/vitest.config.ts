@@ -22,6 +22,8 @@ export default defineConfig(async () => {
             LEADERBOARD_CACHE_SECONDS: "0",
             // ...and computed per request; the snapshot tests turn stored boards on.
             LEADERBOARD_REFRESH_SECONDS: "0",
+            // Daily Three crowd stats are read straight after posting; one test turns caching on.
+            DAILY_STATS_CACHE_SECONDS: "0",
           },
         },
       }),

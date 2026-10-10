@@ -75,3 +75,28 @@ export type DailyPool = {
 
 /** A pick names a side of a game: 0 is a, 1 is b. */
 export type Side = 0 | 1;
+
+// ---------------------------------------------------------------------------
+// Crowd stats wire types (Session 4). The duel Worker imports these
+// (worker/src/daily.ts); the page calls it through lib/duelApi.ts.
+// ---------------------------------------------------------------------------
+
+/** POST /v1/daily/:n/result. Sent once, at lock-in. */
+export type DailyResultBody = {
+  /** A random id this browser made (crypto.randomUUID), kept in ct:daily:v1. */
+  clientId: string;
+  picks: Side[];
+  /** Self-reported, unverified: 0 to 3. */
+  score: number;
+};
+
+/** GET /v1/daily/:n/stats. */
+export type DailyCrowdStats = {
+  n: number;
+  /** Browsers that sent a result for puzzle n. */
+  players: number;
+  /** Per game, how many picked [a, b]. */
+  picks: [number, number][];
+  /** How many went 0/3, 1/3, 2/3 and 3/3. */
+  scores: number[];
+};
