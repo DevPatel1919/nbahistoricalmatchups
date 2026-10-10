@@ -1,9 +1,11 @@
 # F12: Daily Three (a daily pick'em with simulated games)
 
 Status: **Sessions 1 and 2 merged 2026-10-07 (PR #18, PR #19), and staging
-brought up to date with `main` the same day. Session 3 (the `/daily` page) is
-next. Before launch (Session 5) the owner still has to accept the
-Basketball-Reference data rights.** Decided with the owner on 2026-10-05.
+brought up to date with `main` the same day. Session 3 (the `/daily` page,
+branch `f12-s3-page`) is built and waits for the owner's play-test on its
+Pages preview (2026-10-10). Before launch (Session 5) the owner still has to
+accept the Basketball-Reference data rights.** Decided with the owner on
+2026-10-05.
 
 Read first, in order: `CONTRIBUTING.md`, `docs/product/HANDOFF.md`,
 `docs/product/DEPLOYMENT.md` (the staging setup and the "stop before going
@@ -19,7 +21,8 @@ player studies two cards per matchup (the record, plus the starting five with
 each starter's scoring and signature stats), picks a winner in all three, and
 locks in. Each game then **plays out as a simulated game**: a scoreboard, a
 running clock, and scoring plays, ending in a final score. The player gets a
-score out of 3, two streaks, personal stats, and a share text with no spoilers.
+score out of 3, two streaks, personal stats, and a share text naming the
+day's simulated winners (Q5).
 
 The whole ritual takes about two minutes.
 
@@ -72,11 +75,11 @@ code, not hard rules:
 
 | # | Question | Recommendation | Decide by |
 |---|---|---|---|
-| Q1 | After the reveal, show the simulator's odds ("Upset! The simulator gave them 31%")? Never before the pick | Yes, after the reveal only. It explains upsets, so the luck feels fair | Session 3 |
+| Q1 | After the reveal, show the simulator's odds ("Upset! The simulator gave them 31%")? Never before the pick | **Decided 2026-10-10: yes, after each game's final only.** The page names "the model" and gives the winner's chance as a whole percent that never reads 0% or 100% ("Upset! The model gave the 2020–21 Trail Blazers 42%."). The margin is never shown | Session 3 |
 | Q2 | If the player data has no starter flag, how should the starting five be defined? | **Mostly answered by the data (owner, 2026-10-06):** games started from Basketball-Reference (`sumitrodatta/nba-aba-baa-stats`) for every season. Still open: accepting that source's rights, and the 1997–98 Bulls (Kukoč over an injured Pippen). See Session 1's record | Session 1 |
 | Q3 | Does missing a day reset the hot streak? | **Decided 2026-10-07: no.** Only a wrong pick resets it; a missed day resets only the play streak (`MISSED_DAY_RESETS_HOT_STREAK = false` in `daily/stats.ts`) | Session 2 |
 | Q4 | Launch date (puzzle #1) | Set in Session 5, after the staging play-test | Session 5 |
-| Q5 | The share text names the matchups, not the winners (spoiler-free, see "Share text"). The 2026-10-05 mock-up showed winners | Spoiler-free. Everyone gets the same simulated games, so naming winners spoils them for friends | Session 3 |
+| Q5 | The share text names the matchups, not the winners (spoiler-free, see "Share text"). The 2026-10-05 mock-up showed winners | **Decided 2026-10-10: name the winners, with the final score.** The recommendation was spoiler-free; the owner chose winners and scores (see "Share text") | Session 3 |
 
 ## The player's day
 
@@ -115,19 +118,22 @@ simulator plays each game at its odds, so upsets happen.*
 
 ### Share text
 
-Spoiler-free (Q5). The squares say whether the sharer was right, not who won:
+Q5, decided by the owner on 2026-10-10: each line names the simulated winner
+and the final score, and its square says whether the sharer was right. (The
+brief first planned a spoiler-free text; the owner chose winners and scores.)
 
 ```
 Daily Three #12 · 2/3
-🟩 '96 Bulls vs '89 Pistons
-🟥 '01 Lakers vs '14 Spurs
-🟩 '96 Bulls vs '17 Warriors ⭐
+🟩 '96 Bulls beat '89 Pistons 104–92
+🟥 '14 Spurs beat '01 Lakers 101–97
+🟩 '17 Warriors beat '96 Bulls 112–108 ⭐
 🔥 12  🎯 5
 courtofalltime.win/daily
 ```
 
-Team order in a line follows `canonicalOrder` in `lib/slug.ts`. The text never
-contains a probability or a margin.
+The games keep the day file's order, and the winner leads each line. The text
+never contains the model's probability or its margin `m`; the score is one
+simulated game's.
 
 ### Personal stats and streaks
 
@@ -985,3 +991,139 @@ tilted one above.
    games feel like coin flips. One option is to draw the target favourite
    probability uniformly inside the band.
 3. **Data rights** (Session 1, decision 1). Still open until Session 5.
+
+### Session 3: the `/daily` page (2026-10-10)
+
+Branch `f12-s3-page`. PR open, waiting for the owner's play-test on its Pages
+preview. Nothing reaches production: the page exists only in builds with
+`VITE_DAILY_THREE=1`.
+
+**Owner step.** Set `VITE_DAILY_THREE` = `1` in the Pages **Preview**
+environment (PR previews and the `staging` branch). Leave Production unset
+until Session 5. The Settings page's environment box defaults to Production
+(`DEPLOYMENT.md`, phase 2 Record, "Dashboard trap").
+
+**What was built**
+
+- **The build flag.** `frontend/buildEnv.ts` gains `dailyThreeEnabled` and
+  `dailyThreeDefines`, used by `vite.config.ts`. Only `1` or `true` (any case)
+  turn it on, and the app sees exactly `"1"` or `""`. It does not depend on
+  the branch: the Pages environment decides. `vite.config.ts` now also reads a
+  local `.env` file through `loadEnv`, so `VITE_DAILY_THREE=1` in
+  `frontend/.env.local` works for `npm run dev`. Tests are in
+  `tests/unit/build-env.test.ts`.
+  - `App.tsx` registers `daily` before `:matchupSlug` and tests the variable
+    inline. A build without the flag emits no `DailyPage` chunk, checked on a
+    real build. With the flag, the page is a lazy 24 KB chunk (8 KB gzipped).
+  - `lib/dailyFlag.ts` holds `DAILY_THREE` for the nav link
+    (`components/Layout.tsx`) and the home card (`pages/HomePage.tsx`).
+- **The page**, `pages/DailyPage.tsx`, with `components/daily/`:
+  - `DailyPickCard`: two team cards per game, each the label of a radio
+    (arrow keys and Space work, and the radio's name is short: "Pick the
+    1995–96 Chicago Bulls"). Each card shows the season, the era-correct name,
+    the record and the starting five with PPG and signature stats. At 480 px
+    and below, starters' names shorten to an initial, and the full name stays
+    for screen readers. Game 3 is marked ⭐ Featured. Lock in needs all three
+    picks.
+  - `DailyReveal`: one game after another, 20 seconds each plus a 3-second
+    pause on the final: a scoreboard, the quarter clock, and the last four
+    scoring plays ("M. Jordan three, +3"). **Skip** jumps to this game's final,
+    then becomes **Next game** / **See results**. **Skip all** goes to the
+    results. The ticking board is hidden from screen readers; a polite live
+    region announces each game's start and final. Focus moves to the game
+    heading at lock-in.
+  - `DailyFinal`: the score, ✅ or ❌, the odds line (Q1), the points-only box
+    line labelled "Simulated points", the one-simulated-game label, and the
+    explorer link (`/<a>-vs-<b>`). Screen readers get the final as a sentence
+    ("Final: 1985–86 Philadelphia 76ers 100, 2011–12 Miami Heat 110. You
+    picked …").
+  - `DailyResults`: "You went 2/3", both streaks, **Share** (Web Share, falling
+    back to the clipboard), **Watch again**, the three finals, the stats panel
+    (played, accuracy, perfect days, best streaks, days by score) and the
+    countdown to local midnight. At midnight the page loads the next puzzle.
+    Focus moves to the score after the reveal.
+  - Before lock-in, a returning player sees their current streaks above the
+    cards.
+- **Data and storage**, `lib/dailyData.ts`: cached loads of `meta.json`,
+  `teams.json` and `days/<n>.json` (a failed load is retried, not cached).
+  `ct:daily:v1` is read and written inside try/catch; with storage blocked the
+  day lasts for the page, and the results say so.
+- `lib/dailyPuzzle.ts` joins the day file, the pool and `index.json`, and runs
+  each game with `simulateGame` and the **day file's** `engine`. The results
+  are computed at load but only rendered after lock-in. `lib/dailyFormat.ts`
+  holds the display text and the reveal clock.
+- **Lock-in** calls `recordDay` with the picks and the simulated winners and
+  writes the store before the reveal starts, so a refresh mid-reveal lands on
+  the results. With `prefers-reduced-motion`, lock-in goes straight to the
+  results, where all three finals show at once.
+
+**Rules kept**
+
+- Nothing the model says shows before lock-in: no percentage, no margin, no
+  score. The full play-through test checks the page text before lock-in.
+- `m` is never displayed. After a final, the odds line gives the winner's
+  chance through `formatPercent` (`lib/duelFormat.ts`), which never reads 0%
+  or 100%.
+- Every game, in the reveal and in the results, carries "One simulated game.
+  The simulator plays each game at its odds, so upsets happen."
+- Team colours stay off (`TEAM_COLORS_APPROVED` is false), so the cards use the
+  site's side-A / side-B colours. No logos.
+
+**Decisions (owner, 2026-10-10)**
+
+- **Q1: yes.** The odds show after each game's final, never before the pick.
+  The owner asked how an upset works first. The example used was puzzle #9,
+  game 2 (not playable any more): the model gave the 2010–11 Celtics 58%
+  against the 2020–21 Trail Blazers. The seeded draw landed in the Blazers'
+  42%, and they won the simulated game 108–106. The page says "Upset! The
+  model gave the 2020–21 Trail Blazers 42%." The owner OK'd naming "the model".
+- **Q5: name the winners, with the final score.** This replaces the planned
+  spoiler-free text. `daily/share.ts` takes each game's `finals` and writes
+  "🟩 '96 Bulls beat '89 Pistons 104–92". The squares still follow the
+  sharer's picks. Session 2's share tests were rewritten for it: winner first,
+  the right square, no `%`, no decimal, and no `p` or `m`.
+
+**Tests**
+
+- Unit (`tests/unit/daily-page.test.ts`, 14): card and stat text, the play
+  text, the clock, the odds line, the reveal clock (advance, pause, Skip, Skip
+  all), the countdown, and the puzzle built from the committed data, matching
+  `simulateGame` for days 1, 10 and 365. `build-env.test.ts` has 4 more, and
+  `daily-engine.test.ts` has 2 more for the share text.
+- Playwright (`tests/e2e/daily.spec.ts`, 9). The date is pinned with
+  `page.clock` in `America/New_York`, and the expected winners, finals and
+  share text are recomputed from the committed data with the engine:
+  - a full play-through: no model numbers before lock-in, picks that change,
+    Skip, a game that runs its 20 seconds, the move to the next game, and the
+    results with every label, the screen-reader final and the explorer links;
+  - a refresh mid-reveal that lands on the results, then Watch again;
+  - a second day in a row (play streak 2);
+  - a skipped day (play streak 0 before playing, 1 after; the hot streak
+    survives, Q3);
+  - the share text, compared exactly;
+  - reduced motion;
+  - 375 px in both themes with no sideways scroll, played by keyboard only;
+  - the home card and the nav link;
+  - with the flag off, `/daily` shows "We couldn't find that matchup." and
+    neither the link nor the card appears.
+- `playwright.config.ts` starts the main dev server with
+  `VITE_DAILY_THREE=1`, plus a second one on port 4318 without it, with its
+  own Vite cache directory (`VITE_CACHE_DIR`).
+
+**Verification:** all of "How to verify" passed on 2026-10-10:
+- `npm run build` and `npm run lint` are clean.
+- `npm test`: 218 unit tests.
+- `npx playwright test`: 58 tests, all passing in one parallel run.
+- Worker: `tsc` passes and 123 tests pass.
+- `python -m pytest tests`: 176 tests.
+- `test_pregame_leakage.py` exits 0.
+- `verify_static_export.py`: 200 of 200 pairs match.
+- `verify_daily_data.py`: OK.
+
+**For the owner (play-test on the preview)**
+
+1. **Games 1–2 closeness** (Session 2, item 2): judge it while playing. 87% of
+   games 1–2 have a 0.55–0.60 favourite, so about 4 in 10 of those games end
+   as upsets.
+2. Approve the merge. Then `git push origin main:staging` brings the page to
+   `staging.courtofalltime.win`.

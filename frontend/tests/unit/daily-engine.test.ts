@@ -514,26 +514,55 @@ const SHARE_GAMES = [
   { a: "1996-bulls", b: "2017-warriors", p: 0.4921, m: -0.3, featured: true },
 ];
 
+// Simulated finals, [a, b], chosen to share no digits with p or m.
+const SHARE_FINALS: [number, number][] = [
+  [92, 104],
+  [97, 101],
+  [108, 112],
+];
+
 describe("share text", () => {
-  it("matches the brief's layout", () => {
+  it("names each winner and the final score (Q5)", () => {
     const text = buildShareText({
       n: 12,
       games: SHARE_GAMES,
       teams: SHARE_TEAMS,
       record: { picks: [1, 0, 1], winners: [1, 1, 1] },
+      finals: SHARE_FINALS,
       playStreak: 12,
       hotStreak: 5,
     });
     expect(text).toBe(
       [
         "Daily Three #12 · 2/3",
-        "🟩 '89 Pistons vs '96 Bulls",
-        "🟥 '01 Lakers vs '14 Spurs",
-        "🟩 '96 Bulls vs '17 Warriors ⭐",
+        "🟩 '96 Bulls beat '89 Pistons 104–92",
+        "🟥 '14 Spurs beat '01 Lakers 101–97",
+        "🟩 '17 Warriors beat '96 Bulls 112–108 ⭐",
         "🔥 12  🎯 5",
         SHARE_URL,
       ].join("\n"),
     );
+  });
+
+  it("puts side a first when a won", () => {
+    const text = buildShareText({
+      n: 3,
+      games: SHARE_GAMES,
+      teams: SHARE_TEAMS,
+      record: { picks: [0, 1, 0], winners: [0, 0, 0] },
+      finals: [
+        [104, 92],
+        [101, 97],
+        [112, 108],
+      ],
+      playStreak: 1,
+      hotStreak: 0,
+    });
+    expect(text.split("\n").slice(1, 4)).toEqual([
+      "🟩 '89 Pistons beat '96 Bulls 104–92",
+      "🟥 '01 Lakers beat '14 Spurs 101–97",
+      "🟩 '96 Bulls beat '17 Warriors 112–108 ⭐",
+    ]);
   });
 
   it("labels seasons with two digits", () => {
@@ -542,30 +571,56 @@ describe("share text", () => {
     expect(shortTeamLabel({ season: 1986, name: "76ers" })).toBe("'86 76ers");
   });
 
-  it("carries no probability, no margin and no winner", () => {
-    const share = (record: DayRecord) =>
-      buildShareText({ n: 40, games: SHARE_GAMES, teams: SHARE_TEAMS, record, playStreak: 3, hotStreak: 7 });
+  it("carries no probability and no margin", () => {
     // Every way to be right or wrong in each game, with either side winning.
     for (let mask = 0; mask < 8; mask++) {
       const right = [0, 1, 2].map((i) => ((mask >> i) & 1) === 1);
-      const texts = new Set<string>();
       for (let winners = 0; winners < 8; winners++) {
         const w = [0, 1, 2].map((i) => ((winners >> i) & 1) as Side);
         const picks = w.map((x, i) => (right[i] ? x : ((1 - x) as Side)));
-        const text = share({ picks, winners: w });
-        texts.add(text);
+        const finals = SHARE_FINALS.map(([lo, hi], i): [number, number] => (w[i] === 0 ? [hi, lo] : [lo, hi]));
+        const text = buildShareText({
+          n: 40,
+          games: SHARE_GAMES,
+          teams: SHARE_TEAMS,
+          record: { picks, winners: w },
+          finals,
+          playStreak: 3,
+          hotStreak: 7,
+        });
         const body = text.replace(SHARE_URL, "");
-        expect(body).not.toMatch(/%|\+|\bby\b|\bwon\b|\bwins?\b|\bbeat/i);
+        expect(body).not.toMatch(/%|\+|\bby\b|\bpts?\b|\bpoints?\b/i);
         expect(text).not.toMatch(/\d\.\d/);
         for (const g of SHARE_GAMES) {
           expect(text).not.toContain(String(g.p));
           expect(text).not.toContain(String(Math.round(g.p * 100)));
           expect(text).not.toContain(String(Math.abs(g.m)));
         }
+        // The square follows the pick; the winner leads its line.
+        text
+          .split("\n")
+          .slice(1, 4)
+          .forEach((line, i) => {
+            expect(line.startsWith(right[i] ? "🟩" : "🟥")).toBe(true);
+            const winnerKey = w[i] === 0 ? SHARE_GAMES[i].a : SHARE_GAMES[i].b;
+            expect(line.slice(3).startsWith(shortTeamLabel(SHARE_TEAMS[winnerKey]))).toBe(true);
+          });
       }
-      // Only whether the sharer was right shows: the winners never change the text.
-      expect(texts.size).toBe(1);
     }
+  });
+
+  it("refuses a missing final", () => {
+    expect(() =>
+      buildShareText({
+        n: 1,
+        games: SHARE_GAMES,
+        teams: SHARE_TEAMS,
+        record: { picks: [0, 0, 0], winners: [0, 0, 0] },
+        finals: SHARE_FINALS.slice(0, 2),
+        playStreak: 1,
+        hotStreak: 1,
+      }),
+    ).toThrow();
   });
 
   it("names every scheduled team by its era-correct name", () => {
@@ -577,6 +632,11 @@ describe("share text", () => {
       games: day.games,
       teams,
       record: { picks: [0, 0, 0], winners: [0, 1, 0] },
+      finals: [
+        [101, 99],
+        [95, 103],
+        [110, 90],
+      ],
       playStreak: 1,
       hotStreak: 1,
     });

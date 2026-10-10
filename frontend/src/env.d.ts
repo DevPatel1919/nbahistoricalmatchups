@@ -10,4 +10,6 @@ interface ImportMetaEnv {
   readonly VITE_DUEL_API?: string;
   /** Turnstile site key for the duel sign-in form. Without it sign-in says it is unavailable; guest play is unaffected. */
   readonly VITE_TURNSTILE_SITE_KEY?: string;
+  /** "1" switches Daily Three on (/daily, its home card and nav link); vite.config.ts normalises it (buildEnv.ts). */
+  readonly VITE_DAILY_THREE?: string;
 }
