@@ -22,6 +22,8 @@ export interface Env {
   LEADERBOARD_CACHE_SECONDS: string;
   /** Oldest stored board a request may serve, in seconds; "0" computes every request. */
   LEADERBOARD_REFRESH_SECONDS: string;
+  /** Seconds a Daily Three crowd-stats response is cached at the edge; "0" turns caching off. */
+  DAILY_STATS_CACHE_SECONDS: string;
   /** Bearer secret for the internal review queue (admin.ts). Unset: every admin path is 404. */
   ADMIN_TOKEN?: string;
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { IndexData } from "../types";
 import { loadIndex } from "../lib/dataLoader";
 import AnalyticsOptOut from "../components/AnalyticsOptOut";
+import { DAILY_THREE } from "../lib/dailyFlag";
 import { DUEL_API } from "../lib/duelApi";
 
 // The model description and limitations below restate the active release's
@@ -118,6 +119,18 @@ export default function AboutPage() {
           <p>
             You can delete your account from the account page at any time. That removes the account and everything
             above that belongs to it. Players you&apos;ve faced keep their own results, with your name replaced.
+          </p>
+        </>
+      )}
+      {DAILY_THREE && DUEL_API && (
+        <>
+          <h3>Daily Three</h3>
+          <p>
+            When you lock in your Daily Three picks, this browser sends them, with your score for the day, to the same
+            server so everyone can see how the crowd picked. They go with a random id this browser made for Daily Three
+            and nothing else: no name, account, or guest id. The id only stops a browser from counting twice in a day.
+            Scores are self-reported and not checked, so the crowd lines are a rough guide. The rate limit uses a
+            scrambled form of your network address that is deleted within two hours.
           </p>
         </>
       )}

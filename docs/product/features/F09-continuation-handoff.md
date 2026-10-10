@@ -85,6 +85,8 @@ it unreachable.
 | `POST /v1/account/display-name` `{ displayName }` | session | `AccountView` (includes `hiddenFromBoard`) |
 | `POST /v1/account/delete` `{ confirm: true }` | session | `{ ok }`; `409 match_in_progress` while a match with an opponent is unresolved |
 | `GET /v1/leaderboard?board=daily\|30d` | none; edge-cached; reads the stored board | `LeaderboardView` (flagged accounts left off) |
+| `POST /v1/daily/:n/result` `{ clientId, picks, score }` | none; 60/h per IP; `n` within today's UTC puzzle ± 1 | `{ ok }`; a repeat `(n, clientId)` is ignored (F12 Daily Three, `daily.ts`) |
+| `GET /v1/daily/:n/stats` | none; edge-cached (`DAILY_STATS_CACHE_SECONDS`) | `DailyCrowdStats`, read from one `daily_tallies` row |
 | `GET /v1/admin/flags?status=` | `ADMIN_TOKEN`; else 404 | the review queue |
 | `POST /v1/admin/flags/:id` `{ decision, note? }` | `ADMIN_TOKEN` | the decided flag |
 | `POST /v1/admin/sweep` | `ADMIN_TOKEN` | runs the detectors now |

@@ -7,19 +7,24 @@
 // - m is never shown at all, and the odds after a final never read 0% or 100%;
 // - every game is labelled as one simulated game;
 // - picks, and the simulated winners, are stored at lock-in, so a refresh
-//   during the reveal lands on the results and the streak counts either way.
+//   during the reveal lands on the results and the streak counts either way;
+// - crowd stats (Session 4) are optional: with the duel API configured, the
+//   day is sent once at lock-in and the crowd lines are fetched for the
+//   results only. Any failure just leaves them out.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { localDate, puzzleDate, puzzleStatus, type PuzzleStatus } from "../daily/day";
-import { computeStats, getDay, recordDay } from "../daily/stats";
-import type { Side } from "../daily/types";
+import { computeStats, dayScore, getDay, recordDay } from "../daily/stats";
+import type { DailyCrowdStats, Side } from "../daily/types";
 import DailyPickCard from "../components/daily/DailyPickCard";
 import DailyResults from "../components/daily/DailyResults";
 import DailyReveal from "../components/daily/DailyReveal";
 import { loadIndex } from "../lib/dataLoader";
+import { parseCrowdStats, withClientId } from "../lib/dailyCrowd";
 import { loadDailyDay, loadDailyMeta, loadDailyPool, readDailyStore, writeDailyStore } from "../lib/dailyData";
 import { buildPuzzle, puzzleWinners, type Puzzle } from "../lib/dailyPuzzle";
+import { DUEL_API, fetchDailyStats, postDailyResult } from "../lib/duelApi";
 
 type Load =
   | { kind: "loading" }
@@ -86,16 +91,45 @@ function DailyGame({ puzzle, onNextPuzzle }: { puzzle: Puzzle; onNextPuzzle: () 
   const [saved, setSaved] = useState(true);
   // False only for a day already finished when the page loaded.
   const [played, setPlayed] = useState(false);
+  const [crowd, setCrowd] = useState<DailyCrowdStats | null>(null);
+  // This page's result post, so the crowd fetch can wait for it.
+  const resultSent = useRef<Promise<void> | null>(null);
 
   const record = getDay(store, puzzle.n);
   const stats = computeStats(store, puzzle.n);
   const picked = picks.filter((p) => p !== null).length;
+  const locked = record !== undefined;
+
+  useEffect(() => {
+    // Crowd lines only once the day is locked in, and only on the results.
+    if (stage !== "done" || !locked || !DUEL_API) return;
+    let cancelled = false;
+    (resultSent.current ?? Promise.resolve())
+      .then(() => fetchDailyStats(puzzle.n))
+      .then((value) => {
+        if (!cancelled) setCrowd(parseCrowdStats(value, puzzle.n));
+      })
+      .catch(() => {
+        if (!cancelled) setCrowd(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [stage, locked, puzzle.n]);
 
   const lockIn = () => {
     if (picks.some((p) => p === null)) return;
-    const next = recordDay(store, puzzle.n, picks as Side[], puzzleWinners(puzzle));
+    let next = recordDay(store, puzzle.n, picks as Side[], puzzleWinners(puzzle));
+    if (DUEL_API) next = withClientId(next);
     setSaved(writeDailyStore(next));
     setStore(next);
+    const day = getDay(next, puzzle.n);
+    if (DUEL_API && next.clientId && day) {
+      // Sent once, at lock-in. A failure is ignored: the game never depends on the API.
+      resultSent.current = postDailyResult(puzzle.n, { clientId: next.clientId, picks: day.picks, score: dayScore(day) }).catch(
+        () => {},
+      );
+    }
     setPlayed(true);
     setStage(prefersReducedMotion() ? "done" : "reveal");
   };
@@ -152,6 +186,7 @@ function DailyGame({ puzzle, onNextPuzzle }: { puzzle: Puzzle; onNextPuzzle: () 
           record={record}
           stats={stats}
           saved={saved}
+          crowd={crowd}
           focusOnMount={played}
           onWatchAgain={() => setStage("reveal")}
           onNextPuzzle={onNextPuzzle}

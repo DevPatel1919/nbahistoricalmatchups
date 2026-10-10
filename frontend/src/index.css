@@ -1891,7 +1891,8 @@ button {
 .daily-game,
 .daily-reveal,
 .daily-final,
-.daily-stats {
+.daily-stats,
+.daily-crowd {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   background: var(--bg-card);
@@ -2297,7 +2298,8 @@ button {
   gap: 14px;
 }
 
-.daily-stats h2 {
+.daily-stats h2,
+.daily-crowd h2 {
   font-family: var(--font-score);
   text-transform: uppercase;
   font-size: 1.1rem;
@@ -2365,6 +2367,22 @@ button {
   font-weight: 700;
 }
 
+.daily-crowd__players {
+  color: var(--text-dim);
+  margin: 0 0 8px;
+}
+
+.daily-crowd__lines {
+  margin: 0;
+  padding-left: 1.2em;
+  display: grid;
+  gap: 4px;
+}
+
+.daily-crowd__game {
+  font-weight: 700;
+}
+
 .daily-countdown {
   text-align: center;
   color: var(--text-dim);
@@ -2380,7 +2398,8 @@ button {
   .daily-game,
   .daily-reveal,
   .daily-final,
-  .daily-stats {
+  .daily-stats,
+  .daily-crowd {
     padding: 12px;
   }
 

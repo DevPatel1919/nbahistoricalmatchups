@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
-import { DAILY_OFF_PORT } from "../../playwright.config";
+import { DAILY_OFF_PORT, DUEL_API_PORT } from "../../playwright.config";
 import {
   addCalendarDays,
   buildShareText,
@@ -19,6 +19,9 @@ import type { IndexData } from "../../src/types";
 // Daily Three (F12 Session 3). The date is pinned with Playwright's clock, in
 // a fixed time zone, and every expected result is recomputed here from the
 // committed data with the same engine, so the tests follow a rebuilt schedule.
+//
+// The pinned dates are outside the Worker's window around the real date, so
+// crowd stats (Session 4) are blocked here; daily-crowd.spec.ts tests them.
 
 const readJson = <T>(path: string): T => JSON.parse(readFileSync(`public/data/${path}`, "utf8")) as T;
 const META = readJson<DailyMeta>("daily/meta.json");
@@ -50,6 +53,7 @@ function picksScoring(n: number, right: number): Side[] {
 test.use({ timezoneId: "America/New_York" });
 
 test.beforeEach(async ({ page }) => {
+  await page.route(`http://localhost:${DUEL_API_PORT}/v1/daily/**`, (route) => route.abort());
   // Share falls back to the clipboard; capture what would be copied.
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "share", { value: undefined, configurable: true });

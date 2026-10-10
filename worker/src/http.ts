@@ -16,6 +16,7 @@ export const ERRORS = {
   set_expired: [403, "This puzzle set has expired. Start a new one."],
   invite_own: [400, "This is your own invite. Send it to a friend."],
   not_found: [404, "Not found."],
+  puzzle_closed: [404, "That Daily Three puzzle isn't open."],
   invite_unavailable: [404, "This invite is invalid, expired, or already used."],
   already_submitted: [409, "Picks for this duel were already submitted."],
   ranked_queue_full: [409, "You already have the most ranked sets waiting for opponents. Wait for one to finish."],

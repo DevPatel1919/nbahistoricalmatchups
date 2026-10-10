@@ -1,9 +1,10 @@
 # F12: Daily Three (a daily pick'em with simulated games)
 
 Status: **Sessions 1–3 merged (PR #18 and PR #19 on 2026-10-07, PR #22 on
-2026-10-10), and staging is up to date with `main`. The `/daily` page is
-built behind `VITE_DAILY_THREE`, which is off in production. Session 4 (crowd
-stats on staging) is next. Before launch (Session 5) the owner still has to
+2026-10-10). The `/daily` page is built behind `VITE_DAILY_THREE`, which is
+off in production. Session 4 (crowd stats) is in review: its staging Worker
+and D1 migration are deployed, and the PR waits for the owner before the
+merge and the staging play-test. Before launch (Session 5) the owner still has to
 accept the Basketball-Reference data rights.** Decided with the owner on
 2026-10-05.
 
@@ -1141,3 +1142,149 @@ until Session 5. The Settings page's environment box defaults to Production
    simulator: draw each game's target favourite evenly inside
    `FORGIVING_BAND`, or raise the band's floor. Then rebuild the schedule,
    which is allowed until launch.
+
+### Session 4: crowd stats on staging (2026-10-10)
+
+Branch `f12-s4-crowd`, PR #24. Production is untouched: no production
+Worker, D1 or Pages variable was changed. The page still exists only in builds
+with `VITE_DAILY_THREE=1`, and crowd stats need `VITE_DUEL_API` as well.
+
+**Deployed to staging (2026-10-10, before the merge)**
+
+- Backup first: `wrangler d1 export court-of-all-time-duel-staging --remote
+  --env staging` wrote 9.5 MB (17,083 rows) to the agent's session
+  scratchpad, outside git. D1 Time Travel also keeps 30 days.
+- `npx wrangler d1 migrations apply DB --remote --env staging` applied
+  `0007_daily.sql`.
+- `npx wrangler deploy --env staging`: version `fc0a9a97`, built from this
+  branch, with `DAILY_STATS_CACHE_SECONDS` = `"60"`.
+- Checked on `api-staging.courtofalltime.win`: `/v1/health` answers; the
+  schema has `daily_results`, its index, `daily_tallies` and the trigger;
+  `/v1/daily/{9,10,11}/stats` answer 200 (zeros) and `/12` 404 on
+  2026-10-10 (UTC puzzle #10); the preflight from
+  `https://staging.courtofalltime.win` is allowed; a malformed result is
+  `400 bad_request`. No result was posted from the command line, so the
+  play-test counts start at zero.
+
+**What was built**
+
+- **`worker/migrations/0007_daily.sql`.** `daily_results` as the brief
+  specifies, with CHECKs on `n`, `picks` and `score`. `picks` is three
+  characters, `'0'` (team a) or `'1'` (team b) per game, for example `'011'`.
+  Two additions to the plan:
+  - an index on `(client_id, n)` for the retention query below;
+  - `daily_tallies`, one row of running totals per puzzle, kept by an
+    `AFTER INSERT` trigger. `INSERT OR IGNORE` on a duplicate fires nothing,
+    so a browser still counts once. The stats route reads that one row
+    instead of every result, so its cost doesn't grow with players (the F09
+    Session 8 cost rule). A Worker test meters it at 1 query and 1 row read.
+- **`worker/src/daily.ts`**, routed in `index.ts`:
+  - `POST /v1/daily/:n/result` `{ clientId, picks, score }` answers
+    `{ ok: true }` whether or not the result was new. `clientId` must be a
+    lowercase UUID, `picks` three 0/1 numbers, `score` an integer 0–3;
+    anything else is `400 bad_request`. Unknown fields are ignored, and the
+    body is capped at 1 KB.
+  - `GET /v1/daily/:n/stats` answers `{ n, players, picks: [[a, b] × 3],
+    scores: [s0, s1, s2, s3] }`. It is edge-cached for
+    `DAILY_STATS_CACHE_SECONDS` (a new var, `"60"` in both environments,
+    `"0"` in tests and e2e), following `leaderboardResponse`.
+  - Both refuse an `n` more than 1 from today's UTC puzzle number with
+    `404 puzzle_closed`, and a malformed `n` with `404 not_found`.
+  - The POST is rate-limited per keyed IP hash (`LIMITS.dailyResultPerIp`,
+    60 an hour, `RATE_LIMIT_SCALE` applies). The GET has no limit, like the
+    leaderboard: it is cached, and only 3 puzzle numbers are ever open.
+  - **The launch date comes from `frontend/public/data/daily/meta.json`**,
+    imported at build time (`resolveJsonModule` in `worker/tsconfig.json`),
+    so the site and the Worker can't disagree. **Session 5 must redeploy the
+    Worker (staging and production) after the launch date changes**, or
+    every result is refused as `puzzle_closed` (the page then just hides the
+    crowd lines).
+- **Frontend.**
+  - `lib/duelApi.ts` (still the only module that calls the Worker) gains
+    `postDailyResult` (with `keepalive`, so closing the tab at lock-in still
+    sends it) and `fetchDailyStats`. No token is sent.
+  - `lib/dailyCrowd.ts` (pure): `newClientId` (`crypto.randomUUID`, with a
+    `getRandomValues` fallback), `withClientId`, `parseCrowdStats` and the
+    line text.
+  - `DailyPage`: with `VITE_DUEL_API` set, lock-in adds a `clientId` to
+    `ct:daily:v1` the first time and sends the day once. Nothing is sent on
+    a reload, Watch again, or a day finished before this session. The stats
+    are fetched only on the results, after the reveal, and after this page's
+    post has settled. Without `VITE_DUEL_API` there is no id and no request.
+  - `DailyResults` shows a **Today's crowd** panel between the finals and
+    your stats: "37 players so far.", one line per game naming the side most
+    players picked ("62% picked the 1995–96 Bulls."; an even split names
+    both), and "41% went 3/3.", with "Each browser counts once a day. Scores
+    are self-reported." The panel is left out on any failure: a network
+    error, any non-2xx, a body that isn't JSON, another puzzle's stats,
+    counts that don't add up, or no players yet.
+  - The About page has a **Daily Three** privacy paragraph, shown when both
+    flags are on: the picks and score go with a random id this browser made
+    for Daily Three and nothing else; scores are self-reported and not
+    checked; the rate limit's scrambled network address is gone within two
+    hours.
+  - `tests/e2e/daily.spec.ts` now blocks the crowd API: its pinned dates are
+    outside the Worker's window, and its tests stay about the static game.
+
+**Tests**
+
+- Worker (`test/daily.test.ts`, 13): puzzle numbers and the ±1 window
+  (launch day, before launch, malformed numbers); a result and its tallies;
+  once per browser, keeping the first result; every invalid body; the rate
+  limit and `retry-after`; CORS and the preflight; zeros for an unplayed
+  puzzle, with no client id in the answer; the metered one-row read; edge
+  caching.
+- Unit (`tests/unit/daily-crowd.test.ts`, 10): the id (v4, with and without
+  `randomUUID`, kept once made), every refused stats shape, the line text,
+  and the two calls (URLs, body, `keepalive`, no network when unconfigured,
+  errors).
+- Playwright (`tests/e2e/daily-crowd.spec.ts`, 10):
+  - no crowd line or stats request before lock-in or during the reveal; the
+    day posted once with exactly `{ clientId, picks, score }` and the id
+    kept in `ct:daily:v1`; the exact crowd lines after the reveal; a reload
+    and Watch again send nothing new;
+  - the API blocked: the whole game, the results, the stats and the saved
+    day still work, with no crowd panel and no page error;
+  - six bad answers, each hiding the panel;
+  - the About paragraph;
+  - against the local Worker with today's real puzzle: two browser
+    contexts, each counted once, a reload that sends nothing, and a
+    repeated post of the same id that changes nothing.
+
+**Notes**
+
+- **Time zones.** ±1 around UTC covers every zone except UTC+13 and +14 in
+  the last hours of the UTC day, when their date is UTC + 2. Those players
+  get `puzzle_closed`, so they see no crowd lines; the game is unaffected.
+  Widen `DAILY_WINDOW` to accept them if that matters.
+- **Caching.** A player who skips the reveal can see counts up to a minute
+  old, which may not include their own result yet.
+- **Small crowds.** With one player, the lines read 100% and 0%. That is
+  accurate, and only staging and the first launch days will see it.
+- **Privacy.** HANDOFF's decision of 2026-09-26 says no device id is
+  stored. The brief's `clientId` is a random per-browser id for Daily Three
+  only, linked to nothing else; the About page says so. Nothing purges
+  `daily_results` yet, since retention needs the history. A retention limit
+  (for example 13 months) is a follow-up for the owner to decide.
+- **Retention query** (the brief's success measure):
+
+  ```sql
+  SELECT d.n, COUNT(*) AS players,
+    SUM(EXISTS (SELECT 1 FROM daily_results r WHERE r.client_id = d.client_id AND r.n = d.n + 1)) AS back_next_day,
+    SUM(EXISTS (SELECT 1 FROM daily_results r WHERE r.client_id = d.client_id AND r.n = d.n + 7)) AS back_in_a_week
+  FROM daily_results d GROUP BY d.n ORDER BY d.n;
+  ```
+
+  Run it with `npx wrangler d1 execute DB --remote --env staging --command "…"`.
+
+**Verification:** all of "How to verify" passed on 2026-10-10:
+- `npm run build` and `npm run lint` are clean.
+- `npm test`: 228 unit tests.
+- `npx playwright test`: 68 tests, all passing in one parallel run.
+- Worker: `tsc` passes and 136 tests pass.
+- `python -m pytest tests`: 176 tests.
+- `test_pregame_leakage.py` exits 0.
+- `verify_static_export.py`: 200 of 200 pairs match.
+- `verify_daily_data.py`: OK.
+
+**Staging play-test:** after the merge (record by a docs PR).

@@ -23,7 +23,9 @@ const workerCommand = [
     // The review queue (F09 Session 7), and an uncached, per-request board so results show at once.
     " --var ADMIN_TOKEN:e2e-admin-token-0123456789abcdef0123" +
     " --var LEADERBOARD_CACHE_SECONDS:0" +
-    " --var LEADERBOARD_REFRESH_SECONDS:0",
+    " --var LEADERBOARD_REFRESH_SECONDS:0" +
+    // Daily Three crowd stats (F12 Session 4), uncached so a result shows at once.
+    " --var DAILY_STATS_CACHE_SECONDS:0",
 ].join(" && ");
 
 export default defineConfig({
