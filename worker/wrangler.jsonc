@@ -20,7 +20,7 @@
   // Settles ranked and friend matches whose timeout has passed (src/matches.ts settleDue),
   // then runs the integrity sweep (src/integrity.ts runIntegritySweep).
   "triggers": { "crons": ["*/15 * * * *"] },
-  // Phase 3 adds the production route: { "pattern": "api.courtofalltime.win", "custom_domain": true }.
+  "routes": [{ "pattern": "api.courtofalltime.win", "custom_domain": true }],
   "vars": {
     // Comma-separated origins allowed to call the API from a browser.
     "ALLOWED_ORIGINS": "https://courtofalltime.win",
@@ -41,13 +41,12 @@
     "DAILY_STATS_CACHE_SECONDS": "60"
   },
   "d1_databases": [
-    // Phase 3: `wrangler d1 create court-of-all-time-duel` and paste the id.
-    { "binding": "DB", "database_name": "court-of-all-time-duel", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
+    { "binding": "DB", "database_name": "court-of-all-time-duel", "database_id": "dcbc34f0-fe24-412d-8c67-0076adec2bc3", "migrations_dir": "migrations" }
   ],
   "kv_namespaces": [
-    // Phase 3: `wrangler kv namespace create court-of-all-time-duel-POOL` / `...-RATE_LIMITS` and paste the ids.
-    { "binding": "POOL", "id": "00000000000000000000000000000000" },
-    { "binding": "RATE_LIMITS", "id": "00000000000000000000000000000001" }
+    // Titled court-of-all-time-duel-POOL and court-of-all-time-duel-RATE_LIMITS (deployment phase 3).
+    { "binding": "POOL", "id": "46c2ca09963d451998b9178056511ae1" },
+    { "binding": "RATE_LIMITS", "id": "efeebe0fa3cf424781e9f08883200387" }
   ],
   "env": {
     "staging": {
