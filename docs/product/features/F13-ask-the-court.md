@@ -1,6 +1,8 @@
 # F13: Ask the Court (grounded question answering over the simulator)
 
-Status: **Planned 2026-10-26. No session has started.** Session 1 is next.
+Status: **Session 1 (corpus and model inputs) built 2026-10-26 on branch
+`f13-s1-corpus`, PR into `f13-plan`, not merged.** Session 2 is next, after
+the owner installs Ollama and CUDA PyTorch (Session 1 record).
 Planned with the owner on 2026-10-26: the system must be **free to build and
 free to run**, it is developed and evaluated on the owner's GPU, and it is served
 from the existing Cloudflare Worker within free allocations.
@@ -118,14 +120,18 @@ Each part answers a failure that a naive RAG system would have on this data.
 
 ### The corpus
 
-`scripts/build_rag_corpus.py` writes `data/processed/rag/corpus.jsonl`
-(gitignored, deterministic, rebuilt by a test like F12's). Each line is one
-chunk:
+`scripts/build_rag_corpus.py` writes `data/rag/corpus.jsonl`. It is
+committed, deterministic, and rebuilt byte-identically by a test like F12's
+(changed in Session 1; see its record). Each line is one chunk:
 
 ```json
 {"id": "team:1996-bulls", "type": "team_card", "title": "1995–96 Chicago Bulls",
- "keys": ["1996-bulls"], "seasons": [1996], "text": "...", "release": "hist-v2"}
+ "keys": ["1996-bulls"], "seasons": [1996], "text": "...", "release": "hist-v2",
+ "source": "team_season_profiles_extended.csv"}
 ```
+
+The table below is the plan. Session 1's record has what was built: 1,305
+chunks, with method chunks taken from curated notes, not from the reports.
 
 | Chunk type | Count (about) | Source | Text |
 |---|---|---|---|
@@ -478,8 +484,8 @@ Steps:
    Python 3.11.
 2. Write `src/rag/` (package): `corpus.py` (chunk builders), `textfmt.py`
    (number and season formatting shared by cards and the grounding check).
-3. Write `scripts/build_rag_corpus.py`. It writes `data/processed/rag/corpus.jsonl`
-   and `data/processed/rag/model_inputs.json`, with the chunk types and counts
+3. Write `scripts/build_rag_corpus.py`. It writes `data/rag/corpus.jsonl`
+   and `data/rag/model_inputs.json` (committed), with the chunk types and counts
    above. It must be deterministic.
 4. Verify `model_inputs.json` reproduces exported `p` within 0.0005 on a
    2,000-pair sample. Document any scaler folding.
@@ -793,3 +799,112 @@ python scripts/eval_rag.py --config current --split dev                         
 _(Each session adds its record here: what changed, the numbers, the owner's
 decisions, what was deployed where, and anything that differed from this
 plan.)_
+
+### Session 1: corpus and model inputs (2026-10-26)
+
+Branch `f13-s1-corpus`, PR into `f13-plan` (the brief's own PR, #27), so the
+diff shows only this session. Not merged. Nothing is deployed, and nothing
+under `models/` or `frontend/public/data/` changed. The session ran in this
+conversation instead of a new session: new sessions cannot be started over
+Remote Control.
+
+**Owner prerequisites (checked 2026-10-26, both missing).** Neither is needed
+for Session 1; both are needed for Session 2.
+
+- **Ollama** is not installed. Install it from https://ollama.com (Windows),
+  then run `ollama pull llama3.1:8b` and `ollama pull qwen2.5:7b`.
+- **PyTorch** is `2.9.1+cpu`. The GPU is an RTX 3060 Ti, 8 GB, driver
+  617.14 (CUDA 13.4). Wheels for this Python exist on PyTorch's `cu128` and
+  `cu130` indexes. Run
+  `pip install --force-reinstall torch==2.9.1 --index-url https://download.pytorch.org/whl/cu128`,
+  then `pip install -r requirements-rag.txt`. Check with
+  `python -c "import torch; print(torch.cuda.is_available())"`, which must
+  print `True`.
+
+**What was built**
+
+- `requirements-rag.txt` pins the pipeline packages and
+  `sentence-transformers==6.2.0`. PyTorch is left out on purpose: it comes from
+  PyTorch's CUDA index, as above.
+- `src/rag/textfmt.py` formats every number, season, record and alias in the
+  corpus. Session 4's grounding check must use the same functions, or their
+  TypeScript twin pinned by fixtures.
+- `src/rag/corpus.py` has the chunk builders, the corpus checks
+  (`check_corpus`: unique ids, known keys, forbidden text), and the
+  model-input fold.
+- `src/rag/sources/method_notes.md` holds 12 curated method sections.
+- `scripts/build_rag_corpus.py` writes `data/rag/corpus.jsonl` (2.7 MB),
+  `data/rag/model_inputs.json` (92 KB) and `reports/rag_corpus.md`. It takes
+  about 10 seconds.
+- `tests/test_rag_corpus.py` has 31 tests. Most run on the committed
+  artifacts. The byte-identical rebuild test needs `data/raw/` and
+  `data/processed/`.
+- `.gitattributes` marks `data/rag/**` as `-text`, so Windows line-ending
+  conversion can't break the rebuild test.
+
+**The corpus: 1,305 chunks**
+
+| Type | Chunks | Tokens (estimated, characters / 4) | Notes |
+|---|---|---|---|
+| `team_card` | 1,177 | 348–421, median 372 | One per index key. Each card has aliases ('96 Bulls…), record and its rank, playoff result, scoring, and 11 stats each with value, z, direction and season rank. Cards before 1996–97 carry the box-score note. Each ends with the two z-scores the model reads |
+| `season_card` | 41 | 96–130 | Champion, best record, best and worst net rating, league averages, short-season note |
+| `leaderboard` | 72 | 172–229 | 12 lists × 6 eras (all-time, 1980s, 1990s, 2000s, 2010s, 2020s), top 10. Era-sensitive stats are ranked by z; win % by value |
+| `method` | 15 | 99–272 | 12 curated notes, plus the manifest's description and limitations, plus the model's real weights |
+
+Every chunk fits bge-base's 512-token limit, with room to spare. The test caps
+the estimate at 480.
+
+**The model inputs reproduce the site exactly.** The hist-v2 classifier is
+`SimpleImputer(median)` → `StandardScaler` → L1 `LogisticRegression`. Only
+two of its 14 weights are non-zero: `regular_net_rating_z_diff` and
+`regular_win_pct_z_diff`. Folding the scaler gives:
+
+```
+logit P(home wins) = 0.360242 + 0.355868 × Δ net rating z + 0.128914 × Δ win % z
+```
+
+No served profile is missing either feature, so the imputer never acts and the
+fold is exact. With the static export's rounding (each home order to 4
+decimals, then the neutral average to 4), **2,000 of 2,000 random pairs
+match the exported `p` exactly**. So Session 4's "why" can quote each input's
+share of the log-odds. One standard deviation of net rating counts about 2.8
+times as much as one of win %.
+
+**Differences from the plan**
+
+- **The corpus is committed** (`data/rag/`), not gitignored in
+  `data/processed/rag/`. It is small, reviewable in diffs, and lets cloud
+  sessions run Sessions 2–3 (and 5–6) without the Kaggle data, which matters
+  because the owner often works from a phone. `frontend/public/data/` already
+  commits data derived from the same source.
+- **Method chunks come from curated notes, not the reports.**
+  `reports/hist_v2_evaluation.md` is full of accuracy figures (the owner chose
+  not to publish one), so indexing it would break the model-integrity gate.
+  The notes restate what the reports establish without those figures. Each
+  section names its source. The manifest's description and limitations are
+  indexed exactly as written.
+- **Two phrases are allowed past the forbidden-text check:** the manifest's
+  "not a forecast or betting advice", and "log-odds" (the weights chunk).
+  Every other mention of odds, betting, sportsbooks, wagers, Basketball-
+  Reference, 71.04, or an accuracy percentage fails the build.
+- **Champions** reuse F12's `derive_champions`, which reads Kaggle's
+  `Games.csv`. Only that function is reused, not the Basketball-Reference
+  data. The 2019–20 bubble title goes to the Lakers, as it should.
+- **Token counts are estimates** (characters / 4). Session 2 measures them
+  with bge's tokenizer once `sentence-transformers` is installed.
+
+**Verification (2026-10-26)**
+
+- `python -m pytest tests`: 207 passed, including the 31 new tests.
+- `python src/models/test_pregame_leakage.py` exits 0.
+- `python scripts/verify_static_export.py`: 200 of 200 pairs matched.
+- Frontend and Worker checks don't apply: this session touches neither.
+
+**For the owner**
+
+1. Read the sample chunks in `reports/rag_corpus.md`. These are exactly what
+   gets embedded. Wording to change goes in `src/rag/corpus.py` or
+   `src/rag/sources/method_notes.md`, and the builder re-runs.
+2. Install the two prerequisites above before Session 2.
+3. Merge order: PR #27 (the brief) first, then this PR, re-targeted to
+   `main`, or merged into `f13-plan` first. Merge only when you say so.
