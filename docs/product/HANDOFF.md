@@ -283,6 +283,7 @@ stable.
 | F10 | [Usability pass and pricing removal](features/F10-usability-and-no-pricing.md) | F02, F04, F05 | Deployment phases 2–4 |
 | F11 | [Older seasons (1985–86 to 1996–97)](features/F11-older-seasons.md) | F01, F02 | Deployment phases 3–4 (it never touches duel mode). Coordinate with F10, which edits the same pages |
 | F12 | [Daily Three (daily pick'em)](features/F12-daily-three.md) | F02, F11 (reads the exported team files); deployment phase 2 for staging; phase 3 only for production crowd stats | Deployment phases 3–5. Coordinate with F10 on the home page and nav |
+| F13 | [Ask the Court (grounded question answering)](features/F13-ask-the-court.md) | F01, F11 (reads the active release and exported team files); deployment phase 2 for staging; phase 3 for production | F12. Sessions 1–4 are offline Python and touch nothing live. Coordinate with F10 on the result page |
 
 Recommended sequence:
 
