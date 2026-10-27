@@ -224,6 +224,82 @@ def build_team_cards(profiles: pd.DataFrame, champions: dict, model_inputs: dict
     return chunks
 
 
+# ---------------------------------------------------------------------------
+# Tool facts (Session 4)
+# ---------------------------------------------------------------------------
+
+# Short names for CARD_STATS in data/rag/facts.json and the tools.
+STAT_SLUGS = {
+    "regular_net_rating":                               "net_rating",
+    "regular_offensive_rating":                         "offensive_rating",
+    "regular_defensive_rating":                         "defensive_rating",
+    "regular_pace":                                     "pace",
+    "regular_true_shooting_percentage":                 "true_shooting",
+    "regular_effective_field_goal_percentage":          "effective_fg",
+    "regular_three_pt_pct":                             "three_point",
+    "regular_opponent_effective_field_goal_percentage": "opponent_effective_fg",
+    "regular_team_turnover_percentage":                 "turnovers",
+    "regular_opponent_turnover_percentage":             "forced_turnovers",
+    "regular_assist_percentage":                        "assists",
+}
+
+
+def build_facts(profiles: pd.DataFrame, champions: dict, short_seasons: dict, manifest: dict,
+                release: str) -> dict:
+    """
+    The numbers behind the cards as structured data, for src/rag/tools.py
+    and the Worker's tools. Every value is already a display string written
+    by the same textfmt function as the card, so a tool fact and its card
+    always show the same number (tests/test_rag_tools.py checks it).
+    """
+    teams_per_season = profiles.groupby("season")["key"].transform("count")
+    record_rank = season_ranks(profiles, "regular_win_pct", True)
+    ranks = {col: season_ranks(profiles, col, hib) for col, _, _, hib, _ in CARD_STATS}
+    champion_keys = set(champions.values())
+
+    teams = {}
+    for i in profiles.sort_values("key").index:
+        row = profiles.loc[i]
+        season = int(row["season"])
+        teams[row["key"]] = {
+            "title":       team_title_of(row),
+            "season":      season,
+            "teams":       int(teams_per_season.loc[i]),
+            "record":      fmt.record(row["regular_wins"], row["regular_losses"]),
+            "win_pct":     fmt.frac3(row["regular_win_pct"]),
+            "record_rank": int(record_rank.loc[i]),
+            "playoffs":    playoff_sentence(row, row["key"] in champion_keys),
+            "champion":    row["key"] in champion_keys,
+            "points":      fmt.rating(row["regular_points_per_game"]),
+            "allowed":     fmt.rating(row["regular_opponent_points_per_game"]),
+            "box_score":   season < FIRST_NBA_ADVANCED_SEASON,
+            "stats":       {STAT_SLUGS[col]: [format_stat(kind, row[col]), fmt.signed(row[col + "_z"]), int(ranks[col].loc[i])]
+                            for col, _, kind, _, _ in CARD_STATS},
+        }
+
+    seasons = {}
+    for season, group in profiles.groupby("season"):
+        season = int(season)
+        best_record = group.sort_values(["regular_win_pct", "key"], ascending=[False, True]).iloc[0]
+        best_net = group.sort_values(["regular_net_rating", "key"], ascending=[False, True]).iloc[0]
+        worst_net = group.sort_values(["regular_net_rating", "key"], ascending=[True, True]).iloc[0]
+        seasons[str(season)] = {
+            "teams":        len(group),
+            "champion":     champions.get(season),
+            "best_record":  [best_record["key"], fmt.record(best_record["regular_wins"], best_record["regular_losses"])],
+            "best_net":     [best_net["key"], fmt.signed(best_net["regular_net_rating"])],
+            "worst_net":    [worst_net["key"], fmt.signed(worst_net["regular_net_rating"])],
+            "averages":     {"offensive_rating": fmt.rating(group["regular_offensive_rating"].mean()),
+                             "pace":             fmt.rating(group["regular_pace"].mean()),
+                             "true_shooting":    fmt.frac3(group["regular_true_shooting_percentage"].mean()),
+                             "three_point":      fmt.frac3(group["regular_three_pt_pct"].mean()),
+                             "points":           fmt.rating(group["regular_points_per_game"].mean())},
+            "short_season": short_seasons.get(season),
+            "box_score":    season < FIRST_NBA_ADVANCED_SEASON,
+        }
+    return {"release": release, "limitations": list(manifest["limitations"]), "teams": teams, "seasons": seasons}
+
+
 def feature_label(feature: str) -> str:
     """'regular_net_rating_z' -> 'net rating'."""
     return {"regular_net_rating_z": "net rating", "regular_win_pct_z": "win %"}.get(

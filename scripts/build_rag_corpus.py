@@ -16,6 +16,7 @@ Reads:
 Writes (committed, so later sessions and cloud sessions need no raw data):
   data/rag/corpus.jsonl          one chunk per line (src/rag/corpus.py lists the fields)
   data/rag/model_inputs.json     the folded linear model and every team's non-zero-feature z-scores
+  data/rag/facts.json            each card's numbers as structured data, for the tools (Session 4)
   reports/rag_corpus.md          counts, token estimates, the reproduction check, sample chunks
 
 The output is deterministic: a rebuild from the same inputs is byte-identical
@@ -48,6 +49,7 @@ NOTES_PATH        = REPO_ROOT / "src" / "rag" / "sources" / "method_notes.md"
 OUTPUT_DIR        = REPO_ROOT / "data" / "rag"
 CORPUS_PATH       = OUTPUT_DIR / "corpus.jsonl"
 MODEL_INPUTS_PATH = OUTPUT_DIR / "model_inputs.json"
+FACTS_PATH        = OUTPUT_DIR / "facts.json"
 REPORT_PATH       = REPO_ROOT / "reports" / "rag_corpus.md"
 
 # Reproduction check: model_inputs must give the exported neutral p.
@@ -213,9 +215,11 @@ def build(output_dir: Path = OUTPUT_DIR) -> tuple[list[dict], dict, dict, dict]:
               + rag.build_leaderboards(profiles, release.version)
               + rag.build_method_chunks(notes, manifest, model_inputs, release.version))
     rag.check_corpus(chunks, index_keys)
+    facts = rag.build_facts(profiles, champions, short, manifest, release.version)
 
     write_jsonl(chunks, output_dir / CORPUS_PATH.name)
     write_json(model_inputs, output_dir / MODEL_INPUTS_PATH.name)
+    write_json(facts, output_dir / FACTS_PATH.name)
     return chunks, model_inputs, repro, champions
 
 
@@ -227,6 +231,7 @@ def main():
         print("  " + chunk_type + ": " + str(n))
     print("Saved " + str(len(chunks)) + " chunks to " + str(CORPUS_PATH))
     print("Saved model inputs to " + str(MODEL_INPUTS_PATH))
+    print("Saved tool facts to " + str(FACTS_PATH))
     print("Saved report to " + str(REPORT_PATH))
 
 

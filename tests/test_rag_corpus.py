@@ -280,5 +280,5 @@ def test_method_chunks_cover_the_release_and_model(by_id, model_inputs):
 @needs_corpus
 def test_rebuild_is_byte_identical(tmp_path):
     build.build(output_dir=tmp_path)
-    for name in [build.CORPUS_PATH.name, build.MODEL_INPUTS_PATH.name]:
+    for name in [build.CORPUS_PATH.name, build.MODEL_INPUTS_PATH.name, build.FACTS_PATH.name]:
         assert (tmp_path / name).read_bytes() == (build.OUTPUT_DIR / name).read_bytes(), name
