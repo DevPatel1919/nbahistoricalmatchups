@@ -1,11 +1,44 @@
 # F13: Ask the Court (grounded question answering over the simulator)
 
-Status: **Session 1 (corpus and model inputs) built 2026-10-26 on branch
-`f13-s1-corpus`, PR into `f13-plan`, not merged.** Session 2 is next, after
-the owner installs Ollama and CUDA PyTorch (Session 1 record).
-Planned with the owner on 2026-10-26: the system must be **free to build and
-free to run**, it is developed and evaluated on the owner's GPU, and it is served
-from the existing Cloudflare Worker within free allocations.
+Status: **Session 1 (corpus and model inputs, PR #28) and Session 2 (eval set,
+harness and baselines, branch `f13-s2-eval`) built 2026-10-26. Neither is
+merged.** Session 3 (retrieval) is next. Planned with the owner on 2026-10-26: the system must be
+**free to build and free to run**. It is developed and evaluated **on
+Cloudflare Workers AI, with nothing local** (owner, 2026-10-26; see
+"Cloudflare-only development"), and served from the existing Cloudflare Worker
+within free allocations.
+
+### Cloudflare-only development (owner, 2026-10-26)
+
+This supersedes the original plan of local models on the owner's GPU (Ollama,
+CUDA PyTorch, `sentence-transformers`). **Where the text below still says
+"locally", "on the GPU" or "Ollama", read "Workers AI through
+`src/rag/workers_ai.py`".**
+
+- **Every model call goes to Workers AI's REST API** from Python:
+  embeddings, the reranker, the generator, and the judge. They are the same
+  models the Worker uses in production, so there is no local-vs-hosted parity
+  gap for models. The Python reference still differs from the Worker in
+  plumbing: exact numpy search instead of Vectorize, and SQLite FTS5 instead
+  of D1.
+- **Credentials:** `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` in the
+  gitignored `.env`. The owner creates the token in the dashboard (a "Workers
+  AI" token). Sessions never handle its value.
+- **Every response is cached** on disk (`data/processed/rag/workers_ai_cache.sqlite`,
+  gitignored), keyed by model and request. A rerun of an unchanged
+  configuration costs nothing.
+- **Daily neuron cap for development:** `RAG_DEV_NEURON_CAP`, default 6,000.
+  The client estimates each call's neurons before sending it, keeps a ledger
+  per UTC day, and refuses to go past the cap. That leaves about 4,000 of the
+  free 10,000 a day for staging and production. A large run can span days.
+  Runs are resumable, because cached calls are free.
+- **What changes in the sessions:**
+  - Sessions 2–3: embeddings and the reranker come from Workers AI.
+  - Session 4: the generator and judge are Workers AI models. Q4 compares
+    Workers AI candidates only, and the judge is a different, larger model
+    than the generator.
+  - Session 1's prerequisites (Ollama, CUDA PyTorch) are dropped, and so is
+    `sentence-transformers` in `requirements-rag.txt`.
 
 Read first, in order: `CONTRIBUTING.md`, `docs/product/HANDOFF.md` (especially
 the model-integrity and commercial-data gates), `docs/product/DEPLOYMENT.md`
@@ -57,7 +90,7 @@ There are two reasons, and the second drives the design.
 | Decision | Choice |
 |---|---|
 | Cost | **Free.** No paid LLM API. Production stays inside Workers AI's free daily allocation and the Vectorize and D1 allowances of the existing Workers Paid plan, with a hard daily budget in code |
-| Development | On the owner's PC: RTX 3060 Ti, 8 GB VRAM, Windows. Local models through Ollama and `sentence-transformers` |
+| Development | ~~On the owner's PC with Ollama and `sentence-transformers`~~ **Changed the same day: Cloudflare Workers AI only, nothing local** (see "Cloudflare-only development") |
 | Serving | The existing duel Worker (`worker/`), staging first. **Never** served from the home PC |
 | Scope | The **historical simulator** only (`hist-v2`). No pre-game model, no live games, no betting content. The site stays betting-free |
 | Data | Only data the site already publishes, or the Kaggle-derived profiles behind it. **No Basketball-Reference-derived data** (`daily/teams.json` starting fives), while the F12 rights question is open |
@@ -286,26 +319,30 @@ Workers Paid charges $0.011 per 1,000 neurons. The account's allocation is
 **shared by staging, production and any evaluation run** against Workers AI.
 Neuron rates are from Cloudflare's pricing page on 2026-10-26.
 
-The estimate assumes about 2,200 input tokens per answer (prompt, facts and 5
-chunks) and about 180 output tokens. With them:
+The estimate uses the chunk sizes Session 1 measured (team cards are about
+370–400 tokens). That gives about 2,700 input tokens per answer (prompt, facts
+and 5 chunks) and about 180 output tokens. With them:
 - the query embedding costs about 0.1 neurons;
-- reranking 20 chunks costs about 2 neurons;
+- reranking 20 chunks (about 8,000 tokens) costs about 2.3 neurons;
 - the LLM is almost the whole cost.
 
-| Generator | Neurons per answer | Free answers a day |
+| Generator | Neurons per answer | Answers a day (all 10,000) |
 |---|---|---|
-| `llama-3.1-8b-instruct-fp8-fast` | about 17 | about 575 |
-| `llama-3.2-3b-instruct` / `qwen3-30b-a3b-fp8` (thinking off) | about 18 | about 565 |
-| `gemma-4-26b-a4b-it` | about 27 | about 370 |
-| `llama-3.1-8b-instruct` (full precision) | about 72 | about 140 |
-| `llama-3.3-70b-instruct-fp8-fast` | about 98 | about 100 |
+| `llama-3.1-8b-instruct-fp8-fast` | about 20 | about 500 |
+| `llama-3.2-3b-instruct` / `qwen3-30b-a3b-fp8` (thinking off) | about 20 | about 490 |
+| `gemma-4-26b-a4b-it` | about 32 | about 315 |
+| `llama-3.1-8b-instruct` (full precision) | about 85 | about 120 |
+| `llama-3.3-70b-instruct-fp8-fast` | about 111 | about 90 |
 
-Regeneration after a failed grounding check (planned at about 10% of answers)
-and the 80% budget stop (Q3) reduce these by about a quarter. Input tokens
-dominate, so 3 chunks instead of 5 cut the cost by about a third. Template
-answers cost nothing. A full 240-question eval run on a cheap model uses
-about 4,500 neurons, about half a day's allocation. Run those on a day with
-little traffic, or locally.
+The 80% budget stop (Q3) and regeneration after a failed grounding check
+(planned at about 10% of answers) bring the cheap models to about 350–400
+answers a day.
+- 3 chunks instead of 5 bring an answer to about 16.5 neurons, so about 600
+  a day.
+- Template answers cost nothing.
+- One full 240-question eval run on a cheap model uses about 4,800 neurons. A
+  hosted judge roughly doubles that. That is why development has its own
+  daily cap (see "Cloudflare-only development") and a response cache.
 
 ## Evaluation (the part that matters most)
 
@@ -908,3 +945,106 @@ times as much as one of win %.
 2. Install the two prerequisites above before Session 2.
 3. Merge order: PR #27 (the brief) first, then this PR, re-targeted to
    `main`, or merged into `f13-plan` first. Merge only when you say so.
+
+### Session 2: evaluation set, harness and baselines (2026-10-26)
+
+Branch `f13-s2-eval`, based on `f13-s1-corpus`, PR into it. Not merged, and
+nothing is deployed. Run in the same conversation as Session 1.
+
+**Owner decision: Cloudflare-only development.** The owner chose to use the
+Cloudflare account with nothing local. The section "Cloudflare-only
+development" near the top of this brief replaces the local-GPU plan.
+- Ollama, CUDA PyTorch and `sentence-transformers` are dropped.
+- `requirements-rag.txt` adds `python-dotenv`.
+- The owner created a Workers AI API token, scoped to their account, and put
+  it in `.env` with `CLOUDFLARE_ACCOUNT_ID`.
+
+**What was built**
+
+- `src/rag/workers_ai.py` is the only path from Python to a model:
+  - It calls Workers AI's REST API. Every response is cached in
+    `data/processed/rag/workers_ai_cache.sqlite` (gitignored), keyed by
+    model and request; embeddings are cached per text.
+  - It estimates each uncached call's neurons from a token estimate and the
+    2026-10-26 pricing table, and keeps a ledger per UTC day.
+  - It refuses a call that would pass `RAG_DEV_NEURON_CAP`, default 6,000.
+  - It retries 429 and 5xx responses with backoff.
+  - Credentials are read only when a call isn't cached.
+  - Embeddings use `pooling: "cls"`, which Cloudflare recommends. CLS vectors
+    are not compatible with mean-pooled ones, so **the Worker and Vectorize
+    must use CLS too** (Session 5).
+- `src/rag/linker.py` and `tests/fixtures/rag/linker.json` (97 cases) link:
+  - team-seasons in six naming styles plus informal nicknames (Sixers,
+    Sonics, Cavs, Wolves…);
+  - era-correct names: "1996 Wizards" stays unresolved, "1990 Bullets"
+    links;
+  - free-standing seasons and decades;
+  - nicknames without a year, as franchises.
+
+  A bare two-digit year binds only when it sits right next to a nickname, so
+  "72 games" never becomes a season.
+- `src/rag/eval/generate.py` and `src/rag/eval/handwritten.jsonl` produce
+  `tests/fixtures/rag/eval_questions.jsonl` through
+  `scripts/build_rag_eval_set.py`:
+  - 245 questions, 147 dev and 98 test;
+  - the field list and categories are in `reports/rag_evaluation.md`;
+  - it is deterministic, and a test regenerates it and compares.
+- `src/rag/index_local.py` holds the two retrievers:
+  - `KeywordIndex`: SQLite FTS5 with BM25, title weighted 5:1, in
+    `data/processed/rag/fts.sqlite`. It uses the schema the D1 migration
+    will use and rebuilds when the corpus changes.
+  - `DenseIndex`: exact cosine search over Workers AI embeddings.
+- `src/rag/eval/metrics.py` and `scripts/eval_rag.py` score a run.
+  - Each run writes `reports/rag_runs/<config>-<split>.json`, with every
+    question's top 20.
+  - The test split refuses to run without `--score-test`.
+- `tests/test_rag_eval.py` has 116 tests (the linker fixtures, the eval set,
+  the metrics, FTS5, and the Workers AI client against a fake HTTP session).
+  None calls Cloudflare.
+- `reports/rag_evaluation.md` is the running evaluation report, starting
+  with this session's baselines.
+
+**Baselines (dev only)**
+
+| Configuration | Recall@5 | Recall@20 | MRR | Linking |
+|---|---|---|---|---|
+| BM25 | 0.632 | 0.852 | 0.539 | 1.000 |
+| Dense `bge-small` | **0.782** | **0.912** | **0.659** | 1.000 |
+| Dense `bge-base` | 0.715 | 0.904 | 0.611 | 1.000 |
+
+- **Keyword search wins where questions contain exact names and years**:
+  single-team stats score 1.000, seasons 0.917.
+- **Dense search wins where the wording differs from the chunk**: rankings
+  score 0.944, comparisons 0.619.
+- **The smaller embedding model beat the larger one.** Session 3 should test
+  BGE's query instruction prefix before choosing a model.
+- **Two-team questions are weakest for every retriever.** Matchups score
+  0.23–0.50. The page-context matchup questions name no team, so Session 3
+  needs the linker's metadata filters and the page's matchup as context.
+
+**Cost:** about 3,700 neurons on 2026-10-26 by the client's estimate (bge-base
+2,830, bge-small 860). Nearly all of it was embedding the 1,305 chunks once.
+Reruns are free from the cache.
+
+**Differences from the plan**
+
+- The eval set has a `season` category (20), and its counts differ slightly
+  from the plan's table: 245 questions in all.
+- `link` (keys the linker must find in the text) is separate from
+  `expected.keys` (what the answer is about). Questions asked on a matchup
+  page have an empty `link`, and linking accuracy skips them.
+- The stop for the owner's review of sample questions is folded into the PR.
+  Twenty random generated questions are listed in the PR description.
+
+**Verification (2026-10-26)**
+
+- `python -m pytest tests`: see the PR description.
+- The leakage check and `verify_static_export.py` pass. Session 2 touches no
+  model data.
+
+**For the owner**
+
+1. Skim the sample questions in the PR and the adversarial set in
+   `src/rag/eval/handwritten.jsonl`. Wording that no one would type gets
+   fixed in the generator.
+2. Merge order: #27 (the brief), then #28 (Session 1), then this PR.
