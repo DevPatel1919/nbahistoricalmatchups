@@ -1,11 +1,44 @@
 # F13: Ask the Court (grounded question answering over the simulator)
 
-Status: **Session 1 (corpus and model inputs) built 2026-10-26 on branch
-`f13-s1-corpus`, PR into `f13-plan`, not merged.** Session 2 is next, after
-the owner installs Ollama and CUDA PyTorch (Session 1 record).
-Planned with the owner on 2026-10-26: the system must be **free to build and
-free to run**, it is developed and evaluated on the owner's GPU, and it is served
-from the existing Cloudflare Worker within free allocations.
+Status: **Session 1 (corpus and model inputs) built 2026-10-26 (PR #28, into
+`f13-plan`, not merged). Session 2 (eval set and harness) is in progress on
+`f13-s2-eval`.** Planned with the owner on 2026-10-26: the system must be
+**free to build and free to run**. It is developed and evaluated **on
+Cloudflare Workers AI, with nothing local** (owner, 2026-10-26; see
+"Cloudflare-only development"), and served from the existing Cloudflare Worker
+within free allocations.
+
+### Cloudflare-only development (owner, 2026-10-26)
+
+This supersedes the original plan of local models on the owner's GPU (Ollama,
+CUDA PyTorch, `sentence-transformers`). **Where the text below still says
+"locally", "on the GPU" or "Ollama", read "Workers AI through
+`src/rag/workers_ai.py`".**
+
+- **Every model call goes to Workers AI's REST API** from Python:
+  embeddings, the reranker, the generator, and the judge. They are the same
+  models the Worker uses in production, so there is no local-vs-hosted parity
+  gap for models. The Python reference still differs from the Worker in
+  plumbing: exact numpy search instead of Vectorize, and SQLite FTS5 instead
+  of D1.
+- **Credentials:** `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` in the
+  gitignored `.env`. The owner creates the token in the dashboard (a "Workers
+  AI" token). Sessions never handle its value.
+- **Every response is cached** on disk (`data/processed/rag/workers_ai_cache.sqlite`,
+  gitignored), keyed by model and request. A rerun of an unchanged
+  configuration costs nothing.
+- **Daily neuron cap for development:** `RAG_DEV_NEURON_CAP`, default 6,000.
+  The client estimates each call's neurons before sending it, keeps a ledger
+  per UTC day, and refuses to go past the cap. That leaves about 4,000 of the
+  free 10,000 a day for staging and production. A large run can span days.
+  Runs are resumable, because cached calls are free.
+- **What changes in the sessions:**
+  - Sessions 2–3: embeddings and the reranker come from Workers AI.
+  - Session 4: the generator and judge are Workers AI models. Q4 compares
+    Workers AI candidates only, and the judge is a different, larger model
+    than the generator.
+  - Session 1's prerequisites (Ollama, CUDA PyTorch) are dropped, and so is
+    `sentence-transformers` in `requirements-rag.txt`.
 
 Read first, in order: `CONTRIBUTING.md`, `docs/product/HANDOFF.md` (especially
 the model-integrity and commercial-data gates), `docs/product/DEPLOYMENT.md`
@@ -57,7 +90,7 @@ There are two reasons, and the second drives the design.
 | Decision | Choice |
 |---|---|
 | Cost | **Free.** No paid LLM API. Production stays inside Workers AI's free daily allocation and the Vectorize and D1 allowances of the existing Workers Paid plan, with a hard daily budget in code |
-| Development | On the owner's PC: RTX 3060 Ti, 8 GB VRAM, Windows. Local models through Ollama and `sentence-transformers` |
+| Development | ~~On the owner's PC with Ollama and `sentence-transformers`~~ **Changed the same day: Cloudflare Workers AI only, nothing local** (see "Cloudflare-only development") |
 | Serving | The existing duel Worker (`worker/`), staging first. **Never** served from the home PC |
 | Scope | The **historical simulator** only (`hist-v2`). No pre-game model, no live games, no betting content. The site stays betting-free |
 | Data | Only data the site already publishes, or the Kaggle-derived profiles behind it. **No Basketball-Reference-derived data** (`daily/teams.json` starting fives), while the F12 rights question is open |
@@ -286,26 +319,30 @@ Workers Paid charges $0.011 per 1,000 neurons. The account's allocation is
 **shared by staging, production and any evaluation run** against Workers AI.
 Neuron rates are from Cloudflare's pricing page on 2026-10-26.
 
-The estimate assumes about 2,200 input tokens per answer (prompt, facts and 5
-chunks) and about 180 output tokens. With them:
+The estimate uses the chunk sizes Session 1 measured (team cards are about
+370–400 tokens). That gives about 2,700 input tokens per answer (prompt, facts
+and 5 chunks) and about 180 output tokens. With them:
 - the query embedding costs about 0.1 neurons;
-- reranking 20 chunks costs about 2 neurons;
+- reranking 20 chunks (about 8,000 tokens) costs about 2.3 neurons;
 - the LLM is almost the whole cost.
 
-| Generator | Neurons per answer | Free answers a day |
+| Generator | Neurons per answer | Answers a day (all 10,000) |
 |---|---|---|
-| `llama-3.1-8b-instruct-fp8-fast` | about 17 | about 575 |
-| `llama-3.2-3b-instruct` / `qwen3-30b-a3b-fp8` (thinking off) | about 18 | about 565 |
-| `gemma-4-26b-a4b-it` | about 27 | about 370 |
-| `llama-3.1-8b-instruct` (full precision) | about 72 | about 140 |
-| `llama-3.3-70b-instruct-fp8-fast` | about 98 | about 100 |
+| `llama-3.1-8b-instruct-fp8-fast` | about 20 | about 500 |
+| `llama-3.2-3b-instruct` / `qwen3-30b-a3b-fp8` (thinking off) | about 20 | about 490 |
+| `gemma-4-26b-a4b-it` | about 32 | about 315 |
+| `llama-3.1-8b-instruct` (full precision) | about 85 | about 120 |
+| `llama-3.3-70b-instruct-fp8-fast` | about 111 | about 90 |
 
-Regeneration after a failed grounding check (planned at about 10% of answers)
-and the 80% budget stop (Q3) reduce these by about a quarter. Input tokens
-dominate, so 3 chunks instead of 5 cut the cost by about a third. Template
-answers cost nothing. A full 240-question eval run on a cheap model uses
-about 4,500 neurons, about half a day's allocation. Run those on a day with
-little traffic, or locally.
+The 80% budget stop (Q3) and regeneration after a failed grounding check
+(planned at about 10% of answers) bring the cheap models to about 350–400
+answers a day.
+- 3 chunks instead of 5 bring an answer to about 16.5 neurons, so about 600
+  a day.
+- Template answers cost nothing.
+- One full 240-question eval run on a cheap model uses about 4,800 neurons. A
+  hosted judge roughly doubles that. That is why development has its own
+  daily cap (see "Cloudflare-only development") and a response cache.
 
 ## Evaluation (the part that matters most)
 
