@@ -103,7 +103,7 @@ There are two reasons, and the second drives the design.
 | Q2 | Store asked questions for evaluation? | **Yes**: the question text, retrieved ids, latency and grounding result. No IP and no client id, deleted after 30 days, disclosed on the About page. Real questions are the best source of new eval cases | Session 5 |
 | Q3 | Daily budget | Stop free-text answers at about 80% of the free Workers AI allocation. After that, only the suggested questions work, answered from templates with no model (see "Fallback") | Session 5 |
 | Q4 | Production generator model | Decided by Session 4's evaluation: the smallest model within 2 points of the best on faithfulness | Session 4 |
-| Q5 | Human labels for the LLM judge | The owner labels about 50 answers (about 30 minutes) so the judge's agreement with a human can be reported | Session 4 |
+| Q5 | Human labels for the LLM judge | **Decided 2026-10-27: skipped.** The owner chose not to label. The judge's numbers are reported as unvalidated (no agreement or kappa), and choices lean on the rule-based metrics. The 50-answer sheet stays in `reports/rag_judge_labels.*` if labels are wanted later | Session 4 |
 | Q6 | Turnstile on questions? | **No.** Use a per-IP rate limit plus the global daily budget. Turnstile on every question adds too much friction | Session 5 |
 | Q7 | Public write-up | A `docs/rag/README.md` with the architecture diagram and the final evaluation table, linked from the repo README. Check whether the repo should be public | Session 7 |
 

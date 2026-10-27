@@ -1,5 +1,7 @@
 # Ask the Court: answers to label (Q5)
 
+**Not labelled.** On 2026-10-27 the owner chose to skip the human check, so the judge's numbers in `reports/rag_evaluation.md` are unvalidated. The sheet is kept in case labels are wanted later; `python scripts/eval_rag.py --agreement` scores the judge against them.
+
 Fill in `reports/rag_judge_labels.csv`, one row per answer below. Each answer shows the facts and the chunks it cites, which is everything the answer was allowed to use.
 
 - **faithful**: `yes` if every claim in the answer is supported by its facts or cited chunks (a rounded number like "about 7 points" for 6.9 counts as supported), `no` if any claim isn't.
