@@ -9,10 +9,9 @@ Session 2 covers linking and retrieval; Session 4 adds answer metrics.
     retrieval   recall@5, recall@20, hit@5 and MRR against relevant_chunk_ids,
                 on questions that have relevant chunks
 
-Configurations (CONFIGS below):
-    bm25         SQLite FTS5 keyword search only
-    dense-small  exact cosine search over bge-small-en-v1.5 embeddings (Workers AI)
-    dense-base   exact cosine search over bge-base-en-v1.5 embeddings (Workers AI)
+Configurations are named in CONFIGS below; src/rag/retrieve.py documents
+each stage (keyword, dense, page context, filters, pinning, reranking) and
+the split-card corpus that names ending in "-split" use.
 
 Tune on dev. The test split is scored once per reported configuration, so
 --split test also needs --score-test.
@@ -37,8 +36,9 @@ if str(_REPO_ROOT_FOR_IMPORTS) not in sys.path:
 
 from src.rag import workers_ai
 from src.rag.eval import metrics
-from src.rag.index_local import DenseIndex, KeywordIndex, load_corpus
+from src.rag.index_local import load_corpus
 from src.rag.linker import Linker
+from src.rag.retrieve import BGE_QUERY_PREFIX, RetrievalConfig, Retriever, split_team_cards
 
 REPO_ROOT      = Path(__file__).resolve().parent.parent
 QUESTIONS_PATH = REPO_ROOT / "tests" / "fixtures" / "rag" / "eval_questions.jsonl"
@@ -46,10 +46,31 @@ RUNS_DIR       = REPO_ROOT / "reports" / "rag_runs"
 
 TOP_K = 20
 
+SMALL, BASE = workers_ai.EMBED_SMALL, workers_ai.EMBED_BASE
+P = BGE_QUERY_PREFIX
+
 CONFIGS = {
-    "bm25":        {"retriever": "keyword"},
-    "dense-small": {"retriever": "dense", "model": workers_ai.EMBED_SMALL},
-    "dense-base":  {"retriever": "dense", "model": workers_ai.EMBED_BASE},
+    # Session 2 baselines
+    "bm25":                     RetrievalConfig(keyword=True, dense_model=None),
+    "dense-small":              RetrievalConfig(keyword=False, dense_model=SMALL),
+    "dense-base":               RetrievalConfig(keyword=False, dense_model=BASE),
+    # Session 3: the BGE query instruction
+    "dense-small-prefix":       RetrievalConfig(keyword=False, dense_model=SMALL, query_prefix=P),
+    "dense-base-prefix":        RetrievalConfig(keyword=False, dense_model=BASE, query_prefix=P),
+    # Session 3: hybrid and the linked stages, added one at a time
+    "hybrid":                   RetrievalConfig(dense_model=SMALL),
+    "hybrid-context":           RetrievalConfig(dense_model=SMALL, use_context=True),
+    "hybrid-filter":            RetrievalConfig(dense_model=SMALL, use_context=True, filters=True),
+    "hybrid-filter-pin":        RetrievalConfig(dense_model=SMALL, use_context=True, filters=True, pin=True),
+    "hybrid-filter-pin-rerank": RetrievalConfig(dense_model=SMALL, use_context=True, filters=True, pin=True, rerank=True),
+    "hybrid-filter-pin-rerank-fuse": RetrievalConfig(dense_model=SMALL, use_context=True, filters=True, pin=True,
+                                                     rerank=True, rerank_mode="fuse"),
+    "hybrid-filter-rerank":     RetrievalConfig(dense_model=SMALL, use_context=True, filters=True, rerank=True),
+    "dense-filter-pin-rerank":  RetrievalConfig(keyword=False, dense_model=SMALL, use_context=True, filters=True,
+                                                pin=True, rerank=True),
+    # Session 3: chunking (team cards split into summary and stats)
+    "hybrid-filter-pin-rerank-fuse-split": RetrievalConfig(dense_model=SMALL, use_context=True, filters=True, pin=True,
+                                                           rerank=True, rerank_mode="fuse"),
 }
 
 
@@ -63,11 +84,10 @@ def load_questions(split: str) -> list[dict]:
     return [r for r in rows if r["split"] == split]
 
 
-def make_retriever(name: str, chunks: list[dict]):
-    config = CONFIGS[name]
-    if config["retriever"] == "keyword":
-        return KeywordIndex(chunks)
-    return DenseIndex(chunks, workers_ai.WorkersAI(), model=config["model"])
+def make_retriever(name: str, chunks: list[dict], client):
+    if name.endswith("-split"):
+        chunks = split_team_cards(chunks)
+    return Retriever(chunks, CONFIGS[name], client)
 
 
 def summarize(rows: list[dict]) -> dict:
@@ -89,11 +109,12 @@ def run(config: str, split: str) -> dict:
     chunks = load_corpus()
     questions = load_questions(split)
     linker = Linker.from_index()
-    retriever = make_retriever(config, chunks)
+    client = workers_ai.WorkersAI()
+    retriever = make_retriever(config, chunks, client)
 
     rows = []
     for q in questions:
-        retrieved = [cid for cid, _ in retriever.search(q["question"], TOP_K)]
+        retrieved = retriever.search(q["question"], q["context"], TOP_K)
         relevant = q["relevant_chunk_ids"]
         linked = linker.link(q["question"]).keys
         row = {
@@ -116,8 +137,13 @@ def run(config: str, split: str) -> dict:
     by_category = {}
     for category in sorted({r["category"] for r in rows}):
         by_category[category] = summarize([r for r in rows if r["category"] == category])
-    return {"config": config, "split": split, "date": date.today().isoformat(),
-            "summary": summarize(rows), "by_category": by_category, "questions": rows}
+    latency = {}
+    for model in sorted({m for m, _ in client.latencies}):
+        times = sorted(t for m, t in client.latencies if m == model)
+        latency[model] = {"requests": len(times), "median_ms": round(1000 * times[len(times) // 2])}
+    return {"config": config, "settings": vars(CONFIGS[config]), "split": split, "date": date.today().isoformat(),
+            "summary": summarize(rows), "by_category": by_category, "uncached_latency": latency,
+            "questions": rows}
 
 
 def fmt(x: float) -> str:
@@ -149,6 +175,8 @@ def main():
     print("By category (recall@5):")
     for category, c in result["by_category"].items():
         print("  " + category + ": " + fmt(c["recall@5"]) + "  (n=" + str(c["retrieval_n"]) + ")")
+    for model, lat in result["uncached_latency"].items():
+        print("  " + model + ": " + str(lat["requests"]) + " uncached requests, median " + str(lat["median_ms"]) + " ms")
     print("Saved run to " + str(out))
 
 
