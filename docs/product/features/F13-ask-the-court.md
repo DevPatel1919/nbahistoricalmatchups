@@ -1189,11 +1189,11 @@ scores are reported as a secondary signal, and choices rest on the
 rule-based metrics.
 
 **Still to do in this session**
-1. Judge the 50-question set for Gemma 4 and Qwen3 (queued for 2026-10-30
-   UTC).
-2. The owner confirms the generator (Q4).
-3. Score test once per reported row.
-4. Fill in the test columns, finish this record, and open the PR.
+1. The owner confirms the generator (Q4). The recommendation is Gemma 4; the
+   judge ran on Gemma 4 and Qwen3 (0.990 against 0.941 on answers only,
+   unvalidated).
+2. Score test once per reported row.
+3. Fill in the test columns, finish this record, and open the PR.
 
 **For Session 5**
 - **Put a deterministic betting check in front of the model.** Llama 3.1 8B

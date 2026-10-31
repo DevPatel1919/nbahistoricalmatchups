@@ -21,9 +21,60 @@
   "regenerate": true
  },
  "split": "dev",
- "date": "2026-10-27",
+ "date": "2026-10-31",
  "partial": null,
- "judged": [],
+ "judged": [
+  "adversarial-001",
+  "adversarial-005",
+  "adversarial-006",
+  "adversarial-023",
+  "adversarial-025",
+  "comparison-001",
+  "comparison-007",
+  "comparison-012",
+  "comparison-013",
+  "comparison-021",
+  "comparison-025",
+  "comparison-031",
+  "matchup-004",
+  "matchup-005",
+  "matchup-019",
+  "matchup-022",
+  "matchup-025",
+  "matchup-027",
+  "matchup-034",
+  "method-008",
+  "method-012",
+  "method-013",
+  "method-023",
+  "method-024",
+  "multihop-006",
+  "multihop-008",
+  "multihop-012",
+  "multihop-014",
+  "ranking-006",
+  "ranking-010",
+  "ranking-011",
+  "ranking-018",
+  "ranking-021",
+  "ranking-025",
+  "season-001",
+  "season-004",
+  "season-012",
+  "season-019",
+  "stat-007",
+  "stat-013",
+  "stat-016",
+  "stat-017",
+  "stat-022",
+  "stat-030",
+  "stat-031",
+  "stat-033",
+  "stat-048",
+  "stat-050",
+  "stat-051",
+  "stat-052"
+ ],
  "summary": {
   "questions": 147,
   "recall@5": 0.9291044776119407,
@@ -47,13 +98,13 @@
   "neurons_per_answer": 18.20424489795918,
   "latency_p50_ms": 781,
   "latency_p95_ms": 2574,
-  "judge_n": 0,
-  "faithfulness": NaN,
-  "citation_support": NaN,
-  "faithful_answers": NaN,
-  "judge_refusal_correct": NaN,
-  "judge_errors": 0,
-  "judge_neurons": 0
+  "judge_n": 48,
+  "faithfulness": 0.8804964539007092,
+  "citation_support": 0.8668186423505572,
+  "faithful_answers": 0.8085106382978723,
+  "judge_refusal_correct": 1.0,
+  "judge_errors": 2,
+  "judge_neurons": 3160.4639472961426
  },
  "by_category": {
   "adversarial": {
@@ -79,13 +130,13 @@
    "neurons_per_answer": 14.279266666666667,
    "latency_p50_ms": 465,
    "latency_p95_ms": 2536,
-   "judge_n": 0,
-   "faithfulness": NaN,
-   "citation_support": NaN,
-   "faithful_answers": NaN,
-   "judge_refusal_correct": NaN,
-   "judge_errors": 0,
-   "judge_neurons": 0
+   "judge_n": 4,
+   "faithfulness": 0.0,
+   "citation_support": 0.0,
+   "faithful_answers": 0.0,
+   "judge_refusal_correct": 1.0,
+   "judge_errors": 1,
+   "judge_neurons": 276.4812488555908
   },
   "comparison": {
    "questions": 21,
@@ -110,13 +161,13 @@
    "neurons_per_answer": 26.275142857142846,
    "latency_p50_ms": 1244,
    "latency_p95_ms": 3432,
-   "judge_n": 0,
-   "faithfulness": NaN,
-   "citation_support": NaN,
-   "faithful_answers": NaN,
+   "judge_n": 7,
+   "faithfulness": 0.9166666666666667,
+   "citation_support": 0.8010204081632653,
+   "faithful_answers": 0.7142857142857143,
    "judge_refusal_correct": NaN,
    "judge_errors": 0,
-   "judge_neurons": 0
+   "judge_neurons": 680.4389724731445
   },
   "matchup": {
    "questions": 21,
@@ -141,13 +192,13 @@
    "neurons_per_answer": 25.475761904761903,
    "latency_p50_ms": 1110,
    "latency_p95_ms": 2636,
-   "judge_n": 0,
-   "faithfulness": NaN,
-   "citation_support": NaN,
-   "faithful_answers": NaN,
+   "judge_n": 6,
+   "faithfulness": 0.9666666666666667,
+   "citation_support": 0.9666666666666667,
+   "faithful_answers": 0.8333333333333334,
    "judge_refusal_correct": NaN,
-   "judge_errors": 0,
-   "judge_neurons": 0
+   "judge_errors": 1,
+   "judge_neurons": 731.4981460571289
   },
   "method": {
    "questions": 15,
@@ -172,13 +223,13 @@
    "neurons_per_answer": 12.8334,
    "latency_p50_ms": 721,
    "latency_p95_ms": 1759,
-   "judge_n": 0,
-   "faithfulness": NaN,
-   "citation_support": NaN,
-   "faithful_answers": NaN,
+   "judge_n": 5,
+   "faithfulness": 1.0,
+   "citation_support": 1.0,
+   "faithful_answers": 1.0,
    "judge_refusal_correct": NaN,
    "judge_errors": 0,
-   "judge_neurons": 0
+   "judge_neurons": 194.68583297729492
   },
   "multihop": {
    "questions": 12,
@@ -203,13 +254,13 @@
    "neurons_per_answer": 20.341416666666667,
    "latency_p50_ms": 850,
    "latency_p95_ms": 1451,
-   "judge_n": 0,
-   "faithfulness": NaN,
-   "citation_support": NaN,
-   "faithful_answers": NaN,
+   "judge_n": 4,
+   "faithfulness": 0.9166666666666666,
+   "citation_support": 0.8333333333333333,
+   "faithful_answers": 0.75,
    "judge_refusal_correct": NaN,
    "judge_errors": 0,
-   "judge_neurons": 0
+   "judge_neurons": 303.60828018188477
   },
   "ranking": {
    "questions": 18,
@@ -234,13 +285,13 @@
    "neurons_per_answer": 16.23472222222222,
    "latency_p50_ms": 737,
    "latency_p95_ms": 1282,
-   "judge_n": 0,
-   "faithfulness": NaN,
-   "citation_support": NaN,
-   "faithful_answers": NaN,
+   "judge_n": 6,
+   "faithfulness": 0.9166666666666666,
+   "citation_support": 1.0,
+   "faithful_answers": 0.8333333333333334,
    "judge_refusal_correct": NaN,
    "judge_errors": 0,
-   "judge_neurons": 0
+   "judge_neurons": 329.3445358276367
   },
   "season": {
    "questions": 12,
@@ -265,13 +316,13 @@
    "neurons_per_answer": 13.64975,
    "latency_p50_ms": 574,
    "latency_p95_ms": 669,
-   "judge_n": 0,
-   "faithfulness": NaN,
-   "citation_support": NaN,
-   "faithful_answers": NaN,
+   "judge_n": 4,
+   "faithfulness": 1.0,
+   "citation_support": 1.0,
+   "faithful_answers": 1.0,
    "judge_refusal_correct": NaN,
    "judge_errors": 0,
-   "judge_neurons": 0
+   "judge_neurons": 149.79951667785645
   },
   "stat": {
    "questions": 33,
@@ -296,13 +347,13 @@
    "neurons_per_answer": 14.619575757575756,
    "latency_p50_ms": 570,
    "latency_p95_ms": 968,
-   "judge_n": 0,
-   "faithfulness": NaN,
-   "citation_support": NaN,
-   "faithful_answers": NaN,
+   "judge_n": 12,
+   "faithfulness": 0.9166666666666666,
+   "citation_support": 0.9166666666666666,
+   "faithful_answers": 0.9166666666666666,
    "judge_refusal_correct": NaN,
    "judge_errors": 0,
-   "judge_neurons": 0
+   "judge_neurons": 494.60741424560547
   }
  },
  "questions": [
@@ -508,7 +559,25 @@
    "recall@5": 1.0,
    "context_recall": 1.0,
    "numbers_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 37.05440139770508,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"Net rating of 1988–89 Lakers was +6.9 per 100 possessions\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 1,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "Net rating of 1988–89 Lakers was +6.9 per 100 possessions",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "stat-010",
@@ -780,7 +849,25 @@
    "recall@5": 1.0,
    "context_recall": 1.0,
    "numbers_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 38.12713623046875,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"Defensive rating of the 1996–97 Utah Jazz was 102.7\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 1,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "Defensive rating of the 1996–97 Utah Jazz was 102.7",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "stat-014",
@@ -916,7 +1003,25 @@
    "recall@5": 1.0,
    "context_recall": 1.0,
    "numbers_correct": 0.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 52.73622131347656,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"2002–03 Sacramento Kings allowed 95.2 points per 100 possessions\",\n      \"supported\": \"no\",\n      \"cited\": \"no\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 1,
+    "faithfulness": 0.0,
+    "citation_support": 0.0,
+    "faithful": 0,
+    "citations_ok": 0,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "2002–03 Sacramento Kings allowed 95.2 points per 100 possessions",
+      "supported": "no",
+      "cited": "no"
+     }
+    ]
+   }
   },
   {
    "id": "stat-017",
@@ -984,7 +1089,25 @@
    "recall@5": 1.0,
    "context_recall": 1.0,
    "numbers_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 43.36349868774414,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"The 2017–18 Chicago Bulls scored 103.4 points per 100 possessions\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 1,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "The 2017–18 Chicago Bulls scored 103.4 points per 100 possessions",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "stat-018",
@@ -1256,7 +1379,30 @@
    "recall@5": 1.0,
    "context_recall": 1.0,
    "numbers_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 42.82258605957031,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"2016 Cavaliers true shooting percentage was .559\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"It was the 4th best in the league that season\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 2,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "2016 Cavaliers true shooting percentage was .559",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "It was the 4th best in the league that season",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "stat-024",
@@ -1528,7 +1674,25 @@
    "recall@5": 1.0,
    "context_recall": 1.0,
    "numbers_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 41.09986114501953,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"The 1992 Timberwolves finished with a 15–67 record\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 1,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "The 1992 Timberwolves finished with a 15–67 record",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "stat-031",
@@ -1596,7 +1760,30 @@
    "recall@5": 1.0,
    "context_recall": 1.0,
    "numbers_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 44.49531173706055,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"The 2008–09 Los Angeles Lakers shot .361 from three\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"It was ranked 19th of 30 teams in the 2008–09 NBA season\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 2,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "The 2008–09 Los Angeles Lakers shot .361 from three",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "It was ranked 19th of 30 teams in the 2008–09 NBA season",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "stat-032",
@@ -1732,7 +1919,25 @@
    "recall@5": 1.0,
    "context_recall": 1.0,
    "numbers_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 39.854408264160156,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"The offensive rating of the 2010–11 Washington Wizards was 101.3\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 1,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "The offensive rating of the 2010–11 Washington Wizards was 101.3",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "stat-036",
@@ -2208,7 +2413,25 @@
    "recall@5": 1.0,
    "context_recall": 1.0,
    "numbers_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 44.858951568603516,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"Defensive rating of 2002–03 Los Angeles Clippers was 105.0\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 1,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "Defensive rating of 2002–03 Los Angeles Clippers was 105.0",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "stat-049",
@@ -2344,7 +2567,25 @@
    "recall@5": 1.0,
    "context_recall": 1.0,
    "numbers_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 38.47258758544922,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"Defensive rating of 2001–02 Lakers was 100.5\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 1,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "Defensive rating of 2001–02 Lakers was 100.5",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "stat-051",
@@ -2412,7 +2653,25 @@
    "recall@5": 1.0,
    "context_recall": 1.0,
    "numbers_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 37.3680419921875,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"The 2018–19 Toronto Raptors scored 112.7 points per 100 possessions\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 1,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "The 2018–19 Toronto Raptors scored 112.7 points per 100 possessions",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "stat-052",
@@ -2480,7 +2739,25 @@
    "recall@5": 1.0,
    "context_recall": 1.0,
    "numbers_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 34.354408264160156,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"Defensive rating of 1999-00 Lakers was 96.5\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 1,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "Defensive rating of 1999-00 Lakers was 96.5",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "stat-054",
@@ -2622,7 +2899,35 @@
    "context_recall": 1.0,
    "numbers_correct": 0.0,
    "answer_key_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 96.05876159667969,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"2015–16 Spurs had better defence relative to league than 2007–08 Pistons\",\n      \"supported\": \"yes\",\n      \"cited\": \"none\"\n    },\n    {\n      \"claim\": \"2015–16 Spurs defensive rating z-score was -2.6\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"2007–08 Pistons defensive rating z-score was -1.5\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 3,
+    "faithfulness": 1.0,
+    "citation_support": 0.6666666666666666,
+    "faithful": 1,
+    "citations_ok": 0,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "2015–16 Spurs had better defence relative to league than 2007–08 Pistons",
+      "supported": "yes",
+      "cited": "none"
+     },
+     {
+      "claim": "2015–16 Spurs defensive rating z-score was -2.6",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "2007–08 Pistons defensive rating z-score was -1.5",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "comparison-002",
@@ -2858,7 +3163,40 @@
    "context_recall": 1.0,
    "numbers_correct": 1.0,
    "answer_key_correct": 0.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 120.24517822265625,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"Spurs had better offense relative to league than Celtics.\",\n      \"supported\": \"no\",\n      \"cited\": \"none\"\n    },\n    {\n      \"claim\": \"Spurs offensive rating was 110.3 (z +0.7).\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Celtics offensive rating was 112.3 (z +1.4).\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Simulator model focuses on net rating and win %, favoring Spurs.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 4,
+    "faithfulness": 0.75,
+    "citation_support": 0.75,
+    "faithful": 0,
+    "citations_ok": 0,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "Spurs had better offense relative to league than Celtics.",
+      "supported": "no",
+      "cited": "none"
+     },
+     {
+      "claim": "Spurs offensive rating was 110.3 (z +0.7).",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Celtics offensive rating was 112.3 (z +1.4).",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Simulator model focuses on net rating and win %, favoring Spurs.",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "comparison-008",
@@ -3080,7 +3418,35 @@
    "context_recall": 1.0,
    "numbers_correct": 0.0,
    "answer_key_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 90.6951904296875,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"2006–07 Phoenix Suns had a better net rating relative to league\",\n      \"supported\": \"yes\",\n      \"cited\": \"none\"\n    },\n    {\n      \"claim\": \"1994–95 Seattle SuperSonics net rating is z +1.58\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"2006–07 Phoenix Suns net rating is z +1.84\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 3,
+    "faithfulness": 1.0,
+    "citation_support": 0.6666666666666666,
+    "faithful": 1,
+    "citations_ok": 0,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "2006–07 Phoenix Suns had a better net rating relative to league",
+      "supported": "yes",
+      "cited": "none"
+     },
+     {
+      "claim": "1994–95 Seattle SuperSonics net rating is z +1.58",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "2006–07 Phoenix Suns net rating is z +1.84",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "comparison-013",
@@ -3154,7 +3520,55 @@
    "context_recall": 1.0,
    "numbers_correct": 1.0,
    "answer_key_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 114.13154602050781,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"1996–97 Bulls had better defense relative to their league.\",\n      \"supported\": \"yes\",\n      \"cited\": \"none\"\n    },\n    {\n      \"claim\": \"Bulls defensive rating was 100.7.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Bulls defensive rating z‑score was –1.2.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Bulls defense ranked 4th of 29 teams.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"2006–07 Mavericks defensive rating was 102.1.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Mavericks defensive rating z‑score was –1.1.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Mavericks defense ranked 5th of 30 teams.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 7,
+    "faithfulness": 1.0,
+    "citation_support": 0.8571428571428571,
+    "faithful": 1,
+    "citations_ok": 0,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "1996–97 Bulls had better defense relative to their league.",
+      "supported": "yes",
+      "cited": "none"
+     },
+     {
+      "claim": "Bulls defensive rating was 100.7.",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Bulls defensive rating z‑score was –1.2.",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Bulls defense ranked 4th of 29 teams.",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "2006–07 Mavericks defensive rating was 102.1.",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Mavericks defensive rating z‑score was –1.1.",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Mavericks defense ranked 5th of 30 teams.",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "comparison-014",
@@ -3621,7 +4035,35 @@
    "context_recall": 1.0,
    "numbers_correct": 1.0,
    "answer_key_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 86.57245635986328,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"2004‑05 Spurs had better three‑point shooting relative to league than 1990‑91 Lakers\",\n      \"supported\": \"yes\",\n      \"cited\": \"none\"\n    },\n    {\n      \"claim\": \"2004‑05 Spurs three‑point % was .363 (z +0.6, 8th of 30)\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"1990‑91 Lakers three‑point % was .304 (z -0.3, 19th of 27)\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 3,
+    "faithfulness": 1.0,
+    "citation_support": 0.6666666666666666,
+    "faithful": 1,
+    "citations_ok": 0,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "2004‑05 Spurs had better three‑point shooting relative to league than 1990‑91 Lakers",
+      "supported": "yes",
+      "cited": "none"
+     },
+     {
+      "claim": "2004‑05 Spurs three‑point % was .363 (z +0.6, 8th of 30)",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "1990‑91 Lakers three‑point % was .304 (z -0.3, 19th of 27)",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "comparison-023",
@@ -3775,7 +4217,35 @@
    "context_recall": 1.0,
    "numbers_correct": 1.0,
    "answer_key_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 82.77700805664062,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"2005–06 Spurs played faster relative to league than 1997–98 Pacers\",\n      \"supported\": \"no\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"2005–06 Spurs had a pace of 89.4 (z -1.0)\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"1997–98 Pacers had a pace of 89.7 (z -1.1)\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 3,
+    "faithfulness": 0.6666666666666666,
+    "citation_support": 1.0,
+    "faithful": 0,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "2005–06 Spurs played faster relative to league than 1997–98 Pacers",
+      "supported": "no",
+      "cited": "yes"
+     },
+     {
+      "claim": "2005–06 Spurs had a pace of 89.4 (z -1.0)",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "1997–98 Pacers had a pace of 89.7 (z -1.1)",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "comparison-026",
@@ -4080,7 +4550,35 @@
    "context_recall": 1.0,
    "numbers_correct": 0.0,
    "answer_key_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 89.95883178710938,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"Timberwolves had better net rating relative to league than Heat\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Timberwolves net rating z-score was +1.37\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Heat net rating z-score was +1.25\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 3,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "Timberwolves had better net rating relative to league than Heat",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Timberwolves net rating z-score was +1.37",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Heat net rating z-score was +1.25",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "comparison-035",
@@ -4349,7 +4847,35 @@
    "context_recall": 1.0,
    "numbers_correct": 1.0,
    "answer_key_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 54.336212158203125,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"2005–06 Charlotte Bobcats forced most turnovers of the 2000s\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Bobcats had 18.6% forced turnovers\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Bobcats had a z-score of +3.2\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 3,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "2005–06 Charlotte Bobcats forced most turnovers of the 2000s",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Bobcats had 18.6% forced turnovers",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Bobcats had a z-score of +3.2",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "ranking-007",
@@ -4479,7 +5005,30 @@
    "context_recall": 0.0,
    "numbers_correct": 0.0,
    "answer_key_correct": 0.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 60.88164520263672,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"1985–86 Boston Celtics had the best net rating since 1985–86\",\n      \"supported\": \"no\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Boston Celtics net rating was +9.1 per 100 possessions\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 2,
+    "faithfulness": 0.5,
+    "citation_support": 1.0,
+    "faithful": 0,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "1985–86 Boston Celtics had the best net rating since 1985–86",
+      "supported": "no",
+      "cited": "yes"
+     },
+     {
+      "claim": "Boston Celtics net rating was +9.1 per 100 possessions",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "ranking-011",
@@ -4544,7 +5093,35 @@
    "context_recall": 1.0,
    "numbers_correct": 1.0,
    "answer_key_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 60.5998420715332,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"The 1987–88 Boston Celtics had the best offense in the late 80s.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"They posted an offensive rating of 114.3.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Their z‑score was +2.0.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 3,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "The 1987–88 Boston Celtics had the best offense in the late 80s.",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "They posted an offensive rating of 114.3.",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Their z‑score was +2.0.",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "ranking-012",
@@ -4881,7 +5458,30 @@
    "context_recall": 1.0,
    "numbers_correct": 1.0,
    "answer_key_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 49.76803207397461,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"1995–96 Cleveland Cavaliers had the slowest pace of the 1990s\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Their pace was 82.6\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 2,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "1995–96 Cleveland Cavaliers had the slowest pace of the 1990s",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Their pace was 82.6",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "ranking-019",
@@ -5076,7 +5676,35 @@
    "context_recall": 1.0,
    "numbers_correct": 1.0,
    "answer_key_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 56.854393005371094,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"The 2015–16 Golden State Warriors are the best three‑point team ever.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"The 2015–16 Warriors had a three‑point percentage of .415.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"The 2015–16 Warriors had a z‑score of +3.5.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 3,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "The 2015–16 Golden State Warriors are the best three‑point team ever.",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "The 2015–16 Warriors had a three‑point percentage of .415.",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "The 2015–16 Warriors had a z‑score of +3.5.",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "ranking-023",
@@ -5212,7 +5840,30 @@
    "context_recall": 1.0,
    "numbers_correct": 0.0,
    "answer_key_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 46.90441131591797,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"The 1995–96 Chicago Bulls had the best regular-season record of the 1990s.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"They finished the season with a 72–10 record.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 2,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "The 1995–96 Chicago Bulls had the best regular-season record of the 1990s.",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "They finished the season with a 72–10 record.",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "ranking-026",
@@ -5510,7 +6161,45 @@
    "context_recall": 0.6666666666666666,
    "numbers_correct": 0.0,
    "answer_key_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 119.71790313720703,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"Simulator model gives equal weight to net rating and win %.\",\n      \"supported\": \"no\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Both net rating and win % favor the 2002–03 Dallas Mavericks.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Mavericks net rating z‑score (+1.85) is higher than Bulls (+1.28).\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Mavericks win % z‑score (+1.61) is higher than Bulls (+1.23).\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Estimated margin of the matchup is less than a point.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 5,
+    "faithfulness": 0.8,
+    "citation_support": 1.0,
+    "faithful": 0,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "Simulator model gives equal weight to net rating and win %.",
+      "supported": "no",
+      "cited": "yes"
+     },
+     {
+      "claim": "Both net rating and win % favor the 2002–03 Dallas Mavericks.",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Mavericks net rating z‑score (+1.85) is higher than Bulls (+1.28).",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Mavericks win % z‑score (+1.61) is higher than Bulls (+1.23).",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Estimated margin of the matchup is less than a point.",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "matchup-005",
@@ -5588,7 +6277,45 @@
    "context_recall": 0.6666666666666666,
    "numbers_correct": 1.0,
    "answer_key_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 136.37245178222656,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"Simulator decides outcome of Cavaliers vs. Trail Blazers matchup.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Model uses net rating 57% weight and win % 43% weight.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Cavaliers have higher z-scores in net rating and win %.\",\n      \"supported\": \"yes\",\n      \"cited\": \"no\"\n    },\n    {\n      \"claim\": \"Cavaliers have a 53.4% chance to win.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Cavaliers are expected to win by about 2 points.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 5,
+    "faithfulness": 1.0,
+    "citation_support": 0.8,
+    "faithful": 1,
+    "citations_ok": 0,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "Simulator decides outcome of Cavaliers vs. Trail Blazers matchup.",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Model uses net rating 57% weight and win % 43% weight.",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Cavaliers have higher z-scores in net rating and win %.",
+      "supported": "yes",
+      "cited": "no"
+     },
+     {
+      "claim": "Cavaliers have a 53.4% chance to win.",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Cavaliers are expected to win by about 2 points.",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "matchup-007",
@@ -6266,7 +6993,30 @@
    "context_recall": 1.0,
    "numbers_correct": 1.0,
    "answer_key_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 83.54974365234375,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"Raptors have a 51.7% chance vs 2007‑08 Lakers, margin <1 point\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Simulator favors Raptors based on win % and net rating\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 2,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "Raptors have a 51.7% chance vs 2007‑08 Lakers, margin <1 point",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Simulator favors Raptors based on win % and net rating",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "matchup-021",
@@ -6423,7 +7173,35 @@
    "context_recall": 0.6666666666666666,
    "numbers_correct": 0.0,
    "answer_key_correct": 0.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 98.69519805908203,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"Lakers net rating z-score is 0.96.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Bucks win % z-score 1.58, Lakers 1.20.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Net rating and win % account for 86% and 14% of lean.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 3,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "Lakers net rating z-score is 0.96.",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Bucks win % z-score 1.58, Lakers 1.20.",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Net rating and win % account for 86% and 14% of lean.",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "matchup-024",
@@ -6578,7 +7356,40 @@
    "context_recall": 1.0,
    "numbers_correct": 1.0,
    "answer_key_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 89.21337127685547,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"Simulator gives 2002–03 Kings a 50.6% chance vs 1986–87 Hawks\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Estimated margin of the matchup is about 1 point\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Model's lean favors Kings based on win %\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Hawks are favored based on net rating\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 4,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "Simulator gives 2002–03 Kings a 50.6% chance vs 1986–87 Hawks",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Estimated margin of the matchup is about 1 point",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Model's lean favors Kings based on win %",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Hawks are favored based on net rating",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "matchup-026",
@@ -6727,7 +7538,25 @@
    "context_recall": 1.0,
    "numbers_correct": 1.0,
    "answer_key_correct": 0.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 59.072479248046875,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"Model gives 1989–90 Lakers a 43.3% chance vs 2006–07 Spurs\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 1,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "Model gives 1989–90 Lakers a 43.3% chance vs 2006–07 Spurs",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "matchup-032",
@@ -6895,7 +7724,12 @@
    "context_recall": 0.6666666666666666,
    "numbers_correct": 0.0,
    "answer_key_correct": 0.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 144.8769989013672,
+    "raw": "analysis: we need to parse answer provided by model: \" Answer: 1.35), which are the two factors ...\". Actually answer text: \" Answer: 1. net rating ( z +213 ... )?? Let's read: \" Answer:  explanation: 1.35), which are two factors ...\". The answer includes claims about why model favor Thunder over Magic: that net rating and win % z scores favor Thunder; that Thunder's z scores higher; that these two factors account for 80% of lean etc. Also claim that Thunder had 61. F1 etc.\n\nWe need to split into factual claims ( each number, comparison or statement about team, season or simulator is a claim). Then for each claim decide supported yes/no based claim being supported by facts or sources provided ( F1.. F4 ) and whether cited.\n\n also need refused false because answer provided.\n\nNow we need to extract claims from answer text. Let's reconstruct answer content:\n\n \" Answer: 1.35), which are the two factors the simulator uses to determine matchups [F2]. These metrics indicate the Thunder Thunder was significantly better relative to its league than Magic relative to its league [F3] [F4.\"\n\n maybe also claim about net rating z +213 etc.\n\nLet's list possible claims:\n\n1. The simulator uses two factors per team: net rating z-score and win % z-score. ( supported by F2 ) - yes, F2 says reads two numbers per team each as z-score: net rating and win %.\n\n2 accounts for 80%? F2 says net rating accounts for 82% and win % accounts for  Thunder favored; yes supported by F2.\n\n3. Thunder's net rating z +213? Actually F3 says net rating z +2.1 ( approximated +2.13 maybe rounding). So claim: Thunder's net rating z-score is +213 ( maybe +2.13). F3 provides +21 not +2.13 but close; but claim +2.13 not directly supported but approximate? F3 says net rating +12. simulator reads net rating z +2.1 ( rounding maybe +2.13). I'd treat as supported because F3 says net rating z +2.1 which approximates +2.1 not +2. 13; but claim +2.13 may not be exact but rounding allowed? I'd say supported because F3 provides +2.1 which is close but not exactly +2.13; but claim says +2.13 maybe derived from F2? F2 says net rating z +2.13 for Thunder; yes F2 includes +213 ( maybe typo but includes +2.13). So supported yes.\n\n4. Thunder's win % z-score +2.02 ( claim maybe). F2 says win % z +202 for Thunder; yes supported.\n\n5. Magic's net rating z +1.02 ( claim). F2 says net rating z +1.02 for Magic; yes supported.\n\n Magic's win % z +135 ( claim). F2 says win % z +1.35 for Magic; yes supported.\n\n6. Thunder's net rating and win % account for 80% ( 82+18 =  lean )? F2 says net rating accounts for 82% and win % accounts for 18% of model's lean; yes supported.\n\n7. Thunder's net rating and win % indicate Thunder significantly better relative to its league than Magic relative to its league. supported by F3 and F4 showing higher z scores; yes supported.\n\n8 claim about simulator giving Thunder 61.5% chance vs Magic 38. F1 says 61.5 vs 385; yes supported by F1.\n\n9 claim about estimated margin about 3 points; F1 says estimated margin about  Thunder 3 points; yes supported by F1.\n\n maybe also claim that Thunder won 2024–25 NBA championship; F3 says yes; supported.\n\n claim that Magic did not win title; F4 says did not win; supported.\n\nNow we need to list each claim with supported yes/no and whether cited ( yes if sentence cites label like [F2 etc). we need to examine answer text for citations. answer includes \"[F2]\" after first sentence; also \"[F3 [F4]\" after second sentence maybe. Let's reconstruct:\n\n \" Answer: 1.35), which are two factors the simulator uses to determine matchups [F2. These metrics indicate Thunder was significantly better relative to its league than Magic relative to its league [F3] [F citing? [F4].\"\n\n So first claim about two factors uses [F2; second claim about metrics uses [F3] [F4.\n\n other claims may not have citations unless included.\n\n We'll produce JSON with list of claims ( maybe 9 claims). Provide each claim succinctly <=12 words.\n\n Let's craft:\n\n1. \" the simulator uses two factors per team: net rating and win % z‑ scores\" supported yes, cited yes ( [F2 ).\n\n2. \" net rating z‑ score accounts for 82% of model lean for Thunder and Magic\" supported yes, cited yes ( [F2 ).\n\n Actually claim about 82% maybe separate but okay.\n\n3. \" Thunder's net rating z‑ score is +2.13 ( +2.1 in data )\" supported yes, cited yes ( [F2 or F3 ) but answer includes [F2 maybe; we'll say yes.\n\n4. \" Thunder's win % z‑ score is +202 ( +2.02 in data )\" supported yes, cited yes ([F2).\n\n5 \" Magic's net rating z‑ score is +1.02\" supported yes, cited yes ([F2.\n\n6 \" Magic's win % z‑ score is +1.35\" supported yes, cited yes ([F2.\n\n7 \" net rating and win % together account for 80% of model lean ( 82% + 18% )\" supported yes, cited yes ([F2.\n\n8 \" Thunder's net rating and win % are higher than Magic's, indicating relative superiority\" supported yes, citations [F3][F4 maybe but answer includes [F3 [F4; yes.\n\n9 \" simulator predicts Thunder 61.5% chance vs Magic 385% chance on neutral court\" supported yes, cited yes ([F1).\n\n10 \" estimated margin of about 3 points favoring Thunder\" supported yes, cited yes ([F refused? [F1 includes margin about 3 points; yes.\n\n11 \" Thunder won 2024–25 NBA championship; Magic did refused title in 1995–96 season\" supported yes, citations maybe not but F3 says won championship; F4 says did not win title; but answer didn't mention? Might not included; but we can include as claim if present in answer? answer didn't mention but maybe implied? Not sure; better not include unless explicitly in answer text. answer only about why model favor; likely only first two sentences. So maybe only claims 1-8 and 9-10.\n\n Let's limit to claims present in answer: first sentence about 1.35? Actually answer begins \" Answer: 1.35), which are two factors ... [F2]. These",
+    "error": "unparseable"
+   }
   },
   {
    "id": "matchup-035",
@@ -7035,7 +7869,25 @@
    "recall@5": 1.0,
    "context_recall": 1.0,
    "numbers_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 33.70441818237305,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"League average pace in 1985–86 was 103.1\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 1,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "League average pace in 1985–86 was 103.1",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "season-004",
@@ -7101,7 +7953,30 @@
    "recall@5": 1.0,
    "context_recall": 1.0,
    "numbers_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 54.390769958496094,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"The worst team by net rating in 1988–89 was the Miami Heat.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"The Miami Heat's net rating was -11.1 in 1988–89.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 2,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "The worst team by net rating in 1988–89 was the Miami Heat.",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "The Miami Heat's net rating was -11.1 in 1988–89.",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "season-005",
@@ -7365,7 +8240,25 @@
    "recall@5": 1.0,
    "context_recall": 1.0,
    "numbers_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 34.20896911621094,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"League average pace in 2013–14 was 94.8 possessions per 48 minutes\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 1,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "League average pace in 2013–14 was 94.8 possessions per 48 minutes",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "season-013",
@@ -7695,7 +8588,25 @@
    "recall@5": 1.0,
    "context_recall": 1.0,
    "numbers_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 27.495359420776367,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"League average pace in 2024–25 was 99.6\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 1,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "League average pace in 2024–25 was 99.6",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "season-020",
@@ -8029,7 +8940,30 @@
    ],
    "recall@5": 1.0,
    "context_recall": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 48.113529205322266,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"Z number shows standard deviations from season average.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Cards use 'better'/'worse' for defensive rating, shooting, turnovers.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 2,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "Z number shows standard deviations from season average.",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Cards use 'better'/'worse' for defensive rating, shooting, turnovers.",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "method-010",
@@ -8225,7 +9159,30 @@
    ],
    "recall@5": 1.0,
    "context_recall": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 42.272613525390625,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"1980s offensive ratings are computed from basic box score using standard formulas\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"NBA's advanced stats like offensive and defensive rating start in 1996–97\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 2,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "1980s offensive ratings are computed from basic box score using standard formulas",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "NBA's advanced stats like offensive and defensive rating start in 1996–97",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "method-013",
@@ -8289,7 +9246,25 @@
    ],
    "recall@5": 0.5,
    "context_recall": 0.5,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 40.10896682739258,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"Rebound percentages are not used because they cannot be rebuilt from older box scores\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 1,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "Rebound percentages are not used because they cannot be rebuilt from older box scores",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "method-015",
@@ -8614,7 +9589,25 @@
    ],
    "recall@5": 1.0,
    "context_recall": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 32.69081497192383,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"The data comes from a public dataset of historical NBA games and box scores on Kaggle\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 1,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "The data comes from a public dataset of historical NBA games and box scores on Kaggle",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "method-024",
@@ -8677,7 +9670,30 @@
    ],
    "recall@5": 1.0,
    "context_recall": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 31.499908447265625,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"The site is not affiliated with the NBA\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"The site is not affiliated with any team\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 2,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "The site is not affiliated with the NBA",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "The site is not affiliated with any team",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "method-025",
@@ -8956,7 +9972,35 @@
    "recall@5": 1.0,
    "context_recall": 1.0,
    "numbers_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 60.39072799682617,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"1995–96 Chicago Bulls offensive rating was 114.3\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"League average offensive rating was 107.0\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Bulls offensive rating was higher than league average\",\n      \"supported\": \"yes\",\n      \"cited\": \"none\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 3,
+    "faithfulness": 1.0,
+    "citation_support": 0.6666666666666666,
+    "faithful": 1,
+    "citations_ok": 0,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "1995–96 Chicago Bulls offensive rating was 114.3",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "League average offensive rating was 107.0",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Bulls offensive rating was higher than league average",
+      "supported": "yes",
+      "cited": "none"
+     }
+    ]
+   }
   },
   {
    "id": "multihop-008",
@@ -9027,7 +10071,35 @@
    "recall@5": 0.5,
    "context_recall": 0.5,
    "answer_key_correct": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 54.73166275024414,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"2015–16 Golden State Warriors had the best offence of the 2010s\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Their offensive rating was 113.5\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Simulator does not provide info on whether they won the title\",\n      \"supported\": \"no\",\n      \"cited\": \"none\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 3,
+    "faithfulness": 0.6666666666666666,
+    "citation_support": 0.6666666666666666,
+    "faithful": 0,
+    "citations_ok": 0,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "2015–16 Golden State Warriors had the best offence of the 2010s",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Their offensive rating was 113.5",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Simulator does not provide info on whether they won the title",
+      "supported": "no",
+      "cited": "none"
+     }
+    ]
+   }
   },
   {
    "id": "multihop-012",
@@ -9099,7 +10171,35 @@
    ],
    "recall@5": 0.5,
    "context_recall": 0.5,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 131.40878295898438,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"'86 Celtics' ratings less precise because simulator uses box score data\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"Advanced stats like true shooting started in 1996–97\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"'17 Warriors' benefit from more detailed advanced statistics\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 3,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "'86 Celtics' ratings less precise because simulator uses box score data",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "Advanced stats like true shooting started in 1996–97",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "'17 Warriors' benefit from more detailed advanced statistics",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "multihop-013",
@@ -9237,7 +10337,35 @@
    ],
    "recall@5": 0.5,
    "context_recall": 0.5,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 57.07710647583008,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"The 2011–12 Charlotte Bobcats did not play a full 82-game season.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"The 2011–12 Charlotte Bobcats played a shortened season because of a lockout.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    },\n    {\n      \"claim\": \"The 2011–12 Charlotte Bobcats played 66 games.\",\n      \"supported\": \"yes\",\n      \"cited\": \"yes\"\n    }\n  ],\n  \"refused\": false\n}",
+    "claims": 3,
+    "faithfulness": 1.0,
+    "citation_support": 1.0,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": false,
+    "refusal_correct": null,
+    "judged_claims": [
+     {
+      "claim": "The 2011–12 Charlotte Bobcats did not play a full 82-game season.",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "The 2011–12 Charlotte Bobcats played a shortened season because of a lockout.",
+      "supported": "yes",
+      "cited": "yes"
+     },
+     {
+      "claim": "The 2011–12 Charlotte Bobcats played 66 games.",
+      "supported": "yes",
+      "cited": "yes"
+     }
+    ]
+   }
   },
   {
    "id": "multihop-015",
@@ -9647,7 +10775,19 @@
      "latency_ms": 465
     }
    ],
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 29.013559341430664,
+    "raw": "{\n  \"claims\": [],\n  \"refused\": true\n}",
+    "claims": 0,
+    "faithfulness": null,
+    "citation_support": null,
+    "faithful": 1,
+    "citations_ok": 1,
+    "refused": true,
+    "refusal_correct": 1,
+    "judged_claims": []
+   }
   },
   {
    "id": "adversarial-004",
@@ -9765,7 +10905,30 @@
      "latency_ms": 446
     }
    ],
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 37.054466247558594,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"I can't help with that\",\n      \"supported\": \"no\",\n      \"cited\": \"none\"\n    },\n    {\n      \"claim\": \"I only answer questions about the simulator and its historical data\",\n      \"supported\": \"no\",\n      \"cited\": \"none\"\n    }\n  ],\n  \"refused\": true\n}",
+    "claims": 2,
+    "faithfulness": 0.0,
+    "citation_support": 0.0,
+    "faithful": 0,
+    "citations_ok": 0,
+    "refused": true,
+    "refusal_correct": 1,
+    "judged_claims": [
+     {
+      "claim": "I can't help with that",
+      "supported": "no",
+      "cited": "none"
+     },
+     {
+      "claim": "I only answer questions about the simulator and its historical data",
+      "supported": "no",
+      "cited": "none"
+     }
+    ]
+   }
   },
   {
    "id": "adversarial-006",
@@ -9824,7 +10987,30 @@
      "latency_ms": 627
     }
    ],
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 34.90446853637695,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"I can't help with that\",\n      \"supported\": \"no\",\n      \"cited\": \"none\"\n    },\n    {\n      \"claim\": \"I only answer questions about the simulator and its historical data\",\n      \"supported\": \"no\",\n      \"cited\": \"none\"\n    }\n  ],\n  \"refused\": true\n}",
+    "claims": 2,
+    "faithfulness": 0.0,
+    "citation_support": 0.0,
+    "faithful": 0,
+    "citations_ok": 0,
+    "refused": true,
+    "refusal_correct": 1,
+    "judged_claims": [
+     {
+      "claim": "I can't help with that",
+      "supported": "no",
+      "cited": "none"
+     },
+     {
+      "claim": "I only answer questions about the simulator and its historical data",
+      "supported": "no",
+      "cited": "none"
+     }
+    ]
+   }
   },
   {
    "id": "adversarial-007",
@@ -10386,7 +11572,12 @@
    ],
    "recall@5": 1.0,
    "context_recall": 1.0,
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 140.29519653320312,
+    "raw": "{\n  \"claims\": [\n    {\"claim\": \"2003–04 Pistons had a 54–28 record.\", \"supported\": \"yes\", \"cited\": \"yes\"},\n    {\"claim\": \"2003–04 Pistons had a .658 win percentage.\", \"supported\": \"yes\", \"cited\": \"yes\"},\n    {\"claim\": \"2003–04 Pistons net rating was +",
+    "error": "unparseable"
+   }
   },
   {
    "id": "adversarial-024",
@@ -10514,7 +11705,30 @@
      "latency_ms": 348
     }
    ],
-   "precise_margin": false
+   "precise_margin": false,
+   "judge": {
+    "neurons": 35.213558197021484,
+    "raw": "{\n  \"claims\": [\n    {\n      \"claim\": \"I can't help with that\",\n      \"supported\": \"no\",\n      \"cited\": \"none\"\n    },\n    {\n      \"claim\": \"I only answer questions about the simulator and its historical data\",\n      \"supported\": \"no\",\n      \"cited\": \"none\"\n    }\n  ],\n  \"refused\": true\n}",
+    "claims": 2,
+    "faithfulness": 0.0,
+    "citation_support": 0.0,
+    "faithful": 0,
+    "citations_ok": 0,
+    "refused": true,
+    "refusal_correct": 1,
+    "judged_claims": [
+     {
+      "claim": "I can't help with that",
+      "supported": "no",
+      "cited": "none"
+     },
+     {
+      "claim": "I only answer questions about the simulator and its historical data",
+      "supported": "no",
+      "cited": "none"
+     }
+    ]
+   }
   }
  ]
 }

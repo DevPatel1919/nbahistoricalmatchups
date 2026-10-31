@@ -208,8 +208,33 @@ rule-based metrics.
 | `qwen3-30b-a3b-fp8` (thinking off) | 0.782 | 0.788 | 0.816 | 0.946 | 0.846 | **0.000** | 18.2 | 781 / 2,574 |
 | `gemma-4-26b-a4b-it` (thinking off) | **0.818** | **0.833** | **1.000** | **1.000** | **1.000** | 0.008 | 28.5 | 1,704 / 6,092 |
 
-Judge faithfulness on the 50-question judge set (unvalidated): *pending
-(runs 2026-10-30, Gemma 4 and Qwen3 only)*.
+Judge scores on the 50-question judge set (unvalidated; Gemma 4 and Qwen3
+only, the two contenders):
+
+| Generator | Judged | Unparseable | Faithfulness, all | Faithfulness, answers only | Fully supported answers | Citation support, answers only |
+|---|---|---|---|---|---|---|
+| Gemma 4 | 47 | 3 | 0.904 | **0.990** | **40 of 42** | **0.971** |
+| Qwen3 | 48 | 2 | 0.880 | 0.941 | 38 of 44 | 0.926 |
+
+"Answers only" leaves out refusals, because the judge sometimes scored a
+refusal as an unsupported claim despite its rubric (adversarial-005, -006,
+-025 for both generators). Read by hand, it also errs on real answers:
+- comparison-007 is flagged for both, but only Qwen3's is wrong (it names the
+  Spurs while citing z +0.7 against the Celtics' +1.4);
+- comparison-025 is flagged for both, but only Gemma 4's is wrong (it names
+  the Pacers while citing z -1.1 against the Spurs' -1.0).
+
+So the two errors offset here, and the judge's direction agrees with the
+rule-based metrics, but its exact values shouldn't be quoted as measured
+faithfulness. The judge cost about 72 neurons per judgment.
+
+**Recommendation (Q4, awaiting the owner): Gemma 4.** The brief's rule was
+the cheapest model within 2 points of the best on faithfulness. Qwen3 is about
+5 points behind on the judge's answers-only score, and behind on every
+rule-based metric that matters here, including the betting refusal. Llama 3.1
+8B wasn't judged, but it is 13 points behind on numbers right. The cost is
+real: about 28.5 neurons an answer, so about 280 answers a day under the 80%
+stop, and a slowest-5% wait of about 6 s.
 
 - **Gemma 4 is best on every quality metric.** It is the only generator
   whose answers all passed grounding first time, and the only one that
@@ -296,12 +321,21 @@ stat-046, comparison-002, comparison-008, matchup-005). Its known unfaithful
 answers are stat-017 (it treats points per game as points per 100
 possessions) and ranking-010.
 
+The number checks can't see a wrong conclusion drawn from right numbers.
+Gemma 4's comparison-025 passes them while naming the wrong team, and the
+judge is what surfaced it. Comparisons of two z-scores are the weak spot for
+both contenders. Session 5 could state the winner in the tool fact, so the
+model doesn't have to compare them itself.
+
 ### Cost
 
-Session 4 used about 18,300 neurons by Workers AI's own counts:
+Session 4 has used about 24,800 neurons so far, by Workers AI's own counts:
 - 2026-10-27: about 2,470, the Llama 3.1 8B base run and judge calibration;
 - 2026-10-28: 8,006, Qwen3, Llama 3.2 3B and half of Gemma 4;
-- 2026-10-29: 7,824, the rest of Gemma 4 and the four ablations.
+- 2026-10-29: 7,824, the rest of Gemma 4 and the four ablations;
+- 2026-10-30: 951, judge calls before the network failed;
+- 2026-10-31: 5,549, the rest of the judge runs.
 
-Each day stayed under the 8,000 dev cap and the 10,000 free allowance.
-Repeated calls come from the response cache and cost nothing.
+Each day stayed under the 10,000 free allowance. 2026-10-28 went 6 neurons
+over the 8,000 dev cap, because the budget check estimates a call before it
+is charged. Repeated calls come from the response cache and cost nothing.
