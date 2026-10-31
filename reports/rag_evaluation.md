@@ -228,7 +228,7 @@ So the two errors offset here, and the judge's direction agrees with the
 rule-based metrics, but its exact values shouldn't be quoted as measured
 faithfulness. The judge cost about 72 neurons per judgment.
 
-**Recommendation (Q4, awaiting the owner): Gemma 4.** The brief's rule was
+**The generator (Q4, confirmed by the owner 2026-10-31): Gemma 4.** The brief's rule was
 the cheapest model within 2 points of the best on faithfulness. Qwen3 is about
 5 points behind on the judge's answers-only score, and behind on every
 rule-based metric that matters here, including the betting refusal. Llama 3.1

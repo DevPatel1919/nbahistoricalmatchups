@@ -131,3 +131,9 @@ def test_hybrid_rerank_fuse_runs_with_a_fake_client(corpus):
 
 def test_shipped_config_is_the_reported_one():
     assert rag_config.RETRIEVAL == eval_rag.CONFIGS["hybrid-filter-pin-rerank-fuse"]
+
+
+def test_shipped_generator_is_the_reported_run():
+    assert eval_rag.ANSWER_CONFIGS["answer-gemma4"].generator == rag_config.GENERATOR
+    assert eval_rag.ANSWER_CONFIGS["answer-gemma4"].retrieval == rag_config.RETRIEVAL
+    assert eval_rag.ANSWER_CONFIGS["answer-gemma4"].chunks == rag_config.CONTEXT_CHUNKS

@@ -104,7 +104,7 @@ There are two reasons, and the second drives the design.
 | Q1 | Where does it appear? | A panel on the result page with three suggested questions, plus a plain `/ask` page. Not on the home page until it has proven useful | Session 6 |
 | Q2 | Store asked questions for evaluation? | **Yes**: the question text, retrieved ids, latency and grounding result. No IP and no client id, deleted after 30 days, disclosed on the About page. Real questions are the best source of new eval cases | Session 5 |
 | Q3 | Daily budget | Stop free-text answers at about 80% of the free Workers AI allocation. After that, only the suggested questions work, answered from templates with no model (see "Fallback") | Session 5 |
-| Q4 | Production generator model | Decided by Session 4's evaluation: the smallest model within 2 points of the best on faithfulness | Session 4 |
+| Q4 | Production generator model | **Decided 2026-10-31: `gemma-4-26b-a4b-it`, thinking off.** The owner confirmed Session 4's recommendation. It is best on every rule-based metric on dev and on the unvalidated judge; Qwen3 was about 5 points behind on the judge and answered a betting prompt. About 28.5 neurons an answer | Session 4 |
 | Q5 | Human labels for the LLM judge | **Decided 2026-10-27: skipped.** The owner chose not to label. The judge's numbers are reported as unvalidated (no agreement or kappa), and choices lean on the rule-based metrics. The 50-answer sheet stays in `reports/rag_judge_labels.*` if labels are wanted later | Session 4 |
 | Q6 | Turnstile on questions? | **No.** Use a per-IP rate limit plus the global daily budget. Turnstile on every question adds too much friction | Session 5 |
 | Q7 | Public write-up | A `docs/rag/README.md` with the architecture diagram and the final evaluation table, linked from the repo README. Check whether the repo should be public | Session 7 |
@@ -1189,11 +1189,10 @@ scores are reported as a secondary signal, and choices rest on the
 rule-based metrics.
 
 **Still to do in this session**
-1. The owner confirms the generator (Q4). The recommendation is Gemma 4; the
-   judge ran on Gemma 4 and Qwen3 (0.990 against 0.941 on answers only,
-   unvalidated).
-2. Score test once per reported row.
-3. Fill in the test columns, finish this record, and open the PR.
+1. Score test once per reported row (Q4 is decided: Gemma 4, in
+   `src/rag/config.py`; the judge ran on Gemma 4 and Qwen3, 0.990 against
+   0.941 on answers only, unvalidated).
+2. Fill in the test columns, finish this record, and open the PR.
 
 **For Session 5**
 - **Put a deterministic betting check in front of the model.** Llama 3.1 8B
