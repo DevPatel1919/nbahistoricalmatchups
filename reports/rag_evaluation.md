@@ -170,15 +170,16 @@ it the split-card embeddings and about 160 reranker calls per run), which
 took the UTC day of 2026-10-27 to about 5,400. Nothing else uses Workers AI
 yet, so the dev cap was raised to 8,000 for these runs (`RAG_DEV_NEURON_CAP`).
 
-## Answers (Session 4, 2026-10-27 to 2026-10-29)
+## Answers (Session 4, 2026-10-27 to 2026-11-03)
 
 Every answer is one Workers AI call at temperature 0 with at most 300 output
 tokens. The model gets tool facts (`[F1]`…) and up to 5 retrieved chunks
 (`[C1]`…), then the grounding check runs. If it fails, the model regenerates
 once, and any sentence that still fails is removed. Retrieval is Session 3's
-chosen configuration unless a row says otherwise. Everything below is on the
-**dev split (147 questions)**. Test scores are added once the generator is
-confirmed (Q4), and each reported row is scored on test once.
+chosen configuration unless a row says otherwise. Choices were made on the
+**dev split (147 questions)**, and the sections below say so. After the owner
+confirmed the generator (Q4), the reported rows were scored on the **test
+split (98 questions)** once each: see "Test results".
 
 **What the metrics mean**
 - **Numbers right:** every expected number appears in the answer at its
@@ -327,15 +328,65 @@ judge is what surfaced it. Comparisons of two z-scores are the weak spot for
 both contenders. Session 5 could state the winner in the tool fact, so the
 model doesn't have to compare them itself.
 
+### Test results (each row scored once, 2026-11-01 and 2026-11-03)
+
+| Configuration | Numbers right | Right team | First pass | Grounded | Refusals | False refusals | Neurons | p50 / p95 ms |
+|---|---|---|---|---|---|---|---|---|
+| **Gemma 4 (shipped)** | **0.771** | **0.702** | **0.990** | **1.000** | **1.000** | 0.045 | 28.6 | 1,671 / 5,869 |
+| Qwen3 | 0.686 | 0.681 | 0.888 | 0.918 | 0.750 | **0.000** | 16.7 | 816 / 2,540 |
+| Llama 3.1 8B | 0.600 | 0.660 | 0.827 | 0.918 | 0.875 | 0.080 | **14.0** | **489** / **1,191** |
+| Llama 3.1 8B, no tool facts | 0.543 | 0.617 | 0.724 | 0.867 | 0.875 | 0.114 | 13.7 | 593 / 1,434 |
+
+n = 70 for numbers right, 47 for right team, 8 for refusals, 88 for false
+refusals. No answer in any run contains a must-not-contain phrase. Retrieval
+is the same in every row (context recall@5 0.948).
+
+The dev ranking held on test, and Gemma 4 stays the choice:
+
+- **Gemma 4 leads on every quality metric except false refusals**, and it is
+  the only generator that refused all 8 must-refuse questions and whose answers
+  all ended up grounded. It dropped about 5 points from dev on numbers right
+  (0.818 to 0.771). Qwen3 and Llama 3.1 8B dropped about 9 points each.
+- **Tool facts held up, by less than dev suggested.** Without them, numbers
+  right falls 5.7 points (16 on dev), first pass 10 points and grounded 5
+  points, and false refusals rise by 3.4 points. They stay.
+- **The judge (unvalidated) scored Gemma 4's test answers** at faithfulness
+  0.897 and citation support 0.896 on 45 of 50 judged answers, with 5 replies
+  it couldn't parse. These count refusals as answers, so they compare with the
+  dev "all" column (0.904), not with "answers only". Don't quote them as
+  measured faithfulness.
+- **Qwen3 gave one game margin to a decimal on test.** Gemma 4 and Llama 3.1 8B
+  gave none.
+
+Gemma 4 misses 16 of 70 number checks on test, read by hand:
+
+| Pattern | Count | Example | Verdict |
+|---|---|---|---|
+| Comparison answered with z-scores, not the raw value the question set expects | 7 | comparison-033: right team, z +1.53 cited, no raw net rating | 6 name the right team, so they are right answers under a stricter metric. comparison-006 names the wrong team |
+| Ranking names the wrong leader, or gives a different form of the number | 5 | ranking-008: the 1997–98 Celtics, not the expected 2005–06 Bobcats | 4 are wrong. ranking-024 is right but gives the record, not the win % |
+| Answerable question refused | 2 | ranking-004, matchup-001 | Wrong. The right chunk wasn't in the 5 for ranking-004 |
+| "Why" answer leaves out the chance | 2 | matchup-008, matchup-028 | A real gap, the same one dev found |
+
+Four answerable questions are refused in all. For ranking-004 the leaderboard
+wasn't in the 5 chunks. For method-009 it was, and the model refused anyway.
+matchup-001 is a vague question on a matchup page. multihop-017 needs a second
+hop. Stats, seasons, method
+and multi-hop questions all score 1.000 on numbers right where they have
+checks. So lookups are reliable, and rankings (and a few comparisons) are where
+answers can still be wrong.
+
 ### Cost
 
-Session 4 has used about 24,800 neurons so far, by Workers AI's own counts:
+Session 4's neurons, by Workers AI's own counts:
 - 2026-10-27: about 2,470, the Llama 3.1 8B base run and judge calibration;
 - 2026-10-28: 8,006, Qwen3, Llama 3.2 3B and half of Gemma 4;
 - 2026-10-29: 7,824, the rest of Gemma 4 and the four ablations;
 - 2026-10-30: 951, judge calls before the network failed;
 - 2026-10-31: 5,549, the rest of the judge runs.
 
-Each day stayed under the 10,000 free allowance. 2026-10-28 went 6 neurons
+- 2026-11-01: 7,913, Gemma 4 with the judge and Llama 3.1 8B on test;
+- 2026-11-03: 2,678, Qwen3 and no tool facts on test.
+
+In total, Session 4 used about 35,400 neurons over 7 days. Each day stayed under the 10,000 free allowance. 2026-10-28 went 6 neurons
 over the 8,000 dev cap, because the budget check estimates a call before it
 is charged. Repeated calls come from the response cache and cost nothing.

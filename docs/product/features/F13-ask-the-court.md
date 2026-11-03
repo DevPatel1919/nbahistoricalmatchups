@@ -1123,7 +1123,7 @@ UTC day of 2026-10-27. Nothing else uses Workers AI yet, so these runs set
 
 **Verification (2026-10-27):** see the PR description.
 
-### Session 4: tools, generation, grounding and the judge (2026-10-27 to 2026-10-29, in progress)
+### Session 4: tools, generation, grounding and the judge (2026-10-27 to 2026-11-03)
 
 Branch `f13-s4-generation`, based on `f13-s3-retrieval`, PR into it. Not
 merged, nothing deployed. Every model call went to Workers AI; nothing ran
@@ -1188,11 +1188,21 @@ Ablations on Llama 3.1 8B:
 scores are reported as a secondary signal, and choices rest on the
 rule-based metrics.
 
-**Still to do in this session**
-1. Score test once per reported row (Q4 is decided: Gemma 4, in
-   `src/rag/config.py`; the judge ran on Gemma 4 and Qwen3, 0.990 against
-   0.941 on answers only, unvalidated).
-2. Fill in the test columns, finish this record, and open the PR.
+**Q4 (owner, 2026-10-31): Gemma 4.** It is set in `src/rag/config.py`.
+
+**Test split (each row once; full table and failure cases in the report)**
+
+| Configuration | Numbers right | First pass | Grounded | Refusals | False refusals | Neurons |
+|---|---|---|---|---|---|---|
+| **Gemma 4** | **0.771** | **0.990** | **1.000** | **1.000** | 0.045 | 28.6 |
+| Qwen3 | 0.686 | 0.888 | 0.918 | 0.750 | 0.000 | 16.7 |
+| Llama 3.1 8B | 0.600 | 0.827 | 0.918 | 0.875 | 0.080 | 14.0 |
+| Llama 3.1 8B, no tool facts | 0.543 | 0.724 | 0.867 | 0.875 | 0.114 | 13.7 |
+
+**Verification (2026-11-03):** see the PR description. Session 4 finished in the
+planning conversation, after the session built for it ran out of its scheduled
+queue: the last two test runs didn't start on 2026-11-02, so they ran on
+2026-11-03.
 
 **For Session 5**
 - **Put a deterministic betting check in front of the model.** Llama 3.1 8B
