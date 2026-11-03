@@ -1,6 +1,6 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv } from 'vite'
-import { dailyThreeDefines, duelEnvDefines } from './buildEnv.ts'
+import { askCourtDefines, dailyThreeDefines, duelEnvDefines } from './buildEnv.ts'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -15,6 +15,8 @@ export default defineConfig(({ mode }) => {
       ...duelEnvDefines(env),
       // Daily Three only with VITE_DAILY_THREE=1 (buildEnv.ts).
       ...dailyThreeDefines(env),
+      // Ask the Court only with VITE_ASK_COURT=1 (buildEnv.ts).
+      ...askCourtDefines(env),
     },
   }
 })

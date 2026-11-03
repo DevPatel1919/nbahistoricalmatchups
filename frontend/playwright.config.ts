@@ -57,6 +57,7 @@ export default defineConfig({
         VITE_DUEL_API: `http://localhost:${DUEL_API_PORT}`,
         VITE_TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
         VITE_DAILY_THREE: "1",
+        VITE_ASK_COURT: "1",
       },
     },
     {
@@ -65,7 +66,7 @@ export default defineConfig({
       url: `http://localhost:${DAILY_OFF_PORT}`,
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
-      env: { VITE_DAILY_THREE: "", VITE_DUEL_API: "", VITE_CACHE_DIR: "node_modules/.vite-daily-off" },
+      env: { VITE_DAILY_THREE: "", VITE_ASK_COURT: "", VITE_DUEL_API: "", VITE_CACHE_DIR: "node_modules/.vite-daily-off" },
     },
   ],
 });

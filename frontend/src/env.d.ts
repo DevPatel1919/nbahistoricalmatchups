@@ -12,4 +12,6 @@ interface ImportMetaEnv {
   readonly VITE_TURNSTILE_SITE_KEY?: string;
   /** "1" switches Daily Three on (/daily, its home card and nav link); vite.config.ts normalises it (buildEnv.ts). */
   readonly VITE_DAILY_THREE?: string;
+  /** "1" switches Ask the Court on (the matchup-page panel, /ask, its nav link); it also needs VITE_DUEL_API (buildEnv.ts). */
+  readonly VITE_ASK_COURT?: string;
 }
