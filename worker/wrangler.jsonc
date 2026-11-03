@@ -38,11 +38,24 @@
     // is older than this, i.e. the schedule has stalled. "0" computes every request.
     "LEADERBOARD_REFRESH_SECONDS": "1200",
     // Seconds a Daily Three crowd-stats response is cached at the edge (src/daily.ts). "0" turns caching off.
-    "DAILY_STATS_CACHE_SECONDS": "60"
+    "DAILY_STATS_CACHE_SECONDS": "60",
+    // Ask the Court (F13, src/ask/route.ts). "1" allows free-text questions; production stays
+    // "0" until the owner's go-ahead (F13 Session 7).
+    "ASK_ENABLED": "0",
+    // Estimated neurons a UTC day: 80% of the free 10,000, which staging shares.
+    "ASK_DAILY_NEURON_BUDGET": "8000",
+    "ASK_RELEASE": "hist-v2",
+    // "1" keeps asked questions for 30 days, with no IP or client id (F13 Q2).
+    "ASK_LOG_QUESTIONS": "1"
   },
+  "ai": { "binding": "AI" },
+  // F13: `wrangler vectorize create court-ask-v1 --dimensions=384 --metric=cosine`.
+  "vectorize": [{ "binding": "ASK_INDEX", "index_name": "court-ask-v1" }],
   "d1_databases": [
     // Phase 3: `wrangler d1 create court-of-all-time-duel` and paste the id.
-    { "binding": "DB", "database_name": "court-of-all-time-duel", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
+    { "binding": "DB", "database_name": "court-of-all-time-duel", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" },
+    // F13: `wrangler d1 create court-ask` and paste the id. Its own database: see migrations-ask/0001_ask.sql.
+    { "binding": "ASK_DB", "database_name": "court-ask", "database_id": "00000000-0000-0000-0000-000000000002", "migrations_dir": "migrations-ask" }
   ],
   "kv_namespaces": [
     // Phase 3: `wrangler kv namespace create court-of-all-time-duel-POOL` / `...-RATE_LIMITS` and paste the ids.
@@ -63,10 +76,17 @@
         "RATE_LIMIT_SCALE": "1",
         "LEADERBOARD_CACHE_SECONDS": "60",
         "LEADERBOARD_REFRESH_SECONDS": "1200",
-        "DAILY_STATS_CACHE_SECONDS": "60"
+        "DAILY_STATS_CACHE_SECONDS": "60",
+        "ASK_ENABLED": "1",
+        "ASK_DAILY_NEURON_BUDGET": "8000",
+        "ASK_RELEASE": "hist-v2",
+        "ASK_LOG_QUESTIONS": "1"
       },
+      "ai": { "binding": "AI" },
+      "vectorize": [{ "binding": "ASK_INDEX", "index_name": "court-ask-v1-staging" }],
       "d1_databases": [
-        { "binding": "DB", "database_name": "court-of-all-time-duel-staging", "database_id": "5e7c6705-01e9-4679-82ae-ded466c52deb", "migrations_dir": "migrations" }
+        { "binding": "DB", "database_name": "court-of-all-time-duel-staging", "database_id": "5e7c6705-01e9-4679-82ae-ded466c52deb", "migrations_dir": "migrations" },
+        { "binding": "ASK_DB", "database_name": "court-ask-staging", "database_id": "733b6db1-97c4-4358-a640-e101f2448af1", "migrations_dir": "migrations-ask" }
       ],
       "kv_namespaces": [
         { "binding": "POOL", "id": "459faa0bc11d4797a92485c1e421e37d" },

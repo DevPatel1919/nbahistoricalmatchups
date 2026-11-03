@@ -26,4 +26,17 @@ export interface Env {
   DAILY_STATS_CACHE_SECONDS: string;
   /** Bearer secret for the internal review queue (admin.ts). Unset: every admin path is 404. */
   ADMIN_TOKEN?: string;
+  // Ask the Court (F13, src/ask/route.ts). Unset bindings: POST /v1/ask answers ask_unavailable.
+  /** Its own database: chunks and FTS5, the daily budget, the question log. */
+  ASK_DB?: D1Database;
+  AI?: Ai;
+  ASK_INDEX?: VectorizeIndex;
+  /** "1" allows free-text questions; anything else is the kill switch. Suggested questions use no model and keep working. */
+  ASK_ENABLED?: string;
+  /** Estimated neurons a UTC day that free-text questions may spend. The account's free allowance is 10,000. */
+  ASK_DAILY_NEURON_BUDGET?: string;
+  /** Which uploaded corpus to read (scripts/upload_rag_index.py). */
+  ASK_RELEASE?: string;
+  /** "1" keeps asked questions for 30 days, with no IP or client id. */
+  ASK_LOG_QUESTIONS?: string;
 }

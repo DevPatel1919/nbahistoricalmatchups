@@ -21,6 +21,9 @@ export const LIMITS = {
   adminPerIp: { name: "admin-ip", max: 120, windowSeconds: 3600 },
   // Daily Three (F12): one result per browser a day; this caps new ids from one network.
   dailyResultPerIp: { name: "daily-ip", max: 60, windowSeconds: 3600 },
+  // Ask the Court (F13): a free-text question costs neurons from a small daily allowance.
+  askPerIpMinute: { name: "ask-ip-min", max: 10, windowSeconds: 60 },
+  askPerIpDay: { name: "ask-ip-day", max: 60, windowSeconds: 86400 },
 } as const satisfies Record<string, Limit>;
 
 /** `scale` multiplies every limit; production uses 1 (wrangler.jsonc), local e2e runs raise it. */

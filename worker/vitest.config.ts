@@ -4,13 +4,17 @@ import { defineConfig } from "vitest/config";
 // Tests run inside workerd with real (local) D1 and KV via Miniflare.
 export default defineConfig(async () => {
   const migrations = await readD1Migrations("./migrations");
+  const askMigrations = await readD1Migrations("./migrations-ask");
   return {
     plugins: [
       cloudflareTest({
         wrangler: { configPath: "./wrangler.jsonc" },
+        // Ask the Court's AI and Vectorize bindings stay unused: its tests pass doubles.
+        remoteBindings: false,
         miniflare: {
           bindings: {
             TEST_MIGRATIONS: migrations,
+            TEST_ASK_MIGRATIONS: askMigrations,
             // wrangler.jsonc's top level is production; tests run as a local site.
             ALLOWED_ORIGINS: "http://localhost:4317,http://localhost:5173",
             APP_ORIGIN: "http://localhost:4317",
