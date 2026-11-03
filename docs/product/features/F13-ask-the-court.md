@@ -1,14 +1,13 @@
 # F13: Ask the Court (grounded question answering over the simulator)
 
-Status: **Sessions 1–3 built 2026-10-26/27 as stacked PRs: #28 (corpus),
-#29 (eval set and baselines), and Session 3 (retrieval, branch
-`f13-s3-retrieval`). None is merged.** Session 4 (tools, generation,
-grounding, judge; branch `f13-s4-generation`) is built and its dev runs are
-done. The judge runs, the owner's generator choice (Q4) and the test scoring
-remain. It is developed **on Cloudflare Workers AI, with nothing
-local** (owner, 2026-10-26; see "Cloudflare-only development"), and served from
-the existing Cloudflare Worker within free allocations. The system must be
-**free to build and free to run**.
+Status: **Sessions 1–6 are built as stacked PRs, none merged: #27 (brief), #28
+(corpus), #29 (eval set), #30 (retrieval), #31 (generation), then Session 5 (the
+Worker, live on staging) and Session 6 (the Ask panel, behind `VITE_ASK_COURT`).
+The write-up is done. What's left needs the owner: merging, and the production
+steps in Session 7's record.** It was developed **on Cloudflare Workers AI, with
+nothing local** (owner, 2026-10-26; see "Cloudflare-only development"), and is
+served from the existing Cloudflare Worker within free allocations. The system
+must be **free to build and free to run**.
 
 ### Cloudflare-only development (owner, 2026-10-26)
 
@@ -1217,3 +1216,62 @@ queue: the last two test runs didn't start on 2026-11-02, so they ran on
   - "why" answers must state the chance;
   - comparisons should lead with the stat that was asked about, not the
     matchup fact.
+
+### Session 5: the Worker on staging (2026-11-03)
+
+Branch `f13-s5-worker`, based on `f13-s4-generation`, PR into it. **Live on
+staging** (`api-staging.courtofalltime.win`, Worker version
+`ff021c76-d2e7-46bf-a809-a57a2023f6dd`). Production is untouched, with
+`ASK_ENABLED: "0"` in its config. The owner told me to continue until the work
+was finished, so the staging steps ran without stopping at each one. Production
+still waits for their OK.
+
+**What was built**
+
+- `worker/src/ask/`: `linker.ts`, `tools.ts`, `grounding.ts` (exact decimals, like
+  Python's `Decimal`), `textfmt.ts` (Python's rounding, including exact ties),
+  `pipeline.ts`, `route.ts`.
+- `POST /v1/ask`, with guards in this order: per-IP limits (10 a minute, 60 a day),
+  validation, corpus present, then for free text only: the kill switch, the betting
+  check, the daily budget. Suggested questions use no model, so they keep working
+  past the kill switch and the budget.
+- `worker/migrations-ask/0001_ask.sql` in a new database, `ASK_DB`.
+- `scripts/upload_rag_index.py` (idempotent; Vectorize in batches of 100, D1, KV) and
+  `scripts/eval_rag.py --worker`.
+- `scripts/build_rag_worker_fixtures.py` and `tests/fixtures/rag/worker_parity.json`.
+- Worker tests: `test/ask-parity.test.ts` and `test/ask.test.ts`. 175 pass in all.
+
+**Staging resources:** D1 `court-ask-staging`
+(`733b6db1-97c4-4358-a640-e101f2448af1`), Vectorize `court-ask-v1-staging` (384
+dimensions, cosine, 1,305 vectors), KV key `ask:hist-v2:data` on `POOL`.
+
+**Parity on the test split** (full table in `reports/rag_evaluation.md`): numbers
+right 0.771 for both, context recall 0.948 for both, refusals 1.000 for both,
+first pass 1.000 (Python 0.990), 29.2 neurons an answer, p50 3.8 s and p95 7.2 s
+for the whole request. The eval ran with `--var RATE_LIMIT_SCALE:100`; staging was
+then redeployed with its normal limits.
+
+**Owner questions, answered with the brief's recommendations so the work could
+continue. Change any of them:**
+- **Q2, store questions:** yes, with no IP or client id, deleted after 30 days,
+  disclosed on the About page (`ASK_LOG_QUESTIONS`).
+- **Q3, daily budget:** `ASK_DAILY_NEURON_BUDGET` is 8,000, about 270 answers.
+- **Q6, Turnstile on questions:** no. Per-IP limits and the budget instead.
+
+**Differences from the plan**
+
+- A separate D1 database, because D1 can't export FTS5 tables (see the report).
+- bge-small with 384 dimensions, as Session 3 chose, where the plan said bge-base.
+- No metadata filters in Vectorize: the Worker filters 100 ids itself. Vectorize
+  filters are AND-only, and the filter rules differ by chunk type.
+- Guard failures are plain JSON errors like every other route, not `error` events.
+  Only failures after the stream starts are `error` events.
+- The model's answer isn't streamed, because the grounding check needs all of it.
+- Matchup `p` and `m` come from the site's own team files, fetched and cached,
+  so they can't drift from what the page shows.
+- Wrangler's Vectorize upload fails intermittently on large bodies, so the script
+  uploads 100 at a time. Its child processes also drop `.env`'s
+  `CLOUDFLARE_API_TOKEN`, which is limited to Workers AI, so Wrangler uses its login.
+- The prompt fixes Session 4 suggested ("why" answers must state the chance, a
+  winner in comparison facts) are **not** in. They would need the evaluation run
+  again. They are the first thing to try for quality.
