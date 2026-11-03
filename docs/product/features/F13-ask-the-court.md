@@ -1322,3 +1322,43 @@ suggested question and a free-text answer with citations rendered.
    `VITE_DAILY_THREE`.
 2. Merge the stack into `main` (#27 to the Session 6 PR, in order), then
    `git push origin main:staging`.
+
+### Session 7: write-up, and the steps that wait for the owner (2026-11-03)
+
+Branch `f13-s7-writeup`, based on `f13-s6-panel`, PR into it. Documentation only.
+
+**Written**
+- `docs/rag/README.md`: the portfolio write-up, with the architecture, every measured
+  result and the failures. Its screenshot is the panel against the staging Worker.
+- `README.md` now describes the project and links to it.
+- `CONTRIBUTING.md` has the F13 steps.
+- `docs/product/HANDOFF.md` has three decision-log rows.
+
+**Not done: these need the owner.** `DEPLOYMENT.md`'s rule is to stop before anything
+goes live, and production's duel Worker isn't up yet: `api.courtofalltime.win` didn't
+answer on 2026-11-03, and deployment phase 3 is still PR #26.
+
+1. **Merge the stack in order:** #27, #28, #29, #30, #31, #32, then the Session 6 and
+   7 PRs. `VITE_ASK_COURT` is unset, so merging changes nothing live.
+2. **See it on staging:** set `VITE_ASK_COURT=1` in the Pages **Preview** environment,
+   then `git push origin main:staging`.
+3. **Production**, after deployment phase 3, asking before each step:
+   - `npx wrangler d1 create court-ask`, and paste the id into `wrangler.jsonc`'s top
+     level (it's a placeholder now);
+   - `npx wrangler vectorize create court-ask-v1 --dimensions=384 --metric=cosine`;
+   - `python scripts/upload_rag_index.py --env production`;
+   - set `ASK_ENABLED` to `"1"` and deploy the Worker;
+   - set `VITE_ASK_COURT=1` in the production Pages environment and redeploy.
+
+   **Until the first two steps are done, a production deploy of this Worker fails**,
+   because its config names a database and an index that don't exist yet.
+4. **Check the live site:** three questions of each kind, the budget table, and the
+   kill switch (`ASK_ENABLED` to `"0"`, check that the suggested questions still
+   answer, then restore it).
+
+**Rollback:** set `ASK_ENABLED` to `"0"` and redeploy, or unset `VITE_ASK_COURT` in
+Pages.
+
+**Each year, after a new release or season:** rebuild the corpus and both fixture
+files, re-run the evaluation, upload under the new release (the KV key carries it),
+and change `ASK_RELEASE`.

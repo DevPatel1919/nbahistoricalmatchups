@@ -67,6 +67,25 @@ python -m pytest tests/test_release_integrity.py           # release checks + ma
 - Raw inputs live in `data/raw/` and outputs in `data/processed/`. Both are gitignored, so running these scripts is the only way to get the data.
 - Each script's module docstring states what it reads and writes.
 
+### Ask the Court (F13)
+
+The question-answering feature reads the active release and the exported site data. After either changes, rebuild its
+corpus, re-run its tests, and upload it before the Worker serves the new release:
+
+```
+python scripts/build_rag_corpus.py                  # data/rag/: corpus, model inputs, facts (committed)
+python scripts/build_rag_tool_fixtures.py           # the tool fixtures the Worker's port must match
+python scripts/build_rag_worker_fixtures.py         # the parity fixtures (questions, real answers)
+python -m pytest tests/test_rag_*.py
+python scripts/eval_rag.py --config answer-gemma4 --split dev     # model calls go to Workers AI, cached and capped
+python scripts/upload_rag_index.py --env staging    # Vectorize, D1 (ASK_DB), KV; production only with the owner's OK
+```
+
+Model calls need `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` (a Workers AI token) in `.env`. They are cached in
+`data/processed/rag/` and stop at `RAG_DEV_NEURON_CAP` a UTC day, so evaluation stays inside the free allowance. Choose on
+dev and score test once per reported configuration, as below. The plan and every session's record are in
+`docs/product/features/F13-ask-the-court.md`.
+
 ## Evaluating a change
 
 - **Split:** chronological, with train ≤ 2018, validation 2019–2021 and test ≥ 2022. Choose hyperparameters and feature sets on validation only, then score test once.
