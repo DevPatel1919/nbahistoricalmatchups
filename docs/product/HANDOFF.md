@@ -367,6 +367,9 @@ supporting issue, experiment, or document.
 | 2026-09-26 | Remove the pricing page and every price or purchase-intent surface (`/plans`, the Plans nav link, the tournament-summary offers). This pauses monetization step 2 and F05's price-intent tests | Owner decision on 2026-09-26: the launch is free, non-commercial, and game-focused, and F00 has not cleared the data rights | The owner decides to test paid demand after F00 clears |
 | 2026-09-26 | Before launch, a usability pass covers the whole site (F10). The matchup explorer stays the core and keeps every URL working | Owner decision on 2026-09-26, after seeing the site live on `courtofalltime.win` | Launch feedback shows new friction |
 | 2026-09-26 | The site lives at `courtofalltime.win` only, with no `www` host or redirect | Owner decision during deployment phase 1: the shared links all use the bare domain | Visitors report that `www.courtofalltime.win` doesn't load |
+| 2026-10-26 | Ask the Court (F13) is built and evaluated on Cloudflare Workers AI only, free, with no paid model API and nothing served from a home PC | Owner decisions on 2026-10-26: a portfolio RAG system that costs nothing to build or run. The evaluation report is the centrepiece (`reports/rag_evaluation.md`) | The free allowance can't cover real traffic, or a paid model clearly beats the free ones |
+| 2026-10-31 | Ask the Court's generator is Gemma 4 26B, thinking off | Owner confirmed (F13 Q4): best on every quality metric on dev; test numbers-right 0.771 against 0.686 (Qwen3) and 0.600 (Llama 3.1 8B); about 29 neurons an answer | A cheaper model comes within 2 points of it |
+| 2026-11-03 | Ask the Court's chunks, budget and question log live in their own D1 database | D1 can't export a database with FTS5 tables, and every duel-database migration starts with an export (DEPLOYMENT.md) | D1 supports exporting virtual tables |
 
 ## Success and review gates
 
