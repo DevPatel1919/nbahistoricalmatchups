@@ -7,7 +7,7 @@ setting; the Worker (Session 5) must match it.
 """
 
 from src.rag.retrieve import RetrievalConfig
-from src.rag.workers_ai import EMBED_SMALL
+from src.rag.workers_ai import EMBED_SMALL, GEMMA4_26B
 
 RETRIEVAL = RetrievalConfig(
     keyword=True,              # BM25 over FTS5: exact names and years
@@ -24,3 +24,7 @@ RETRIEVAL = RetrievalConfig(
 
 # How many retrieved chunks the generator sees, besides the pinned cards.
 CONTEXT_CHUNKS = 5
+
+# The generator (Q4, confirmed by the owner 2026-10-31), thinking off. Best on every
+# quality metric on dev; costs about 28.5 neurons an answer.
+GENERATOR = GEMMA4_26B

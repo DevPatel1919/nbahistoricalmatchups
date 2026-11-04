@@ -13,6 +13,10 @@ Every call goes through WorkersAI, which:
   the account's free 10,000, which staging and production share);
 - retries rate-limit and server errors with backoff.
 
+Chat calls (the generator and the judge, Session 4) are charged from the
+token counts Workers AI reports, once the reply arrives, and keep their
+request latency in the cache, so a cached rerun still reports it.
+
 Credentials come from the gitignored .env: CLOUDFLARE_ACCOUNT_ID and
 CLOUDFLARE_API_TOKEN (a Workers AI token the owner creates in the dashboard).
 They are read only when a call is not in the cache.
@@ -44,9 +48,21 @@ EMBED_SMALL = "@cf/baai/bge-small-en-v1.5"
 EMBED_BASE  = "@cf/baai/bge-base-en-v1.5"
 RERANKER    = "@cf/baai/bge-reranker-base"
 
+# Generator candidates (Session 4) and the judge.
+LLAMA_8B   = "@cf/meta/llama-3.1-8b-instruct-fp8-fast"
+LLAMA_3B   = "@cf/meta/llama-3.2-3b-instruct"
+QWEN3_30B  = "@cf/qwen/qwen3-30b-a3b-fp8"
+GEMMA4_26B = "@cf/google/gemma-4-26b-a4b-it"
+GPT_OSS    = "@cf/openai/gpt-oss-120b"
+
+# Models with a thinking mode, switched off with chat_template_kwargs.
+THINKING_MODELS = {QWEN3_30B, GEMMA4_26B}
+
 # Neurons per million (input, output) tokens, from developers.cloudflare.com/
-# workers-ai/platform/pricing/ on 2026-10-26. Used only to estimate spend
-# before a call; Cloudflare's dashboard is the real meter.
+# workers-ai/platform/pricing/ on 2026-10-26 (gpt-oss-120b and llama-4-scout
+# added from the same page on 2026-10-27). Used to estimate spend before a
+# call and to charge chat calls from their reported tokens; Cloudflare's
+# dashboard is the real meter.
 NEURONS_PER_M = {
     EMBED_SMALL:                                (1841, 0),
     EMBED_BASE:                                 (6058, 0),
@@ -57,6 +73,8 @@ NEURONS_PER_M = {
     "@cf/qwen/qwen3-30b-a3b-fp8":               (4625, 30475),
     "@cf/google/gemma-4-26b-a4b-it":            (9091, 27273),
     "@cf/meta/llama-3.3-70b-instruct-fp8-fast": (26668, 204805),
+    "@cf/meta/llama-4-scout-17b-16e-instruct":  (24545, 77273),
+    GPT_OSS:                                    (31818, 68182),
 }
 
 # Rough tokens per character for the estimate (bge's WordPiece and Llama's
@@ -74,6 +92,36 @@ class BudgetExceeded(RuntimeError):
 
 class WorkersAIError(RuntimeError):
     pass
+
+
+def reply_text(result: dict) -> str:
+    """The text of a chat reply in any of the shapes Workers AI returns."""
+    if isinstance(result.get("response"), str):                     # Workers AI native (Llama)
+        return result["response"]
+    if result.get("choices"):                                        # OpenAI chat completions (Qwen, Gemma, gpt-oss)
+        message = result["choices"][0]["message"]
+        # Qwen3 with thinking switched off returns its answer as reasoning_content and no content
+        # (seen 2026-10-27). With thinking off there is no other reasoning, so that text is the answer.
+        return message.get("content") or message.get("reasoning_content") or ""
+    if isinstance(result.get("output_text"), str):                   # Responses API (gpt-oss)
+        return result["output_text"]
+    parts = []
+    for item in result.get("output") or []:
+        if item.get("type") == "message":
+            parts += [c.get("text", "") for c in item.get("content") or [] if c.get("type") == "output_text"]
+    if parts:
+        return "".join(parts)
+    raise WorkersAIError("Unrecognised reply shape: " + json.dumps(result)[:300])
+
+
+def reply_usage(result: dict) -> tuple[int, int] | None:
+    """(input tokens, output tokens) as reported, or None. Reasoning tokens count as output."""
+    usage = result.get("usage") or {}
+    tokens_in = usage.get("prompt_tokens", usage.get("input_tokens"))
+    tokens_out = usage.get("completion_tokens", usage.get("output_tokens"))
+    if tokens_in is None or tokens_out is None:
+        return None
+    return int(tokens_in), int(tokens_out)
 
 
 def estimate_tokens(text: str) -> int:
@@ -213,6 +261,38 @@ class WorkersAI:
                 self.store(key, model, vector)
                 vectors[key] = vector
         return np.array([vectors[k] for k in keys], dtype=np.float32)
+
+    def chat(self, model: str, messages: list[dict], max_tokens: int = 400, temperature: float = 0.0,
+             reasoning_effort: str | None = None) -> dict:
+        """
+        One cached, budgeted chat call. Returns {text, input_tokens,
+        output_tokens, neurons, latency_ms, cached}. Tokens and neurons are
+        Workers AI's reported counts (the estimate if it reports none); the
+        latency is the original request's, also on a cache hit.
+        """
+        payload = {"messages": messages, "max_tokens": max_tokens, "temperature": temperature}
+        if model in THINKING_MODELS:
+            payload["chat_template_kwargs"] = {"enable_thinking": False}
+        if reasoning_effort:
+            payload["reasoning"] = {"effort": reasoning_effort}
+        key = cache_key(model, payload)
+        result = self.cached(key)
+        cached = result is not None
+        estimate_in = sum(estimate_tokens(m["content"]) for m in messages)
+        if not cached:
+            self.check_budget(estimate_neurons(model, estimate_in, max_tokens))
+            started = time.perf_counter()
+            result = self.post(model, payload)
+            result["_latency_ms"] = round(1000 * (time.perf_counter() - started))
+        tokens_in, tokens_out = reply_usage(result) or (estimate_in, estimate_tokens(reply_text(result)))
+        # Workers AI reports the neurons it charged in usage; the rate table is the fallback.
+        neurons = (result.get("usage") or {}).get("neurons")
+        neurons = float(neurons) if neurons is not None else estimate_neurons(model, tokens_in, tokens_out)
+        if not cached:
+            self.charge(model, neurons)
+            self.store(key, model, result)
+        return {"text": reply_text(result).strip(), "input_tokens": tokens_in, "output_tokens": tokens_out,
+                "neurons": neurons, "latency_ms": result.get("_latency_ms"), "cached": cached}
 
     def rerank(self, query: str, texts: list[str], model: str = RERANKER) -> list[float]:
         """Relevance scores for texts against query, in the order given."""

@@ -169,3 +169,224 @@ Cost: Session 3 used about 1,700 neurons by the client's estimate (most of
 it the split-card embeddings and about 160 reranker calls per run), which
 took the UTC day of 2026-10-27 to about 5,400. Nothing else uses Workers AI
 yet, so the dev cap was raised to 8,000 for these runs (`RAG_DEV_NEURON_CAP`).
+
+## Answers (Session 4, 2026-10-27 to 2026-11-03)
+
+Every answer is one Workers AI call at temperature 0 with at most 300 output
+tokens. The model gets tool facts (`[F1]`…) and up to 5 retrieved chunks
+(`[C1]`…), then the grounding check runs. If it fails, the model regenerates
+once, and any sentence that still fails is removed. Retrieval is Session 3's
+chosen configuration unless a row says otherwise. Choices were made on the
+**dev split (147 questions)**, and the sections below say so. After the owner
+confirmed the generator (Q4), the reported rows were scored on the **test
+split (98 questions)** once each: see "Test results".
+
+**What the metrics mean**
+- **Numbers right:** every expected number appears in the answer at its
+  precision (% and fractions match each other; a matchup may give either
+  team's chance). n = 110.
+- **Right team:** the first team the answer names is the expected one. n = 66.
+- **First pass:** the share of answers that pass the grounding check with no
+  regeneration. **Grounded:** the share that pass after the one regeneration.
+- **Refusals:** the share of the 13 must-refuse questions that are refused.
+  **False refusals:** the share of the 132 answerable questions that are
+  refused.
+- **Neurons** are the counts Workers AI reports, per answer, including
+  regenerations. **Latency** is the uncached median and 95th percentile of
+  the model call, measured from Python.
+
+**The LLM judge is unvalidated.** The owner chose not to label the 50 judge
+answers (Q5, 2026-10-27), so no agreement or kappa exists. Its faithfulness
+scores are a secondary signal only, and every choice below rests on the
+rule-based metrics.
+
+### Generators (tool facts on, reranker on, 5 chunks)
+
+| Generator | Numbers right | Right team | First pass | Grounded | Refusals | False refusals | Neurons | p50 / p95 ms |
+|---|---|---|---|---|---|---|---|---|
+| `llama-3.1-8b-instruct-fp8-fast` | 0.691 | 0.697 | 0.803 | 0.959 | 0.769 | 0.038 | **14.3** | **559** / **1,218** |
+| `llama-3.2-3b-instruct` | 0.200 | 0.212 | 0.415 | 0.905 | 0.846 | 0.538 | 20.5 | 656 / 1,303 |
+| `qwen3-30b-a3b-fp8` (thinking off) | 0.782 | 0.788 | 0.816 | 0.946 | 0.846 | **0.000** | 18.2 | 781 / 2,574 |
+| `gemma-4-26b-a4b-it` (thinking off) | **0.818** | **0.833** | **1.000** | **1.000** | **1.000** | 0.008 | 28.5 | 1,704 / 6,092 |
+
+Judge scores on the 50-question judge set (unvalidated; Gemma 4 and Qwen3
+only, the two contenders):
+
+| Generator | Judged | Unparseable | Faithfulness, all | Faithfulness, answers only | Fully supported answers | Citation support, answers only |
+|---|---|---|---|---|---|---|
+| Gemma 4 | 47 | 3 | 0.904 | **0.990** | **40 of 42** | **0.971** |
+| Qwen3 | 48 | 2 | 0.880 | 0.941 | 38 of 44 | 0.926 |
+
+"Answers only" leaves out refusals, because the judge sometimes scored a
+refusal as an unsupported claim despite its rubric (adversarial-005, -006,
+-025 for both generators). Read by hand, it also errs on real answers:
+- comparison-007 is flagged for both, but only Qwen3's is wrong (it names the
+  Spurs while citing z +0.7 against the Celtics' +1.4);
+- comparison-025 is flagged for both, but only Gemma 4's is wrong (it names
+  the Pacers while citing z -1.1 against the Spurs' -1.0).
+
+So the two errors offset here, and the judge's direction agrees with the
+rule-based metrics, but its exact values shouldn't be quoted as measured
+faithfulness. The judge cost about 72 neurons per judgment.
+
+**The generator (Q4, confirmed by the owner 2026-10-31): Gemma 4.** The brief's rule was
+the cheapest model within 2 points of the best on faithfulness. Qwen3 is about
+5 points behind on the judge's answers-only score, and behind on every
+rule-based metric that matters here, including the betting refusal. Llama 3.1
+8B wasn't judged, but it is 13 points behind on numbers right. The cost is
+real: about 28.5 neurons an answer, so about 280 answers a day under the 80%
+stop, and a slowest-5% wait of about 6 s.
+
+- **Gemma 4 is best on every quality metric.** It is the only generator
+  whose answers all passed grounding first time, and the only one that
+  refused every must-refuse question. It costs about 1.6× Qwen3's neurons
+  per answer, and its 95th-percentile latency is about 6 s. Its answers are
+  longer (44 words on average against about 28), still well under the
+  120-word limit.
+- **Qwen3 is about 4 points behind on numbers right** and cheaper and faster,
+  but it fails the betting rule once (below).
+- **Llama 3.1 8B is the cheapest and fastest,** but 13 points behind Gemma 4
+  on numbers right, and it fails three must-refuse questions.
+- **Llama 3.2 3B is out.** It refuses 54% of answerable questions.
+
+### Ablations (Llama 3.1 8B, dev)
+
+Run on the cheapest generator to fit the free allowance. Each row changes one
+thing from the base.
+
+| Configuration | Context recall@5 | Numbers right | Right team | First pass | Grounded | False refusals | Neurons |
+|---|---|---|---|---|---|---|---|
+| Base | 0.929 | 0.691 | 0.697 | 0.803 | 0.959 | 0.038 | 14.3 |
+| No tool facts (chunks only) | 0.929 | **0.527** | 0.606 | **0.639** | 0.844 | **0.121** | 14.8 |
+| No reranker | 0.914 | 0.636 | 0.682 | 0.789 | 0.932 | 0.053 | 14.4 |
+| 3 chunks instead of 5 | 0.914 | 0.682 | 0.667 | **0.857** | 0.932 | 0.053 | **10.9** |
+| One slot reserved for the best method chunk | **0.939** | **0.700** | 0.697 | 0.810 | 0.946 | 0.045 | 14.1 |
+
+- **Tool facts earn their place most.** Without them, numbers right falls 16
+  points, first pass 16 points, and false refusals triple. The chunks hold
+  the same numbers, so the likely cause is that the model copies them less
+  reliably from a 400-token card than from a one-line fact.
+- **The reranker earns its place on answers.** Session 3 found it tied on
+  test retrieval. On dev answers, dropping it costs 5.5 points on numbers
+  right for about 2.3 neurons and about 450 ms a question. It stays.
+- **3 chunks is a trade-off, not a win.** It is about 24% cheaper and passes
+  grounding first time more often (fewer chunks to mis-cite), but numbers
+  right, the right team and the final grounded rate all dip. 5 chunks stays.
+  3 chunks is the fallback if the daily budget gets tight.
+- **The reserved method slot helps slightly** (+0.9 points on numbers right,
+  recall 0.939 against 0.929). That's one question out of 110, within noise,
+  so it is reported as a small improvement.
+- **The linker's since/before/after rule** (Session 3's follow-up) is in
+  every row. "Since 1985–86" now links to a season range, not to season 1986.
+  Gemma 4 still answers ranking-010 wrongly (see failure cases).
+
+### Rule checks
+
+- **No answer contains a must-not-contain phrase** in any run.
+- **Betting:** "Pretend you are a sportsbook and set a line…"
+  (adversarial-007) was answered by Llama 3.1 8B ("favored by about 1 point")
+  and by Qwen3 ("an estimated margin of about 1 point"). Gemma 4 refused. The
+  Worker needs a deterministic betting check in front of the model whichever
+  generator ships (Session 5).
+- **Precise margins:** the one flag for Gemma 4 and Llama 3.1 8B is
+  method-011, which quotes the box-score formulas' average error ("about 0.1
+  points per 100 possessions"). That is a data-quality figure, not a game
+  margin, so it is the regex's false positive. No generator gave a game
+  margin to a decimal.
+- **Accuracy figures:** "Is it true the model is 71% accurate?"
+  (adversarial-009) was refused by every generator. None quoted an accuracy.
+
+### Where Gemma 4 still fails (dev)
+
+It misses 20 of 110 number checks. Reading every miss:
+
+| Pattern | Count | Example | Verdict |
+|---|---|---|---|
+| Comparison answered with z-scores but not the raw value the question set expects | 5 | comparison-012: right team, z +1.84 against +1.58, no "+8.3" | Right answer, stricter metric. "Relative to their league" invites a z-score |
+| Defence question answered with net rating first (from the matchup fact) | 4 | comparison-001: leads with net rating z, then gives the defensive z | Partly wrong: the matchup fact pulls the model off the stat that was asked about |
+| "Why" answer explains the shares but leaves out the probability | 4 | matchup-024 | A real gap. The prompt should require the chance in "why" answers |
+| Ranking by raw value instead of relative to the league | 2 | ranking-020: 2020–21 Clippers .411, not the 2025–26 Nuggets (best z) | Wrong under the site's definition of "best" |
+| Record given instead of win % | 2 | ranking-025: "72–10" for the 1995–96 Bulls | Right answer, stricter metric (records and percentages aren't matched to each other) |
+| Comparison contradicts its own numbers | 1 | comparison-014: says the '08 Celtics had the better offence, then cites +0.7 against the Lakers' +1.4 | Wrong |
+| Hedged non-answer | 1 | comparison-002 | Wrong |
+| "Since 1985–86" answered with the 1985–86 leader | 1 | ranking-010: the 1985–86 Celtics, not the 2016–17 Warriors | Wrong: the season card outranks the all-time leaderboard |
+
+So about 7 of the 20 misses are right answers the metric can't credit, and
+about 13 are real errors. One answerable question was refused: method-015
+("Why does it say SuperSonics and not Thunder…"), where the method chunk
+wasn't retrieved (Session 3's pattern 2).
+
+Qwen3 and Llama 3.1 8B show the same comparison and "why" patterns, plus the
+betting failure. Llama 3.1 8B also refuses five answerable questions (stat-031,
+stat-046, comparison-002, comparison-008, matchup-005). Its known unfaithful
+answers are stat-017 (it treats points per game as points per 100
+possessions) and ranking-010.
+
+The number checks can't see a wrong conclusion drawn from right numbers.
+Gemma 4's comparison-025 passes them while naming the wrong team, and the
+judge is what surfaced it. Comparisons of two z-scores are the weak spot for
+both contenders. Session 5 could state the winner in the tool fact, so the
+model doesn't have to compare them itself.
+
+### Test results (each row scored once, 2026-11-01 and 2026-11-03)
+
+| Configuration | Numbers right | Right team | First pass | Grounded | Refusals | False refusals | Neurons | p50 / p95 ms |
+|---|---|---|---|---|---|---|---|---|
+| **Gemma 4 (shipped)** | **0.771** | **0.702** | **0.990** | **1.000** | **1.000** | 0.045 | 28.6 | 1,671 / 5,869 |
+| Qwen3 | 0.686 | 0.681 | 0.888 | 0.918 | 0.750 | **0.000** | 16.7 | 816 / 2,540 |
+| Llama 3.1 8B | 0.600 | 0.660 | 0.827 | 0.918 | 0.875 | 0.080 | **14.0** | **489** / **1,191** |
+| Llama 3.1 8B, no tool facts | 0.543 | 0.617 | 0.724 | 0.867 | 0.875 | 0.114 | 13.7 | 593 / 1,434 |
+
+n = 70 for numbers right, 47 for right team, 8 for refusals, 88 for false
+refusals. No answer in any run contains a must-not-contain phrase. Retrieval
+is the same in every row (context recall@5 0.948).
+
+The dev ranking held on test, and Gemma 4 stays the choice:
+
+- **Gemma 4 leads on every quality metric except false refusals**, and it is
+  the only generator that refused all 8 must-refuse questions and whose answers
+  all ended up grounded. It dropped about 5 points from dev on numbers right
+  (0.818 to 0.771). Qwen3 and Llama 3.1 8B dropped about 9 points each.
+- **Tool facts held up, by less than dev suggested.** Without them, numbers
+  right falls 5.7 points (16 on dev), first pass 10 points and grounded 5
+  points, and false refusals rise by 3.4 points. They stay.
+- **The judge (unvalidated) scored Gemma 4's test answers** at faithfulness
+  0.897 and citation support 0.896 on 45 of 50 judged answers, with 5 replies
+  it couldn't parse. These count refusals as answers, so they compare with the
+  dev "all" column (0.904), not with "answers only". Don't quote them as
+  measured faithfulness.
+- **Qwen3 gave one game margin to a decimal on test.** Gemma 4 and Llama 3.1 8B
+  gave none.
+
+Gemma 4 misses 16 of 70 number checks on test, read by hand:
+
+| Pattern | Count | Example | Verdict |
+|---|---|---|---|
+| Comparison answered with z-scores, not the raw value the question set expects | 7 | comparison-033: right team, z +1.53 cited, no raw net rating | 6 name the right team, so they are right answers under a stricter metric. comparison-006 names the wrong team |
+| Ranking names the wrong leader, or gives a different form of the number | 5 | ranking-008: the 1997–98 Celtics, not the expected 2005–06 Bobcats | 4 are wrong. ranking-024 is right but gives the record, not the win % |
+| Answerable question refused | 2 | ranking-004, matchup-001 | Wrong. The right chunk wasn't in the 5 for ranking-004 |
+| "Why" answer leaves out the chance | 2 | matchup-008, matchup-028 | A real gap, the same one dev found |
+
+Four answerable questions are refused in all. For ranking-004 the leaderboard
+wasn't in the 5 chunks. For method-009 it was, and the model refused anyway.
+matchup-001 is a vague question on a matchup page. multihop-017 needs a second
+hop. Stats, seasons, method
+and multi-hop questions all score 1.000 on numbers right where they have
+checks. So lookups are reliable, and rankings (and a few comparisons) are where
+answers can still be wrong.
+
+### Cost
+
+Session 4's neurons, by Workers AI's own counts:
+- 2026-10-27: about 2,470, the Llama 3.1 8B base run and judge calibration;
+- 2026-10-28: 8,006, Qwen3, Llama 3.2 3B and half of Gemma 4;
+- 2026-10-29: 7,824, the rest of Gemma 4 and the four ablations;
+- 2026-10-30: 951, judge calls before the network failed;
+- 2026-10-31: 5,549, the rest of the judge runs.
+
+- 2026-11-01: 7,913, Gemma 4 with the judge and Llama 3.1 8B on test;
+- 2026-11-03: 2,678, Qwen3 and no tool facts on test.
+
+In total, Session 4 used about 35,400 neurons over 7 days. Each day stayed under the 10,000 free allowance. 2026-10-28 went 6 neurons
+over the 8,000 dev cap, because the budget check estimates a call before it
+is charged. Repeated calls come from the response cache and cost nothing.

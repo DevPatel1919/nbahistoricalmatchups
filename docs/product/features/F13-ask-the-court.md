@@ -3,7 +3,9 @@
 Status: **Sessions 1–3 built 2026-10-26/27 as stacked PRs: #28 (corpus),
 #29 (eval set and baselines), and Session 3 (retrieval, branch
 `f13-s3-retrieval`). None is merged.** Session 4 (tools, generation,
-grounding) is next. It is developed **on Cloudflare Workers AI, with nothing
+grounding, judge; branch `f13-s4-generation`) is built and its dev runs are
+done. The judge runs, the owner's generator choice (Q4) and the test scoring
+remain. It is developed **on Cloudflare Workers AI, with nothing
 local** (owner, 2026-10-26; see "Cloudflare-only development"), and served from
 the existing Cloudflare Worker within free allocations. The system must be
 **free to build and free to run**.
@@ -102,8 +104,8 @@ There are two reasons, and the second drives the design.
 | Q1 | Where does it appear? | A panel on the result page with three suggested questions, plus a plain `/ask` page. Not on the home page until it has proven useful | Session 6 |
 | Q2 | Store asked questions for evaluation? | **Yes**: the question text, retrieved ids, latency and grounding result. No IP and no client id, deleted after 30 days, disclosed on the About page. Real questions are the best source of new eval cases | Session 5 |
 | Q3 | Daily budget | Stop free-text answers at about 80% of the free Workers AI allocation. After that, only the suggested questions work, answered from templates with no model (see "Fallback") | Session 5 |
-| Q4 | Production generator model | Decided by Session 4's evaluation: the smallest model within 2 points of the best on faithfulness | Session 4 |
-| Q5 | Human labels for the LLM judge | The owner labels about 50 answers (about 30 minutes) so the judge's agreement with a human can be reported | Session 4 |
+| Q4 | Production generator model | **Decided 2026-10-31: `gemma-4-26b-a4b-it`, thinking off.** The owner confirmed Session 4's recommendation. It is best on every rule-based metric on dev and on the unvalidated judge; Qwen3 was about 5 points behind on the judge and answered a betting prompt. About 28.5 neurons an answer | Session 4 |
+| Q5 | Human labels for the LLM judge | **Decided 2026-10-27: skipped.** The owner chose not to label. The judge's numbers are reported as unvalidated (no agreement or kappa), and choices lean on the rule-based metrics. The 50-answer sheet stays in `reports/rag_judge_labels.*` if labels are wanted later | Session 4 |
 | Q6 | Turnstile on questions? | **No.** Use a per-IP rate limit plus the global daily budget. Turnstile on every question adds too much friction | Session 5 |
 | Q7 | Public write-up | A `docs/rag/README.md` with the architecture diagram and the final evaluation table, linked from the repo README. Check whether the repo should be public | Session 7 |
 
@@ -1120,3 +1122,98 @@ UTC day of 2026-10-27. Nothing else uses Workers AI yet, so these runs set
 `RAG_DEV_NEURON_CAP=8000`. The default stays 6,000.
 
 **Verification (2026-10-27):** see the PR description.
+
+### Session 4: tools, generation, grounding and the judge (2026-10-27 to 2026-11-03)
+
+Branch `f13-s4-generation`, based on `f13-s3-retrieval`, PR into it. Not
+merged, nothing deployed. Every model call went to Workers AI; nothing ran
+locally.
+
+**What was built**
+
+- `src/rag/tools.py`: `get_team_season`, `get_season` and `get_matchup`,
+  which returns the exported `p` and `m` and the exact logit decomposition
+  (each input's z for both teams, its contribution, which team it favours and
+  its share of the lean). The fact lines quote these, and margins are always
+  "about N points". There are template answers for the three suggested
+  questions (why, defence, limits), with no model call. It reads the new
+  `data/rag/facts.json`, which `scripts/build_rag_corpus.py` writes beside
+  the corpus.
+- `tests/fixtures/rag/tools.json`: 36 matchups, 7 teams and 6 seasons, from
+  `scripts/build_rag_tool_fixtures.py`. Session 5's TypeScript tools must
+  reproduce it exactly.
+- `src/rag/generate.py`:
+  - the system prompt (8 rules, including the exact refusal sentences and the
+    rule "Use only labels that appear in the message");
+  - context assembly (`[F]` facts, then `[C]` chunks; a team card is dropped
+    when the same team is a fact);
+  - `AskPipeline`, which answers, checks, regenerates once and strips.
+- `src/rag/workers_ai.py`:
+  - `chat()` charges the neurons Workers AI reports (`usage.neurons`);
+  - Qwen3's thinking-off answer arrives in `reasoning_content`;
+  - Qwen3 and Gemma 4 take `chat_template_kwargs: {enable_thinking: false}`.
+- `src/rag/grounding.py`: number extraction (seasons, 'yy, records,
+  percentages, fractions, ordinals, spelled-out numbers) and matching after
+  rounding, % ↔ fraction and season forms. It checks that labels exist and
+  that a sentence with a number cites something. `strip_unsupported` drops
+  failed sentences, or only a bad label when that is the sentence's only
+  problem.
+- `src/rag/eval/judge.py`: gpt-oss-120b as the judge (larger than every
+  candidate and from a different maker). It scores per-claim faithfulness,
+  citation support and refusals. The 50-answer label sheet is in
+  `reports/rag_judge_labels.*`.
+- `src/rag/linker.py`: "since/after/before <season>" becomes a season range
+  (6 new fixtures).
+- `scripts/eval_rag.py`: answer configurations and metrics, plus `--judge`,
+  `--judge-all`, `--write-labels` and `--agreement`.
+- Tests: `test_rag_tools.py`, `test_rag_grounding.py`, `test_rag_generate.py`.
+
+**Results on dev** (full tables and failure cases in
+`reports/rag_evaluation.md`)
+
+| Generator | Numbers right | First pass | Refusals | False refusals | Neurons per answer |
+|---|---|---|---|---|---|
+| Llama 3.1 8B fp8-fast | 0.691 | 0.803 | 0.769 | 0.038 | 14.3 |
+| Llama 3.2 3B | 0.200 | 0.415 | 0.846 | 0.538 | 20.5 |
+| Qwen3 30B (thinking off) | 0.782 | 0.816 | 0.846 | 0.000 | 18.2 |
+| **Gemma 4 26B (thinking off)** | **0.818** | **1.000** | **1.000** | 0.008 | 28.5 |
+
+Ablations on Llama 3.1 8B:
+- tool facts are worth 16 points of numbers right;
+- the reranker is worth 5.5 points, so it stays;
+- 3 chunks is cheaper but slightly worse, so 5 stays;
+- the reserved method slot is +0.9, within noise.
+
+**Q5 (skipped by the owner, 2026-10-27):** the judge is unvalidated. Its
+scores are reported as a secondary signal, and choices rest on the
+rule-based metrics.
+
+**Q4 (owner, 2026-10-31): Gemma 4.** It is set in `src/rag/config.py`.
+
+**Test split (each row once; full table and failure cases in the report)**
+
+| Configuration | Numbers right | First pass | Grounded | Refusals | False refusals | Neurons |
+|---|---|---|---|---|---|---|
+| **Gemma 4** | **0.771** | **0.990** | **1.000** | **1.000** | 0.045 | 28.6 |
+| Qwen3 | 0.686 | 0.888 | 0.918 | 0.750 | 0.000 | 16.7 |
+| Llama 3.1 8B | 0.600 | 0.827 | 0.918 | 0.875 | 0.080 | 14.0 |
+| Llama 3.1 8B, no tool facts | 0.543 | 0.724 | 0.867 | 0.875 | 0.114 | 13.7 |
+
+**Verification (2026-11-03):** see the PR description. Session 4 finished in the
+planning conversation, after the session built for it ran out of its scheduled
+queue: the last two test runs didn't start on 2026-11-02, so they ran on
+2026-11-03.
+
+**For Session 5**
+- **Put a deterministic betting check in front of the model.** Llama 3.1 8B
+  and Qwen3 both answered "set a line" with a margin.
+- **Port `grounding.py` and `tools.py` exactly.** The fixtures are the
+  contract.
+- **Charge the neurons Workers AI reports,** not an estimate. Gemma 4 runs
+  about 28 neurons an answer, so about 280 answers a day fit under the 80%
+  stop.
+- **Send `enable_thinking: false`** for Qwen3 and Gemma 4.
+- **Prompt fixes worth trying:**
+  - "why" answers must state the chance;
+  - comparisons should lead with the stat that was asked about, not the
+    matchup fact.

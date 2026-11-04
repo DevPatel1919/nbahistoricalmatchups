@@ -10,6 +10,8 @@ the tools can look up exact numbers.
     "the Sonics in 1996"                      -> 1996-supersonics
     "the 90s", "1990s", "the nineties"        -> seasons 1990-1999
     "the 1999 season", "in 2003-04"           -> seasons 1999, 2004
+    "since 1985-86", "after 2010", "before 2000"
+                                              -> season ranges 1986-2026, 2011-2026, 1986-1999
     "the Bulls" (no year)                     -> franchise "Bulls", no key
 
 A season is keyed by the year it ended. Names are era-correct, from
@@ -46,6 +48,10 @@ NICKNAME_ALIASES = {
 # Decades -> the seasons they cover (the year each season ended).
 DECADES = {1980: (1986, 1989), 1990: (1990, 1999), 2000: (2000, 2009), 2010: (2010, 2019), 2020: (2020, 2026)}
 DECADE_WORDS = {"eighties": 1980, "nineties": 1990}
+
+# A free-standing season after one of these words is a range, not a season:
+# "the best net rating since 1985-86" means every season from 1986 on.
+OPEN_RANGE = re.compile(r"\b(since|after|before)\s+(?:the\s+)?$")
 
 # Words allowed between a year and the nickname it belongs to, besides the
 # team's own city words.
@@ -207,6 +213,13 @@ class Linker:
         # Franchises later given a year elsewhere are not ambiguous.
         linked_names = {k.split("-", 1)[1] for k in result.keys}
         result.franchises = [f for f in result.franchises if f.lower().replace(" ", "-") not in linked_names]
-        result.seasons = sorted({y["season"] for i, y in enumerate(years) if i not in used and not y["two_digit"]})
-        result.season_range = self.find_decade(text)
+        free = [y for i, y in enumerate(years) if i not in used and not y["two_digit"]]
+        ranges = []
+        for y in free:
+            m = OPEN_RANGE.search(text[:y["start"]])
+            if m:
+                ranges.append({"since": (y["season"], MAX_SEASON), "after": (y["season"] + 1, MAX_SEASON),
+                               "before": (MIN_SEASON, y["season"] - 1)}[m.group(1)])
+        result.seasons = sorted({y["season"] for y in free if not OPEN_RANGE.search(text[:y["start"]])})
+        result.season_range = ranges[0] if ranges else self.find_decade(text)
         return result
