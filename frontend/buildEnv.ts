@@ -44,3 +44,22 @@ export function dailyThreeEnabled(value: string | undefined): boolean {
 export function dailyThreeDefines(env: Record<string, string | undefined>): Record<string, string> {
   return { ["import.meta.env." + DAILY_THREE_VAR]: JSON.stringify(dailyThreeEnabled(env[DAILY_THREE_VAR]) ? "1" : "") };
 }
+
+// Build-time flag for Ask the Court (docs/product/features/F13-ask-the-court.md).
+// VITE_ASK_COURT=1 shows the panel on matchup pages, /ask and its nav link. It also
+// needs VITE_DUEL_API, so PR previews stay without it. It stays unset in production
+// until the owner's go-ahead (F13 Session 7). Unset, the build emits no Ask code.
+
+/** The build variable that switches Ask the Court on. */
+export const ASK_COURT_VAR = "VITE_ASK_COURT";
+
+/** Whether a VITE_ASK_COURT value switches Ask the Court on. */
+export function askCourtEnabled(value: string | undefined): boolean {
+  const normalized = (value ?? "").trim().toLowerCase();
+  return normalized === "1" || normalized === "true";
+}
+
+/** A Vite `define` entry that hands the app VITE_ASK_COURT as exactly "1" or "". */
+export function askCourtDefines(env: Record<string, string | undefined>): Record<string, string> {
+  return { ["import.meta.env." + ASK_COURT_VAR]: JSON.stringify(askCourtEnabled(env[ASK_COURT_VAR]) ? "1" : "") };
+}

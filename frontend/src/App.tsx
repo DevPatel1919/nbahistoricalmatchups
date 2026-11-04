@@ -19,6 +19,8 @@ import AccountVerifyPage from "./pages/AccountVerifyPage";
 // The flag is tested inline (not through lib/dailyFlag.ts) so the build sees
 // a constant and emits no DailyPage chunk at all.
 const DailyPage = import.meta.env.VITE_DAILY_THREE === "1" ? lazy(() => import("./pages/DailyPage")) : null;
+// Ask the Court (F13) likewise, with VITE_ASK_COURT=1 and the Worker.
+const AskPage = import.meta.env.VITE_ASK_COURT === "1" && import.meta.env.VITE_DUEL_API ? lazy(() => import("./pages/AskPage")) : null;
 
 export default function App() {
   return (
@@ -50,6 +52,22 @@ export default function App() {
                 }
               >
                 <DailyPage />
+              </Suspense>
+            }
+          />
+        )}
+        {AskPage && (
+          <Route
+            path="ask"
+            element={
+              <Suspense
+                fallback={
+                  <p className="center-note">
+                    <span className="loading-dot" aria-hidden="true" /> Loading&hellip;
+                  </p>
+                }
+              >
+                <AskPage />
               </Suspense>
             }
           />

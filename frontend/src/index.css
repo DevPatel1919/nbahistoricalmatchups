@@ -2425,3 +2425,121 @@ button {
     display: inline;
   }
 }
+
+/* Ask the Court (F13) */
+.ask {
+  margin-top: 24px;
+  padding: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.ask__heading {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+}
+
+.ask__intro {
+  color: var(--text-dim);
+}
+
+.ask__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.ask__label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.ask__row {
+  display: flex;
+  gap: 8px;
+}
+
+.ask__input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  color: var(--text);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font: inherit;
+}
+
+.ask__result {
+  margin-top: 12px;
+}
+
+.ask__status,
+.ask__note,
+.ask__disclaimer {
+  color: var(--text-dim);
+  font-size: 0.875rem;
+}
+
+.ask__failure {
+  color: var(--loss);
+}
+
+.ask__answer {
+  margin: 0;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.ask__cites {
+  white-space: nowrap;
+}
+
+.ask__cite {
+  min-width: 1.5em;
+  margin: 0 2px;
+  padding: 0 4px;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.ask__cite[aria-expanded="true"] {
+  color: var(--accent-text);
+  background: var(--accent);
+}
+
+.ask__source {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+  border-left: 3px solid var(--court-line);
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.ask__source-title {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+
+.ask__source-text {
+  margin: 0;
+  max-height: 16em;
+  overflow-y: auto;
+  color: var(--text-dim);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.ask__disclaimer {
+  margin: 12px 0 0;
+}

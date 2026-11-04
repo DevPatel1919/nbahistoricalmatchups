@@ -1275,3 +1275,50 @@ continue. Change any of them:**
 - The prompt fixes Session 4 suggested ("why" answers must state the chance, a
   winner in comparison facts) are **not** in. They would need the evaluation run
   again. They are the first thing to try for quality.
+
+### Session 6: the Ask panel (2026-11-03)
+
+Branch `f13-s6-panel`, based on `f13-s5-worker`, PR into it. Behind
+`VITE_ASK_COURT`, which is set nowhere yet, so no deployed site changes.
+
+**What was built**
+
+- `frontend/buildEnv.ts` (`askCourtEnabled`, `askCourtDefines`) and `vite.config.ts`.
+  `VITE_ASK_COURT=1` turns Ask the Court on, but it also needs `VITE_DUEL_API`, so a
+  PR preview (no API) never shows it.
+- `src/lib/askApi.ts`: the stream reader (`parseSse`, which copes with any chunking),
+  `splitCitations`, and an error message for each code.
+- `src/components/ask/AskPanel.tsx` on the result page, under the stat comparison:
+  - three suggested questions (why, defence, limits), answered from templates;
+  - a 300-character question box;
+  - the checked answer, in an `aria-live` region, with numbered citation buttons
+    that open the source;
+  - a note when sentences were removed, and a disclaimer.
+- `src/pages/AskPage.tsx` at `/ask`, and an "Ask" nav link. Both are lazily loaded
+  and built only with the flag.
+- An About page paragraph on what is sent and kept (Q2).
+- Tests: `tests/unit/ask.test.ts` (10) and `tests/e2e/ask.spec.ts` (12, with the API
+  answered in the test, so no neurons). The Playwright dev server sets the flag; the
+  flag-off server doesn't.
+
+**Q1 (where it appears), answered with the brief's recommendation:** the result page
+and `/ask`, not the home page.
+
+**Checked live:** the panel on a local build against the staging Worker, with
+requests forwarded because staging's CORS allows only the staging origin. Both a
+suggested question and a free-text answer with citations rendered.
+
+**Differences from the plan**
+
+- No templates computed in the browser. They need the team facts (about 800 KB), so
+  without the API the panel is simply absent or says it's unavailable. The rest of
+  the page never depends on it.
+- The answer arrives in one piece after the check (Session 5), so the panel shows
+  "Looking it up" and then "Checking the numbers" while it waits.
+
+**For the owner, to see it on staging**
+
+1. Set `VITE_ASK_COURT=1` in the Pages **Preview** environment (dashboard), as for
+   `VITE_DAILY_THREE`.
+2. Merge the stack into `main` (#27 to the Session 6 PR, in order), then
+   `git push origin main:staging`.

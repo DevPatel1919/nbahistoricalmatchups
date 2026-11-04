@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Suspense, lazy } from "react";
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import type { IndexTeam, OpponentResult, ReleaseInfo } from "../types";
 import { loadIndex, loadTeamFile } from "../lib/dataLoader";
@@ -27,6 +27,9 @@ function entryFor(state: unknown, via: string | null): MatchupEntry {
   if (via === "share") return "shared-plain";
   return "direct";
 }
+
+// Ask the Court (F13) is built only with VITE_ASK_COURT=1 and the Worker (lib/askFlag.ts).
+const AskPanel = import.meta.env.VITE_ASK_COURT === "1" && import.meta.env.VITE_DUEL_API ? lazy(() => import("../components/ask/AskPanel")) : null;
 
 export default function ResultPage() {
   const { matchupSlug = "" } = useParams();
@@ -238,6 +241,11 @@ export default function ResultPage() {
           <WinnerCard teamA={teamA} teamB={teamB} p={result.p} m={result.m} />
           <SeriesOdds teamA={teamA} teamB={teamB} p={result.p} />
           <StatComparison teamA={teamA} teamB={teamB} />
+          {AskPanel && (
+            <Suspense fallback={null}>
+              <AskPanel key={teamA.key + "|" + teamB.key} pair={{ a: teamA.key, b: teamB.key }} />
+            </Suspense>
+          )}
 
           <div className="result-actions">
             <button type="button" className="btn" onClick={handleCopyLink}>

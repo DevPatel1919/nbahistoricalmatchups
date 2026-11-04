@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { IndexData } from "../types";
 import { loadIndex } from "../lib/dataLoader";
 import AnalyticsOptOut from "../components/AnalyticsOptOut";
+import { ASK_COURT } from "../lib/askFlag";
 import { DAILY_THREE } from "../lib/dailyFlag";
 import { DUEL_API } from "../lib/duelApi";
 
@@ -122,6 +123,23 @@ export default function AboutPage() {
           </p>
         </>
       )}
+      {ASK_COURT && (
+        <>
+          <h3>Ask the Court</h3>
+          <p>
+            Ask the Court answers questions with a language model running on Cloudflare. It looks up the site's own data,
+            writes an answer from that, and a check removes any number it can't find in the data, but answers can still be
+            wrong. The suggested questions on a matchup page are built directly from the data, with no model.
+          </p>
+          <p>
+            The question you type goes to the same server and, for evaluation, is kept for up to 30 days, with the sources
+            it used and how long it took. It is not stored with your network address, an account, or any id, so don't put
+            anything personal in it. The rate limit uses a scrambled form of your network address that is deleted within two
+            days. It isn't betting advice, and it won't answer questions about real upcoming games.
+          </p>
+        </>
+      )}
+
       {DAILY_THREE && DUEL_API && (
         <>
           <h3>Daily Three</h3>

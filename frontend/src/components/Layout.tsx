@@ -2,6 +2,7 @@ import { Link, Outlet } from "react-router-dom";
 import ThemeToggle from "./ThemeToggle";
 import { useTheme } from "../hooks/useTheme";
 import { DUEL_API } from "../lib/duelApi";
+import { ASK_COURT } from "../lib/askFlag";
 import { DAILY_THREE } from "../lib/dailyFlag";
 
 export default function Layout() {
@@ -19,6 +20,7 @@ export default function Layout() {
             {DAILY_THREE && <Link to="/daily">Daily Three</Link>}
             <Link to="/tournament">Tournament</Link>
             {DUEL_API && <Link to="/duel">Duel</Link>}
+            {ASK_COURT && <Link to="/ask">Ask</Link>}
             <Link to="/about">About</Link>
             <ThemeToggle theme={theme} onToggle={toggleTheme} />
           </nav>
