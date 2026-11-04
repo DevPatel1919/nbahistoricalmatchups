@@ -1,5 +1,17 @@
 {
  "config": "bm25",
+ "settings": {
+  "keyword": true,
+  "dense_model": null,
+  "query_prefix": "",
+  "use_context": false,
+  "filters": false,
+  "pin": false,
+  "rerank": false,
+  "candidates": 30,
+  "rerank_pool": 20,
+  "pool": 300
+ },
  "split": "dev",
  "date": "2026-10-26",
  "summary": {
@@ -94,6 +106,7 @@
    "linking_acc": 1.0
   }
  },
+ "uncached_latency": {},
  "questions": [
   {
    "id": "stat-002",

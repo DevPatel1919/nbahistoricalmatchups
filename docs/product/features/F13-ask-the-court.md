@@ -1,12 +1,12 @@
 # F13: Ask the Court (grounded question answering over the simulator)
 
-Status: **Session 1 (corpus and model inputs, PR #28) and Session 2 (eval set,
-harness and baselines, branch `f13-s2-eval`) built 2026-10-26. Neither is
-merged.** Session 3 (retrieval) is next. Planned with the owner on 2026-10-26: the system must be
-**free to build and free to run**. It is developed and evaluated **on
-Cloudflare Workers AI, with nothing local** (owner, 2026-10-26; see
-"Cloudflare-only development"), and served from the existing Cloudflare Worker
-within free allocations.
+Status: **Sessions 1–3 built 2026-10-26/27 as stacked PRs: #28 (corpus),
+#29 (eval set and baselines), and Session 3 (retrieval, branch
+`f13-s3-retrieval`). None is merged.** Session 4 (tools, generation,
+grounding) is next. It is developed **on Cloudflare Workers AI, with nothing
+local** (owner, 2026-10-26; see "Cloudflare-only development"), and served from
+the existing Cloudflare Worker within free allocations. The system must be
+**free to build and free to run**.
 
 ### Cloudflare-only development (owner, 2026-10-26)
 
@@ -1048,3 +1048,75 @@ Reruns are free from the cache.
    `src/rag/eval/handwritten.jsonl`. Wording that no one would type gets
    fixed in the generator.
 2. Merge order: #27 (the brief), then #28 (Session 1), then this PR.
+
+### Session 3: retrieval (2026-10-27)
+
+Branch `f13-s3-retrieval`, based on `f13-s2-eval`, PR into it. Not merged,
+nothing deployed. Run in the same conversation as Sessions 1–2.
+
+**What was built**
+
+- `src/rag/retrieve.py` is the pipeline. Every stage can be switched off:
+  1. link (plus the page's matchup);
+  2. query (the page's two team titles appended);
+  3. BM25 and/or exact dense retrieval;
+  4. filters (drop chunks the linked teams, seasons or decade rule out;
+     method chunks are always kept);
+  5. RRF fusion;
+  6. pinning (the linked teams' cards first);
+  7. reranking (`replace`, or `fuse` with RRF).
+
+  It also has `split_team_cards` for the chunking ablation.
+- `src/rag/config.py` holds the shipped configuration. The Worker must match
+  it in Session 5, and a test ties it to the reported run.
+- `scripts/eval_rag.py` now runs every configuration through `Retriever`. The
+  Session 2 baselines reproduce exactly. Each run also records the settings
+  and the median latency of uncached requests.
+- `src/rag/workers_ai.py` records request latency.
+- `tests/test_rag_retrieve.py` adds 9 tests, with a fake embedding and
+  reranker client.
+
+**Results** (full tables in `reports/rag_evaluation.md`)
+
+| | Dev R@5 | Test R@5 | Test MRR |
+|---|---|---|---|
+| BM25 (Session 2) | 0.632 | 0.643 | 0.544 |
+| Dense `bge-small` (Session 2) | 0.782 | 0.789 | 0.683 |
+| Hybrid + context + filters + pinning | 0.914 | **0.948** | **0.942** |
+| **Chosen: + reranker fused by RRF** | **0.929** | **0.948** | 0.917 |
+
+**The chosen configuration:**
+- BM25 plus dense `bge-small-en-v1.5` (CLS pooling, no query prefix);
+- page context, linker filters and pinned team cards;
+- `bge-reranker-base` over the top 20, fused with the retrieval order.
+
+It was chosen on dev, and its test score is the number to quote. What earned
+its place:
+- **Linking**: filters plus pinning take test R@5 from 0.783 to 0.948.
+- **bge-small over bge-base**, and no query instruction: both measured on dev.
+- **One chunk per team-season**: splitting cards lost on dev.
+
+What didn't:
+- **Replacing the order with the reranker's** hurt (test 0.881). It ranks team
+  cards above the leaderboards that ranking questions need.
+- **Fused reranking** won on dev by about 2 questions but **tied on test with
+  a lower MRR**. It costs about 2.3 neurons and about 450 ms a question.
+
+**For Session 4 to decide or fix**
+
+1. **Keep the reranker?** Re-decide on answer quality. If the answers don't
+   improve, drop it for cost and latency. Recommendation: test both in the
+   generator ablation.
+2. **The generic "why" chunk** (`method:model-weights`) is crowded out in
+   about half of the matchup questions. `get_matchup`'s decomposition should
+   make it redundant; check it in the answers.
+3. **Method chunks lose to team cards when a team is named.** Consider
+   reserving one slot for the best method chunk.
+4. **The linker reads "since 1985–86" as a season.** Add a
+   since/before/after rule, with fixtures.
+
+**Cost:** about 1,700 neurons by the client's estimate, about 5,400 for the
+UTC day of 2026-10-27. Nothing else uses Workers AI yet, so these runs set
+`RAG_DEV_NEURON_CAP=8000`. The default stays 6,000.
+
+**Verification (2026-10-27):** see the PR description.

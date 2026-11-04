@@ -109,6 +109,7 @@ class WorkersAI:
         self.session = session or requests.Session()
         self.today = today
         self.sleep = sleep
+        self.latencies = []   # (model, seconds) for every uncached request this run
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(cache_path)
         self.db.execute("CREATE TABLE IF NOT EXISTS cache (key TEXT PRIMARY KEY, model TEXT, response TEXT)")
@@ -158,8 +159,10 @@ class WorkersAI:
         account, token = self.credentials()
         url = API_URL.format(account=account, model=model)
         for attempt in range(1, MAX_ATTEMPTS + 1):
+            started = time.perf_counter()
             response = self.session.post(url, json=payload, timeout=TIMEOUT_SECONDS,
                                          headers={"Authorization": "Bearer " + token})
+            self.latencies.append((model, time.perf_counter() - started))
             if response.status_code == 429 or response.status_code >= 500:
                 if attempt == MAX_ATTEMPTS:
                     break
