@@ -1,0 +1,24 @@
+# Ask the Court (F13) Python dependencies, pinned 2026-10-26 on Python 3.11.9.
+# The base pipeline (pandas, numpy, scikit-learn) is already installed; its
+# versions are pinned here so the corpus rebuild stays byte-identical.
+#
+# PyTorch is NOT listed: it must be the CUDA build for the GPU sessions
+# (2-4), installed from PyTorch's own index before this file:
+#   pip install --force-reinstall torch==2.9.1 --index-url https://download.pytorch.org/whl/cu128
+#   python -c "import torch; print(torch.cuda.is_available())"     # must print True
+#
+# Then:
+#   pip install -r requirements-rag.txt
+#
+# Session 1 (the corpus) needs only the first block. Ollama is a separate
+# Windows install (https://ollama.com), not a pip package.
+
+numpy==2.3.2
+pandas==2.3.2
+scikit-learn==1.7.1
+joblib==1.5.1
+requests==2.32.5
+pytest==8.3.4
+
+# Sessions 2-4: embeddings, the reranker and the tokenizer.
+sentence-transformers==6.2.0
