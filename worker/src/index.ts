@@ -17,6 +17,7 @@
 //   GET  /v1/leaderboard?board=daily|30d public, edge-cached -> LeaderboardView (flagged accounts left off)
 //   POST /v1/daily/:n/result             { clientId, picks, score } -> { ok } (F12 Daily Three; a repeat is ignored)
 //   GET  /v1/daily/:n/stats              public, edge-cached -> DailyCrowdStats (daily.ts)
+//   POST /v1/ask                         { question, context? } or { context, suggested } -> event stream (F13, ask/route.ts)
 //   GET  /v1/dev/outbox?to=              local test doubles only -> last magic-link email
 //   GET  /v1/admin/flags?status=         ADMIN_TOKEN -> the review queue (admin.ts); 404 without the token
 //   POST /v1/admin/flags/:id             ADMIN_TOKEN { decision: "clear" | "uphold", note? } -> the decided flag
@@ -29,6 +30,7 @@
 // which requests read.
 
 import { decideFlag, listFlags, requireAdmin, sweepNow } from "./admin";
+import { askResponse, purgeAskLog } from "./ask/route";
 import { accountView, deleteAccount, requestMagicLink, setDisplayName, signOut, verifyMagicLink } from "./accounts";
 import { clientKey, createGuest, requireAccount, requireParticipant } from "./auth";
 import { crowdStatsResponse, recordResult } from "./daily";
@@ -86,6 +88,8 @@ async function route(request: Request, env: Env, services: Services): Promise<Re
     return json(await recordResult(env, await clientKey(request, env), daily[1], await readJson(request, 1024)));
   }
   if (daily && method === "GET" && daily[2] === "stats") return crowdStatsResponse(env, daily[1]);
+
+  if (method === "POST" && path === "/v1/ask") return askResponse(request, env, await clientKey(request, env), services.ask);
 
   if (path.startsWith("/v1/admin/")) {
     await requireAdmin(request, env, await clientKey(request, env));
@@ -156,6 +160,9 @@ export default {
         // Last, so the boards include every settled result and leave off every new flag.
         await refreshBoards(env, Date.now()).catch((error: unknown) => {
           console.error("duel-api board refresh failed", error instanceof Error ? error.name : typeof error);
+        });
+        await purgeAskLog(env, Date.now()).catch((error: unknown) => {
+          console.error("ask log purge failed", error instanceof Error ? error.name : typeof error);
         });
       })(),
     );

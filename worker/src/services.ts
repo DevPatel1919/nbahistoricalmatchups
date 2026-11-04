@@ -8,6 +8,7 @@
 // that accepts Turnstile's documented dummy token. It is refused unless every
 // allowed origin is localhost, so a stray setting cannot open production.
 
+import type { AskBackends } from "./ask/route";
 import type { Env } from "./env";
 
 export type MailMessage = { to: string; subject: string; text: string };
@@ -21,7 +22,8 @@ export interface HumanCheck {
   verify(token: string, ip: string | null): Promise<boolean>;
 }
 
-export type Services = { mailer: Mailer; humanCheck: HumanCheck };
+/** `ask` swaps Ask the Court's models for doubles in tests; unset, ask/route.ts uses the real bindings. */
+export type Services = { mailer: Mailer; humanCheck: HumanCheck; ask?: AskBackends };
 
 /** Thrown when auth services are not configured; the router maps it to a fixed 503. */
 export class ServiceUnavailable extends Error {}

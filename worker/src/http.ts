@@ -29,6 +29,9 @@ export const ERRORS = {
   pool_unavailable: [503, "Duel puzzles are not available right now."],
   ranked_exhausted: [503, "No ranked games you haven't seen are available right now."],
   auth_unavailable: [503, "Sign-in is unavailable right now."],
+  ask_unavailable: [503, "Ask the Court isn't available right now."],
+  ask_disabled: [503, "Ask the Court is taking a break."],
+  ask_budget: [503, "Ask the Court is resting until tomorrow."],
   internal: [500, "Something went wrong."],
 } as const satisfies Record<string, readonly [number, string]>;
 

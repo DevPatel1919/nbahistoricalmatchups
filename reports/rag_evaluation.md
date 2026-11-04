@@ -390,3 +390,47 @@ Session 4's neurons, by Workers AI's own counts:
 In total, Session 4 used about 35,400 neurons over 7 days. Each day stayed under the 10,000 free allowance. 2026-10-28 went 6 neurons
 over the 8,000 dev cap, because the budget check estimates a call before it
 is charged. Repeated calls come from the response cache and cost nothing.
+
+## Production parity (Session 5, 2026-11-03)
+
+The 98 test questions, sent over HTTP to the deployed staging Worker
+(`scripts/eval_rag.py --worker`), against the Python reference with the same
+generator. This is a separate reported row, scored once.
+
+| | Context recall@5 | Numbers right | Right team | First pass | Grounded | Refusals | False refusals | Neurons |
+|---|---|---|---|---|---|---|---|---|
+| Python reference (Gemma 4) | 0.948 | 0.771 | 0.702 | 0.990 | 1.000 | 1.000 | 0.045 | 28.6 |
+| **Staging Worker** | **0.948** | **0.771** | **0.723** | **1.000** | **1.000** | **1.000** | **0.045** | **29.2** |
+
+The Worker holds up on every metric. The small differences are what a repeat
+of a model on slightly different context looks like: 54 of the 98 answers are
+word for word the same, and 59 questions got the same 5 chunks (88% overlap on
+average).
+
+- **Why the chunks differ.** Python searches every vector exactly and filters
+  from the top 300. Vectorize is approximate and returns at most 100 ids, so the
+  Worker filters from fewer. The metrics say it doesn't matter here.
+- **What's the same by construction.** Tool facts match on 97 of 98 questions.
+  The other is "Should I bet on the '96 Bulls?", which the Worker's deterministic
+  betting check refuses before any model call. The port's parity tests also pin
+  the linker and FTS5 queries on all 245 questions, the grounding verdict on 192
+  real answers, and the tools on 36 matchups (`worker/test/ask-parity.test.ts`).
+- **Latency.** The whole request from a home connection, including retrieval and
+  a stream through the Worker: **p50 3.8 s, p95 7.2 s**. The Session 4 latencies
+  are the model call only (p50 1.7 s, p95 5.9 s), so they don't compare directly.
+- **Cost.** 29.2 neurons an answer by the Worker's own count (its budget table
+  shows 2,904 for the run). The 8,000-neuron daily budget therefore allows about
+  270 free-text answers a day.
+
+### Design changes the Worker needed
+
+- **Its own D1 database.** D1 can't export a database with FTS5 virtual tables,
+  and every duel-database migration starts with an export (`DEPLOYMENT.md`). So
+  the chunks, budget and log live in `court-ask`, which can be rebuilt from the
+  repo. The corpus loads from KV once per isolate.
+- **Vectorize stays free.** Billing is (queries + stored vectors) x dimensions a
+  month, so about 8,000 answers on 1,305 vectors of 384 dimensions is about 3.6
+  million of the 50 million included (checked 2026-11-03).
+- **Answers aren't streamed from the model.** The grounding check needs the
+  whole answer, and showing text that might be removed defeats it, so the Worker
+  sends sources first and the checked answer after.

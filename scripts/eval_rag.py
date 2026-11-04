@@ -34,6 +34,8 @@ Run from repo root:
     python scripts/eval_rag.py --config answer-llama8b --split dev --judge
     python scripts/eval_rag.py --write-labels answer-llama8b      # the owner's 50 answers to label (Q5)
     python scripts/eval_rag.py --agreement                        # judge vs owner: agreement and kappa
+    python scripts/eval_rag.py --worker https://api-staging.courtofalltime.win --name worker-staging --split test --score-test
+                                                                  # the deployed Worker, over HTTP (parity with the reference)
 """
 
 import argparse
@@ -42,6 +44,10 @@ import sys
 from dataclasses import asdict, replace
 from datetime import date
 from pathlib import Path
+from time import perf_counter, sleep
+from types import SimpleNamespace
+
+import requests
 
 _REPO_ROOT_FOR_IMPORTS = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT_FOR_IMPORTS) not in sys.path:
@@ -299,6 +305,80 @@ def run_answers(config: str, split: str, judge: bool, judge_all: bool) -> dict:
             "summary": summarize_answers(rows), "by_category": by_category, "questions": rows}
 
 
+# ---------------------------------------------------------------------------
+# The deployed Worker (Session 5)
+# ---------------------------------------------------------------------------
+
+WORKER_ATTEMPTS = 4
+
+
+def parse_events(text: str) -> dict:
+    """{event name: data} from a /v1/ask event stream."""
+    out = {}
+    for block in text.split("\n\n"):
+        lines = block.strip().split("\n")
+        if len(lines) == 2 and lines[0].startswith("event: ") and lines[1].startswith("data: "):
+            out[lines[0][len("event: "):]] = json.loads(lines[1][len("data: "):])
+    return out
+
+
+def ask_worker(url: str, q: dict):
+    """One question over HTTP, as an Answer-shaped object. Raises BudgetExceeded when the Worker's budget is spent."""
+    body = {"question": q["question"]}
+    if q["context"]:
+        body["context"] = q["context"]
+    for attempt in range(1, WORKER_ATTEMPTS + 1):
+        started = perf_counter()
+        try:
+            response = requests.post(url.rstrip("/") + "/v1/ask", json=body, timeout=120)
+        except requests.RequestException:
+            sleep(5 * attempt)
+            continue
+        if response.status_code == 429:
+            sleep(min(int(response.headers.get("retry-after", "10")), 70))
+            continue
+        if response.status_code == 503 and "ask_budget" in response.text:
+            raise workers_ai.BudgetExceeded("The Worker's daily budget is spent; rerun after 00:00 UTC.")
+        if response.status_code != 200:
+            raise RuntimeError(q["id"] + ": HTTP " + str(response.status_code) + " " + response.text[:200])
+        events = parse_events(response.content.decode("utf-8"))
+        if "done" not in events:
+            sleep(5 * attempt)
+            continue
+        meta, done = events["meta"], events["done"]
+        facts = [s["text"] for s in meta["sources"] if s["kind"] == "fact"]
+        chunk_ids = [s["id"] for s in meta["sources"] if s["kind"] != "fact"]
+        keys = list(meta["linked"])
+        if q["context"]:
+            keys = [q["context"]["a"], q["context"]["b"]] + [k for k in keys if k not in q["context"].values()]
+        covered = keys[:4]
+        return SimpleNamespace(
+            text=events["token"]["text"], first_text="", first_pass=done.get("firstPass", True), grounded=done["grounded"],
+            regenerated=done.get("regenerated", False), removed=done["removed"], problems=[], facts=facts, covered=covered,
+            chunk_ids=chunk_ids, retrieved=["team:" + k for k in covered] + chunk_ids, neurons=done["neurons"],
+            latency_ms=round(1000 * (perf_counter() - started)), calls=[])
+    raise RuntimeError(q["id"] + ": no complete answer after " + str(WORKER_ATTEMPTS) + " attempts")
+
+
+def run_worker(url: str, name: str, split: str) -> dict:
+    """The eval questions against a deployed Worker. Latency is the whole request, from this machine."""
+    questions = load_questions(split)
+    linker = Linker.from_index()
+    rows, partial = [], None
+    for q in questions:
+        try:
+            rows.append(answer_row(q, ask_worker(url, q), linker))
+        except workers_ai.BudgetExceeded as e:
+            partial = str(e)
+            break
+    by_category = {}
+    for category in sorted({r["category"] for r in rows}):
+        by_category[category] = summarize_answers([r for r in rows if r["category"] == category])
+    return {"config": name, "settings": {"worker": url}, "split": split, "date": date.today().isoformat(),
+            "partial": partial, "judged": [], "summary": summarize_answers(rows), "by_category": by_category,
+            "questions": rows}
+
+
 def write_labels(config: str) -> None:
     """The owner's label sheet (Q5): the judge set's answers from a dev run, without the judge's verdicts."""
     path = RUNS_DIR / (config + "-dev.json")
@@ -392,6 +472,8 @@ def main():
     parser.add_argument("--judge-all", action="store_true", help="answer configs: judge every question")
     parser.add_argument("--write-labels", metavar="CONFIG", help="write the owner's label sheet from a dev answer run")
     parser.add_argument("--agreement", action="store_true", help="the judge against the owner's labels (Q5)")
+    parser.add_argument("--worker", metavar="URL", help="score a deployed Worker over HTTP instead of a configuration")
+    parser.add_argument("--name", default="worker", help="with --worker: the run's name in reports/rag_runs/")
     args = parser.parse_args()
 
     if args.write_labels:
@@ -402,10 +484,17 @@ def main():
         print(json.dumps(result, indent=1))
         print("Saved agreement to " + str(save(result, "judge-agreement")))
         return
-    if not args.config:
-        parser.error("--config is required")
+    if not args.config and not args.worker:
+        parser.error("--config or --worker is required")
     if args.split == "test" and not args.score_test:
         parser.error("the test split is scored once per reported configuration; add --score-test to confirm")
+
+    if args.worker:
+        result = run_worker(args.worker, args.name, args.split)
+        out = save(result, args.name + "-" + args.split)
+        print_answers(result)
+        print("Saved run to " + str(out))
+        return
 
     if args.config in ANSWER_CONFIGS:
         result = run_answers(args.config, args.split, args.judge or args.judge_all, args.judge_all)
